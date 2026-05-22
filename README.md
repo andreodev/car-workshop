@@ -18,6 +18,48 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Docker (App + Postgres)
+
+Start the app and a local Postgres database with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+The app runs on http://localhost:3000 and Postgres is exposed on port 5432.
+
+Connection string used by the app container:
+
+```
+postgres://postgres:postgres@db:5432/car_workshop
+```
+
+To stop and remove containers:
+
+```bash
+docker compose down
+```
+
+## Prisma + Auth
+
+Create your local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Run Prisma migrations and generate the client:
+
+```bash
+pnpm prisma migrate dev --name init
+pnpm prisma generate
+```
+
+Auth routes:
+
+- Sign up: http://localhost:3000/signup
+- Sign in: http://localhost:3000/login
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

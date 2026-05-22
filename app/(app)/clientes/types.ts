@@ -1,0 +1,77 @@
+export type ClientPersonType = "FISICA" | "JURIDICA";
+export type ClientStatus = "ATIVO" | "INATIVO";
+export type ClientIcms = "ISENTO" | "CONTRIBUINTE" | "NAO_CONTRIBUINTE";
+
+export type Client = {
+  id: string;
+  personType: ClientPersonType;
+  status: ClientStatus;
+  icms: ClientIcms;
+  name: string;
+  cpf: string | null;
+  rg: string | null;
+  birthDate: string | null;
+  notesBasic: string | null;
+  email: string | null;
+  phoneResidential: string | null;
+  phoneCommercial: string | null;
+  mobile: string | null;
+  phone1: string | null;
+  phone2: string | null;
+  phone3: string | null;
+  phone4: string | null;
+  website: string | null;
+  social: string | null;
+  otherContact: string | null;
+  notesContacts: string | null;
+  cep: string | null;
+  address: string | null;
+  number: string | null;
+  complement: string | null;
+  state: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  ibgeCode: string | null;
+  notesAddress: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ClientListResponse = {
+  items: Client[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type ClientFormValues = {
+  personType: ClientPersonType;
+  status: ClientStatus;
+  icms: ClientIcms;
+  name: string;
+  cpf: string;
+  rg: string;
+  birthDate: string;
+  notesBasic: string;
+  email: string;
+  phoneResidential: string;
+  phoneCommercial: string;
+  mobile: string;
+  phone1: string;
+  phone2: string;
+  phone3: string;
+  phone4: string;
+  website: string;
+  social: string;
+  otherContact: string;
+  notesContacts: string;
+  cep: string;
+  address: string;
+  number: string;
+  complement: string;
+  state: string;
+  city: string;
+  neighborhood: string;
+  ibgeCode: string;
+  notesAddress: string;
+};

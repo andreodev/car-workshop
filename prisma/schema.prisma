@@ -1,0 +1,414 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum ClientPersonType {
+  FISICA
+  JURIDICA
+}
+
+enum ClientStatus {
+  ATIVO
+  INATIVO
+}
+
+enum ClientIcms {
+  ISENTO
+  CONTRIBUINTE
+  NAO_CONTRIBUINTE
+}
+
+enum VehicleStatus {
+  ATIVO
+  INATIVO
+}
+
+enum VehicleFuel {
+  GASOLINA
+  ETANOL
+  DIESEL
+  FLEX
+  GNV
+  ELETRICO
+  HIBRIDO
+}
+
+enum ServiceOrderStatus {
+  ABERTA
+  EM_ANDAMENTO
+  AGUARDANDO_PECAS
+  IMPEDIDA
+  FINALIZADA
+  CANCELADA
+}
+
+enum EstimateStatus {
+  RASCUNHO
+  ENVIADO
+  APROVADO
+  REJEITADO
+  CONVERTIDO
+  CANCELADO
+}
+
+enum CatalogItemType {
+  PRODUTO
+  SERVICO
+}
+
+enum SaleStatus {
+  CONCLUIDA
+  CANCELADA
+}
+
+enum SalePaymentMethod {
+  DINHEIRO
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  BOLETO
+  OUTRO
+}
+
+enum FinancialAccountType {
+  RECEBER
+  PAGAR
+}
+
+enum FinancialAccountStatus {
+  ABERTA
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+model Client {
+  id              String          @id @default(cuid())
+  personType      ClientPersonType @default(FISICA)
+  status          ClientStatus     @default(ATIVO)
+  icms            ClientIcms       @default(ISENTO)
+  name            String
+  cpf             String?
+  rg              String?
+  birthDate       DateTime?
+  notesBasic      String?          @db.Text
+
+  email           String?
+  phoneResidential String?
+  phoneCommercial String?
+  mobile          String?
+  phone1          String?
+  phone2          String?
+  phone3          String?
+  phone4          String?
+  website         String?
+  social          String?
+  otherContact    String?
+  notesContacts   String?          @db.Text
+
+  cep             String?
+  address         String?
+  number          String?
+  complement      String?
+  state           String?
+  city            String?
+  neighborhood    String?
+  ibgeCode        String?
+  notesAddress    String?          @db.Text
+
+  vehicles        Vehicle[]
+  serviceOrders   ServiceOrder[]
+  estimates       Estimate[]
+  sales           Sale[]
+  financialAccounts FinancialAccount[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([name])
+  @@index([cpf])
+  @@index([email])
+}
+
+model Vehicle {
+  id              String        @id @default(cuid())
+  code            Int           @unique @default(autoincrement())
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  plate           String
+  brand           String?
+  model           String?
+  version         String?
+  fleet           String?
+  fuel            VehicleFuel?
+  color           String?
+  chassis         String?
+  renavam         String?
+  engine          String?
+  city            String?
+  status          VehicleStatus @default(ATIVO)
+  manufactureYear Int?
+  modelYear       Int?
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  serviceOrders   ServiceOrder[]
+  estimates       Estimate[]
+
+  @@index([plate])
+  @@index([brand])
+  @@index([model])
+  @@index([clientId])
+  @@index([status])
+  @@index([code])
+}
+
+model ServiceOrder {
+  id             String             @id @default(cuid())
+  code           Int                @unique @default(autoincrement())
+  status         ServiceOrderStatus @default(ABERTA)
+  clientId       String
+  client         Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vehicleId      String
+  vehicle        Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  responsible    String
+  location       String?
+  km             Int?
+  entryAt        DateTime
+  estimatedAt    DateTime?
+  notesInternal  String?            @db.Text
+  notesClient    String?            @db.Text
+  subtotal       Decimal            @db.Decimal(10, 2)
+  discountTotal  Decimal            @default(0) @db.Decimal(10, 2)
+  total          Decimal            @db.Decimal(10, 2)
+  items          ServiceOrderItem[]
+  estimateConversion Estimate?       @relation("EstimateConversion")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([code])
+  @@index([clientId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([entryAt])
+}
+
+model ServiceOrderItem {
+  id             String       @id @default(cuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Int
+  unitPrice      Decimal      @db.Decimal(10, 2)
+  discount       Decimal      @default(0) @db.Decimal(10, 2)
+  total          Decimal      @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([serviceOrderId])
+}
+
+model Estimate {
+  id                      String         @id @default(cuid())
+  code                    Int            @unique @default(autoincrement())
+  status                  EstimateStatus @default(RASCUNHO)
+  type                    String         @default("SIMPLES")
+  clientId                String
+  client                  Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vehicleId               String
+  vehicle                 Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  responsible             String
+  validUntil              DateTime?
+  notesInternal           String?        @db.Text
+  notesClient             String?        @db.Text
+  subtotal                Decimal        @db.Decimal(10, 2)
+  discountTotal           Decimal        @default(0) @db.Decimal(10, 2)
+  total                   Decimal        @db.Decimal(10, 2)
+  convertedServiceOrderId String?        @unique
+  convertedServiceOrder   ServiceOrder?  @relation("EstimateConversion", fields: [convertedServiceOrderId], references: [id], onDelete: SetNull)
+  items                   EstimateItem[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@index([code])
+  @@index([clientId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([validUntil])
+}
+
+model EstimateItem {
+  id          String   @id @default(cuid())
+  estimateId  String
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  discount    Decimal  @default(0) @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([estimateId])
+}
+
+model CatalogItem {
+  id          String          @id @default(cuid())
+  code        Int             @unique @default(autoincrement())
+  type        CatalogItemType @default(PRODUTO)
+  name        String
+  sku         String?
+  unitPrice   Decimal         @db.Decimal(10, 2)
+  active      Boolean         @default(true)
+  notes       String?         @db.Text
+  saleItems   SaleItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([code])
+  @@index([name])
+  @@index([sku])
+  @@index([active])
+  @@index([type])
+}
+
+model Sector {
+  id        String   @id @default(cuid())
+  code      Int      @unique @default(autoincrement())
+  name      String   @unique
+  active    Boolean  @default(true)
+  notes     String?  @db.Text
+  sales     Sale[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([name])
+  @@index([active])
+}
+
+model Sale {
+  id            String            @id @default(cuid())
+  code          Int               @unique @default(autoincrement())
+  status        SaleStatus        @default(CONCLUIDA)
+  clientId      String?
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  sectorId      String?
+  sector        Sector?           @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  responsible   String
+  sectorName    String?           @map("sector")
+  paymentMethod SalePaymentMethod @default(DINHEIRO)
+  notes         String?           @db.Text
+  subtotal      Decimal           @db.Decimal(10, 2)
+  discountTotal Decimal           @default(0) @db.Decimal(10, 2)
+  total         Decimal           @db.Decimal(10, 2)
+  items         SaleItem[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([code])
+  @@index([clientId])
+  @@index([sectorId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([responsible])
+}
+
+model SaleItem {
+  id            String       @id @default(cuid())
+  saleId        String
+  sale          Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  catalogItemId String?
+  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  description   String
+  quantity      Decimal      @db.Decimal(10, 3)
+  unitPrice     Decimal      @db.Decimal(10, 2)
+  discount      Decimal      @default(0) @db.Decimal(10, 2)
+  total         Decimal      @db.Decimal(10, 2)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([saleId])
+  @@index([catalogItemId])
+}
+
+model FinancialAccount {
+  id          String                 @id @default(cuid())
+  code        Int                    @unique @default(autoincrement())
+  type        FinancialAccountType
+  status      FinancialAccountStatus @default(ABERTA)
+  description String
+  clientId    String?
+  client      Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  counterparty String?
+  category    String?
+  documentNumber String?
+  dueDate     DateTime
+  paymentDate DateTime?
+  amount      Decimal                @db.Decimal(10, 2)
+  paidAmount  Decimal?               @db.Decimal(10, 2)
+  paymentMethod SalePaymentMethod?
+  notes       String?                @db.Text
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([code])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@index([clientId])
+  @@index([description])
+}
