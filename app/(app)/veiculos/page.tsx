@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import Header from "@/components/ui/header";
 
 const PAGE_SIZE = 10;
 
@@ -68,10 +69,7 @@ export default function VehiclesPage() {
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <CardTitle>Veiculos</CardTitle>
-          <CardDescription>Gerencie sua frota cadastrada.</CardDescription>
-        </div>
+        <Header title="Veículos" description="Gerencie os veículos cadastrados na oficina." />
         <Button asChild>
           <Link href="/veiculos/novo">Cadastrar veiculo</Link>
         </Button>
