@@ -70,14 +70,13 @@ export async function fetchCatalogItems(params: {
   return parseResponse<CatalogItemListResponse>(response);
 }
 
-export async function createCatalogItem(payload: {
-  name: string;
-  type: CatalogItemType;
-  unitPrice: number;
-  sku?: string | null;
-  active?: boolean;
-  notes?: string | null;
-}) {
+export async function createCatalogItem(
+  payload: Partial<Omit<CatalogItemFormValues, "name" | "type" | "unitPrice">> & {
+    name: string;
+    type: CatalogItemType;
+    unitPrice: string | number;
+  }
+) {
   const response = await fetch("/api/catalog-items", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

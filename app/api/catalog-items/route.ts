@@ -3,6 +3,12 @@ import { Prisma, type CatalogItemType } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
+import {
+  buildCatalogItemData,
+  normalizeMoney,
+  normalizeString,
+  normalizeType,
+} from "./catalog-item-payload";
 
 export const dynamic = "force-dynamic";
 
@@ -15,40 +21,6 @@ type CatalogItemTypeValue = (typeof catalogItemTypes)[number];
 function coerceNumber(value: string | null, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function normalizeString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeMoney(value: unknown) {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? Number(value.replace(",", "."))
-        : Number.NaN;
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return null;
-  }
-
-  return Math.round(parsed * 100) / 100;
-}
-
-function normalizeType(value: unknown) {
-  const normalized = normalizeString(value) ?? "PRODUTO";
-
-  if (!catalogItemTypes.includes(normalized as CatalogItemTypeValue)) {
-    return null;
-  }
-
-  return normalized as CatalogItemType;
 }
 
 export async function GET(request: NextRequest) {
@@ -83,6 +55,9 @@ export async function GET(request: NextRequest) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { sku: { contains: search, mode: "insensitive" } },
+      { barcode: { contains: search, mode: "insensitive" } },
+      { originalCode: { contains: search, mode: "insensitive" } },
+      { manufacturerCode: { contains: search, mode: "insensitive" } },
       ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
     ];
   }
@@ -125,14 +100,7 @@ export async function POST(request: NextRequest) {
   }
 
   const item = await prisma.catalogItem.create({
-    data: {
-      type,
-      name,
-      sku: normalizeString(payload.sku),
-      unitPrice,
-      active: payload.active === false ? false : true,
-      notes: normalizeString(payload.notes),
-    },
+    data: buildCatalogItemData({ ...payload, type, name, unitPrice }),
   });
 
   return Response.json(item, { status: 201 });

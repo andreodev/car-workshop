@@ -84,8 +84,26 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
       include: {
         items: true,
         client: { select: { id: true, name: true } },
-        vehicle: { select: { id: true, plate: true, model: true } },
-        convertedServiceOrder: { select: { id: true, code: true } },
+        vehicle: {
+          select: {
+            id: true,
+            plate: true,
+            brand: true,
+            model: true,
+            version: true,
+            color: true,
+            manufactureYear: true,
+            modelYear: true,
+          },
+        },
+        convertedServiceOrder: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            mechanic: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 

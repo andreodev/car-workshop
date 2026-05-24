@@ -182,6 +182,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });
@@ -204,6 +205,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const payload = (await request.json()) as Record<string, unknown>;
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
+  const mechanicId = normalizeString(payload.mechanicId);
   const responsible =
     normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
 
@@ -213,6 +215,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   if (!vehicleId) {
     return Response.json({ error: "Veículo é obrigatório." }, { status: 400 });
+  }
+
+  if (!mechanicId) {
+    return Response.json({ error: "Mecânico é obrigatório." }, { status: 400 });
   }
 
   if (!responsible) {
@@ -269,11 +275,25 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
   }
 
+  const mechanic = await prisma.mechanic.findUnique({
+    where: { id: mechanicId },
+    select: { id: true, active: true },
+  });
+
+  if (!mechanic) {
+    return Response.json({ error: "Mecânico não encontrado." }, { status: 400 });
+  }
+
+  if (!mechanic.active) {
+    return Response.json({ error: "Mecânico inativo." }, { status: 400 });
+  }
+
   const order = await prisma.serviceOrder.update({
     where: { id },
     data: {
       client: { connect: { id: clientId } },
       vehicle: { connect: { id: vehicleId } },
+      mechanic: { connect: { id: mechanicId } },
       responsible,
       status: status.value,
       location,
@@ -294,6 +314,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });
@@ -323,6 +344,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });

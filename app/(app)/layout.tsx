@@ -19,7 +19,7 @@ export default async function AppLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="mx-auto w-full max-w-[1520px] px-4 py-6 xl:px-6">
+      <main className="mx-auto w-full max-w-[1520px] px-4 pb-6 pt-16 md:py-6 xl:px-6">
         {children}
         <PdvLauncher
           defaultResponsible={session.user?.name ?? session.user?.email ?? "Operador"}

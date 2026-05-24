@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 import { fetchClients } from "../../clientes/client-api";
+import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
@@ -51,6 +52,7 @@ function createEmptyItem(): ServiceOrderItemFormValues {
 const emptyForm: ServiceOrderFormValues = {
   clientId: "",
   vehicleId: "",
+  mechanicId: "",
   responsible: "",
   location: "",
   km: "",
@@ -96,6 +98,7 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
   return {
     clientId: order.clientId,
     vehicleId: order.vehicleId,
+    mechanicId: order.mechanicId ?? "",
     responsible: order.responsible ?? "",
     location: order.location ?? "",
     km: order.km ? String(order.km) : "",
@@ -169,6 +172,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const vehiclesQuery = useQuery({
     queryKey: ["service-order-vehicles"],
     queryFn: () => fetchVehicles({ page: 1, pageSize: 50 }),
+    staleTime: 60_000,
+  });
+
+  const mechanicsQuery = useQuery({
+    queryKey: ["service-order-mechanics"],
+    queryFn: () => fetchMechanics({ page: 1, pageSize: 50 }),
     staleTime: 60_000,
   });
 
@@ -260,6 +269,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return;
     }
 
+    if (!form.mechanicId) {
+      setLocalError("Selecione o mecânico.");
+      setActiveTab("cabecalho");
+      return;
+    }
+
     if (!responsibleValue.trim()) {
       setLocalError("Responsável é obrigatório.");
       setActiveTab("cabecalho");
@@ -287,6 +302,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     const payload: ServiceOrderPayload = {
       clientId: form.clientId,
       vehicleId: form.vehicleId,
+      mechanicId: form.mechanicId,
       responsible: responsibleValue.trim(),
       location: form.location.trim() || null,
       km: form.km ? Math.trunc(normalizeAmount(form.km)) : null,
@@ -446,6 +462,41 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           ) : null}
                         </div>
 
+                        <div className="grid gap-2">
+                          <Label>Mecânico</Label>
+                          <Select
+                            value={form.mechanicId}
+                            onValueChange={(value) => {
+                              setForm((prev) => ({ ...prev, mechanicId: value }));
+                              setLocalError(null);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  mechanicsQuery.isLoading
+                                    ? "Carregando mecânicos..."
+                                    : "Selecione"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+                                <SelectItem key={mechanic.id} value={mechanic.id}>
+                                  {mechanic.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {mechanicsQuery.isError ? (
+                            <p className="text-xs text-destructive">
+                              Não foi possível carregar mecânicos.
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-3">
                         <div className="grid gap-2">
                           <Label>Responsável</Label>
                           <Input value={responsibleValue} onChange={onChange("responsible")} />

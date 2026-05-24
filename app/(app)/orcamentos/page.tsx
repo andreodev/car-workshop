@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fraunces, Sora } from "next/font/google";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ArrowDown01Icon,
-  File02Icon,
-  Invoice01Icon,
-  Tick02Icon,
-} from "@hugeicons/core-free-icons";
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Pencil,
+  Plus,
+  Search,
+} from "lucide-react";
 
 import { convertEstimate, fetchEstimates } from "./estimate-api";
 import { estimateStatusOptions, getEstimateStatusOption } from "./status";
@@ -33,9 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
+import Header from "@/components/ui/header";
 
 const PAGE_SIZE = 10;
 
@@ -69,7 +68,6 @@ export default function EstimatesPage() {
   const [status, setStatus] = useState<StatusFilter>("TODOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["estimates", { page, status, search }],
@@ -106,155 +104,143 @@ export default function EstimatesPage() {
   }
 
   return (
-    <div className={`${bodyFont.className} border bg-white p-6 shadow-sm`}>
-      <div className="space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Frente de atendimento
-            </p>
-            <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              OrÃ§amentos
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Busque propostas, aprove valores e converta em ordem de serviÃ§o.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/orcamentos/novo">Incluir orÃ§amento</Link>
-          </Button>
-        </header>
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <Header
+          title="Orçamentos"
+          description="Busque propostas, aprove valores e converta em ordem de serviço."
+        />
 
-        <form
-          onSubmit={handleSearch}
-          className="flex flex-col gap-3 border bg-white p-4 shadow-sm md:flex-row md:items-center"
-        >
-          <div className="flex-1">
-            <Input
-              placeholder="Buscar por cliente, veÃ­culo, responsÃ¡vel ou numero"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
-          </div>
-          <div className="w-full md:w-56">
-            <Select value={status} onValueChange={handleStatusChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TODOS">Todos os status</SelectItem>
-                {estimateStatusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="submit" variant="secondary">
-            Buscar
-          </Button>
-        </form>
+        <Button asChild className="shrink-0 gap-2 font-medium">
+          <Link href="/orcamentos/novo">
+            <Plus className="size-3.5" />
+            Cadastrar orçamento
+          </Link>
+        </Button>
+      </div>
 
-        {isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Carregando orÃ§amentos...
-          </div>
-        ) : null}
+      <form
+        onSubmit={handleSearch}
+        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
+      >
+        <div className="flex-1">
+          <Input
+            placeholder="Buscar por cliente, veículo, responsável ou número..."
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            className="h-9 text-sm"
+          />
+        </div>
 
-        {isError ? (
-          <div className="py-8 text-center text-sm text-destructive">
-            {error instanceof Error ? error.message : "Erro ao carregar orÃ§amentos."}
-          </div>
-        ) : null}
+        <div className="w-full sm:w-56">
+          <Select value={status} onValueChange={handleStatusChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos os status</SelectItem>
+              {estimateStatusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {data && data.items.length === 0 && !isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum orÃ§amento encontrado.
-          </div>
-        ) : null}
+        <Button type="submit" variant="secondary" size="sm" className="h-9 gap-2 px-5 font-medium">
+          <Search className="size-3.5" />
+          Buscar
+        </Button>
+      </form>
 
-        {data && data.items.length > 0 ? (
-          <div className="overflow-x-auto border bg-white shadow-sm">
-            <Table className="min-w-[1100px]">
+      <div className="flex min-h-[560px] flex-col gap-4">
+        {isLoading && (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Carregando orçamentos...
+          </div>
+        )}
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {error instanceof Error ? error.message : "Erro ao carregar orçamentos."}
+          </div>
+        )}
+
+        {data && data.items.length === 0 && !isLoading && (
+          <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+            <FileText className="size-8 opacity-40" strokeWidth={1.5} />
+            Nenhum orçamento encontrado para os filtros aplicados.
+          </div>
+        )}
+
+        {data && data.items.length > 0 && (
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <Table className="min-w-[1120px]">
               <TableHeader>
-                <TableRow className="h-12 border-b-2 bg-white text-[15px]">
-                  <TableHead className="w-36">Opcoes</TableHead>
-                  <TableHead className="w-24">No</TableHead>
-                  <TableHead className="w-28">Tipo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>VeÃ­culo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total serviÃ§os</TableHead>
-                  <TableHead className="text-right">Desconto</TableHead>
-                  <TableHead className="text-right">Total da nota</TableHead>
-                  <TableHead className="w-28">Validade</TableHead>
-                  <TableHead className="w-20 text-center">OS</TableHead>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Número
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Tipo
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Cliente
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Veículo
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Serviços
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Desconto
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Total
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Validade
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Ações
+                  </TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {data.items.map((estimate) => {
                   const statusOption = getEstimateStatusOption(estimate.status);
-                  const isOpen = openMenuId === estimate.id;
                   const canConvert =
                     !estimate.convertedServiceOrderId &&
                     estimate.status === "APROVADO";
                   const isConverting =
                     convertMutation.isPending && convertMutation.variables === estimate.id;
+
                   return (
-                    <TableRow key={estimate.id} className="h-[68px] bg-neutral-50 text-sm">
-                      <TableCell className="relative align-middle">
-                        <Button
-                          type="button"
-                          className="h-9 bg-blue-600 px-3 text-sm text-white hover:bg-blue-700"
-                          onClick={() => setOpenMenuId(isOpen ? null : estimate.id)}
-                        >
-                          Opcoes
-                          <HugeiconsIcon
-                            icon={ArrowDown01Icon}
-                            strokeWidth={2.4}
-                            className="size-3.5"
-                          />
-                        </Button>
-                        {isOpen ? (
-                          <div className="absolute left-4 top-12 z-20 w-56 overflow-hidden rounded-md border bg-white text-sm shadow-lg">
-                            <Link
-                              href={`/orcamentos/${estimate.id}/detalhes`}
-                              className="flex items-center gap-2 px-4 py-3 text-neutral-600 hover:bg-neutral-50"
-                              onClick={() => setOpenMenuId(null)}
-                            >
-                              <HugeiconsIcon icon={File02Icon} strokeWidth={2} className="size-4" />
-                              Visualizar orÃ§amento
-                            </Link>
-                            <Link
-                              href={`/orcamentos/${estimate.id}`}
-                              className="flex items-center gap-2 px-4 py-3 text-neutral-600 hover:bg-neutral-50"
-                              onClick={() => setOpenMenuId(null)}
-                            >
-                              <HugeiconsIcon
-                                icon={Invoice01Icon}
-                                strokeWidth={2}
-                                className="size-4"
-                              />
-                              Editar orÃ§amento
-                            </Link>
-                          </div>
-                        ) : null}
+                    <TableRow
+                      key={estimate.id}
+                      className="group transition-colors hover:bg-accent/40"
+                    >
+                      <TableCell className="font-mono text-sm font-medium text-foreground">
+                        #{estimate.code}
                       </TableCell>
-                      <TableCell className="align-middle font-medium">
-                        {estimate.code}
-                      </TableCell>
-                      <TableCell className="align-middle">{estimate.type}</TableCell>
-                      <TableCell className="max-w-64 align-middle">
+                      <TableCell className="text-muted-foreground">{estimate.type}</TableCell>
+                      <TableCell className="max-w-64">
                         <Link
                           href={estimate.client?.id ? `/clientes/${estimate.client.id}` : "#"}
-                          className="block truncate text-blue-500 hover:text-blue-700"
+                          className="block truncate font-medium text-foreground hover:text-primary"
                           title={estimate.client?.name ?? undefined}
                         >
                           {estimate.client?.name ?? "-"}
                         </Link>
                       </TableCell>
-                      <TableCell className="max-w-52 align-middle">
+                      <TableCell className="max-w-56 text-muted-foreground">
                         <span
                           className="block truncate"
                           title={estimate.vehicle?.model ?? undefined}
@@ -263,48 +249,74 @@ export default function EstimatesPage() {
                           {estimate.vehicle?.model ? ` - ${estimate.vehicle.model}` : ""}
                         </span>
                       </TableCell>
-                      <TableCell className="align-middle">
+                      <TableCell>
                         <Badge variant={statusOption.variant} className={statusOption.className}>
                           {statusOption.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="align-middle text-right">
+                      <TableCell className="text-right font-mono text-sm text-muted-foreground">
                         {formatCurrency(estimate.subtotal)}
                       </TableCell>
-                      <TableCell className="align-middle text-right">
+                      <TableCell className="text-right font-mono text-sm text-muted-foreground">
                         {formatCurrency(estimate.discountTotal)}
                       </TableCell>
-                      <TableCell className="align-middle text-right font-semibold">
+                      <TableCell className="text-right font-mono text-sm font-semibold text-foreground">
                         {formatCurrency(estimate.total)}
                       </TableCell>
-                      <TableCell className="align-middle">
+                      <TableCell className="font-mono text-sm text-muted-foreground">
                         {formatDate(estimate.validUntil)}
                       </TableCell>
-                      <TableCell className="align-middle text-center">
-                        {estimate.convertedServiceOrder ? (
-                          <Button asChild variant="secondary" size="sm">
-                            <Link
-                              href={`/ordens-servico/${estimate.convertedServiceOrder.id}/detalhes`}
-                            >
-                              OS {estimate.convertedServiceOrder.code}
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            className="h-7 gap-1 px-2 text-xs font-medium"
+                          >
+                            <Link href={`/orcamentos/${estimate.id}/detalhes`}>
+                              <FileText className="size-3" />
+                              Detalhes
                             </Link>
                           </Button>
-                        ) : (
+
                           <Button
-                            type="button"
-                            size="icon-lg"
-                            title={
-                              estimate.status === "APROVADO"
-                                ? "Gerar OS"
-                                : "Aprove o orçamento para gerar a OS"
-                            }
-                            disabled={!canConvert || isConverting}
-                            className="bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => convertMutation.mutate(estimate.id)}
+                            variant="ghost"
+                            size="icon"
+                            asChild
+                            title="Editar orçamento"
+                            className="size-7"
                           >
-                            <HugeiconsIcon icon={Tick02Icon} strokeWidth={3} className="size-5" />
+                            <Link href={`/orcamentos/${estimate.id}`}>
+                              <Pencil className="size-3.5" />
+                            </Link>
                           </Button>
-                        )}
+
+                          {estimate.convertedServiceOrder ? (
+                            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                              <Link
+                                href={`/ordens-servico/${estimate.convertedServiceOrder.id}/detalhes`}
+                              >
+                                OS {estimate.convertedServiceOrder.code}
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="icon"
+                              title={
+                                estimate.status === "APROVADO"
+                                  ? "Gerar OS"
+                                  : "Aprove o orçamento para gerar a OS"
+                              }
+                              disabled={!canConvert || isConverting}
+                              className="size-7 bg-emerald-600 text-white hover:bg-emerald-700"
+                              onClick={() => convertMutation.mutate(estimate.id)}
+                            >
+                              <Check className="size-3.5" strokeWidth={2.5} />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -312,27 +324,34 @@ export default function EstimatesPage() {
               </TableBody>
             </Table>
           </div>
-        ) : null}
+        )}
 
         {convertMutation.error ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {convertMutation.error instanceof Error
               ? convertMutation.error.message
-              : "NÃ£o foi possÃ­vel gerar a OS."}
+              : "Não foi possível gerar a OS."}
           </div>
         ) : null}
+      </div>
 
-        <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
-          <div className="text-xs text-muted-foreground">
-            PÃ¡gina {data?.page ?? page} de {totalPages}
-          </div>
+      {data && totalPages > 1 && (
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
+          <p className="text-xs text-muted-foreground">
+            Página <span className="font-medium text-foreground">{data.page ?? page}</span>{" "}
+            de <span className="font-medium text-foreground">{totalPages}</span>
+            {data.total ? ` - ${data.total} orçamentos` : ""}
+          </p>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page <= 1}
+              className="h-8 gap-1 px-3 text-xs"
             >
+              <ChevronLeft className="size-3" />
               Anterior
             </Button>
             <Button
@@ -340,12 +359,14 @@ export default function EstimatesPage() {
               size="sm"
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
+              className="h-8 gap-1 px-3 text-xs"
             >
-              PrÃ³xima
+              Próxima
+              <ChevronRight className="size-3" />
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </section>
   );
 }

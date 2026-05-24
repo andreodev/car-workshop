@@ -39,11 +39,21 @@ export type Estimate = {
   vehicle: {
     id: string;
     plate: string;
+    brand?: string | null;
     model: string | null;
+    version?: string | null;
+    color?: string | null;
+    manufactureYear?: number | null;
+    modelYear?: number | null;
   } | null;
   convertedServiceOrder: {
     id: string;
     code: number;
+    status?: string;
+    mechanic?: {
+      id: string;
+      name: string;
+    } | null;
   } | null;
   items?: EstimateItem[];
 };

@@ -1,53 +1,22 @@
 import type { NextRequest } from "next/server";
-import { Prisma, type CatalogItemType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
+import {
+  buildCatalogItemData,
+  normalizeMoney,
+  normalizeString,
+  normalizeType,
+} from "../catalog-item-payload";
 
 export const dynamic = "force-dynamic";
 
-const catalogItemTypes = ["PRODUTO", "SERVICO"] as const;
-
-type CatalogItemTypeValue = (typeof catalogItemTypes)[number];
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
-
-function normalizeString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeMoney(value: unknown) {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? Number(value.replace(",", "."))
-        : Number.NaN;
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return null;
-  }
-
-  return Math.round(parsed * 100) / 100;
-}
-
-function normalizeType(value: unknown) {
-  const normalized = normalizeString(value) ?? "PRODUTO";
-
-  if (!catalogItemTypes.includes(normalized as CatalogItemTypeValue)) {
-    return null;
-  }
-
-  return normalized as CatalogItemType;
-}
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
@@ -94,14 +63,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
     const item = await prisma.catalogItem.update({
       where: { id },
-      data: {
-        type,
-        name,
-        sku: normalizeString(payload.sku),
-        unitPrice,
-        active: payload.active === false ? false : true,
-        notes: normalizeString(payload.notes),
-      },
+      data: buildCatalogItemData({ ...payload, type, name, unitPrice }),
     });
 
     return Response.json(item);

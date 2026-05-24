@@ -35,9 +35,57 @@ import {
 } from "@/components/ui/table";
 import Header from "@/components/ui/header";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
 
 type StatusFilter = ServiceOrderStatus | "TODOS";
+type BoardColumn = {
+  status: ServiceOrderStatus;
+  title: string;
+  description: string;
+  className: string;
+};
+
+const boardColumns: BoardColumn[] = [
+  {
+    status: "ABERTA",
+    title: "A fazer",
+    description: "Serviços prontos para iniciar",
+    className: "border-slate-200 bg-slate-50",
+  },
+  {
+    status: "EM_ANDAMENTO",
+    title: "Em execução",
+    description: "O que está sendo feito agora",
+    className: "border-blue-200 bg-blue-50",
+  },
+  {
+    status: "AGUARDANDO_PECAS",
+    title: "Falta peça",
+    description: "Parado aguardando material",
+    className: "border-amber-200 bg-amber-50",
+  },
+  {
+    status: "IMPEDIDA",
+    title: "Pendente",
+    description: "Precisa de decisão ou liberação",
+    className: "border-red-200 bg-red-50",
+  },
+];
+
+const archivedBoardColumns: BoardColumn[] = [
+  {
+    status: "FINALIZADA",
+    title: "Concluído",
+    description: "Serviços finalizados",
+    className: "border-emerald-200 bg-emerald-50",
+  },
+  {
+    status: "CANCELADA",
+    title: "Canceladas",
+    description: "Ordens sem execução",
+    className: "border-zinc-200 bg-zinc-50",
+  },
+];
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -112,10 +160,26 @@ export default function ServiceOrdersPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
+  const [draggingOrderId, setDraggingOrderId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<ServiceOrderStatus | null>(null);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const showArchivedColumns =
+    includeArchived || status === "FINALIZADA" || status === "CANCELADA";
+  const visibleColumns = useMemo(
+    () => (showArchivedColumns ? [...boardColumns, ...archivedBoardColumns] : boardColumns),
+    [showArchivedColumns]
+  );
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["service-orders", { page, status, search }],
-    queryFn: () => fetchServiceOrders({ page, pageSize: PAGE_SIZE, status, search }),
+    queryKey: ["service-orders", { page, status, search, includeArchived }],
+    queryFn: () =>
+      fetchServiceOrders({
+        page,
+        pageSize: PAGE_SIZE,
+        status,
+        search,
+        includeArchived,
+      }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
@@ -125,6 +189,10 @@ export default function ServiceOrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
     },
+    onSettled: () => {
+      setDraggingOrderId(null);
+      setDragOverStatus(null);
+    },
   });
 
   const totalPages = useMemo(() => {
@@ -133,6 +201,18 @@ export default function ServiceOrdersPage() {
     }
     return Math.max(1, Math.ceil(data.total / data.pageSize));
   }, [data]);
+
+  const ordersByStatus = useMemo(() => {
+    const grouped = new Map<ServiceOrderStatus, ServiceOrder[]>(
+      visibleColumns.map((column) => [column.status, []])
+    );
+
+    (data?.items ?? []).forEach((order) => {
+      grouped.get(order.status)?.push(order);
+    });
+
+    return grouped;
+  }, [data, visibleColumns]);
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,12 +225,40 @@ export default function ServiceOrdersPage() {
     setPage(1);
   }
 
+  function handleArchivedChange(value: string) {
+    setIncludeArchived(value === "COM_HISTORICO");
+    setPage(1);
+  }
+
+  function moveOrderToStatus(orderId: string, nextStatus: ServiceOrderStatus) {
+    const order = data?.items.find((item) => item.id === orderId);
+
+    if (!order || order.status === nextStatus || statusMutation.isPending) {
+      return;
+    }
+
+    statusMutation.mutate({ id: orderId, status: nextStatus });
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>, nextStatus: ServiceOrderStatus) {
+    event.preventDefault();
+    const orderId = event.dataTransfer.getData("text/plain") || draggingOrderId;
+
+    setDragOverStatus(null);
+
+    if (!orderId) {
+      return;
+    }
+
+    moveOrderToStatus(orderId, nextStatus);
+  }
+
   return (
     <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <Header
           title="Ordens de serviço"
-          description="Acompanhe o fluxo de OS, prazos e responsaveis."
+          description="Acompanhe o fluxo de trabalho dos mecânicos por etapa."
         />
 
         <Button asChild className="shrink-0 gap-2 font-medium">
@@ -179,7 +287,7 @@ export default function ServiceOrdersPage() {
       >
         <div className="flex-1">
           <Input
-            placeholder="Buscar por cliente, veículo, responsável ou OS..."
+            placeholder="Buscar por cliente, veículo, mecânico, responsável ou OS..."
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             className="h-9 text-sm"
@@ -198,6 +306,21 @@ export default function ServiceOrdersPage() {
                   {option.label}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="w-full sm:w-56">
+          <Select
+            value={includeArchived ? "COM_HISTORICO" : "OPERACIONAL"}
+            onValueChange={handleArchivedChange}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Visão" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="OPERACIONAL">Só operação ativa</SelectItem>
+              <SelectItem value="COM_HISTORICO">Incluir histórico</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -245,124 +368,186 @@ export default function ServiceOrdersPage() {
         )}
 
         {data && data.items.length > 0 && (
-          <div className="w-full overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
-            <Table className="min-w-[1080px]">
-              <TableHeader>
-                <TableRow className="bg-muted/60 hover:bg-muted/60">
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    OS
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Placa
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Cliente
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Veículo
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Responsável
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Entrada
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Status
-                  </TableHead>
-                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Ações
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
+          <div className="overflow-x-auto pb-2">
+            <div
+              className={
+                includeArchived
+                  ? "grid min-w-[1380px] grid-cols-6 gap-3"
+                  : "grid min-w-[960px] grid-cols-4 gap-3"
+              }
+            >
+              {visibleColumns.map((column) => {
+                const orders = ordersByStatus.get(column.status) ?? [];
 
-              <TableBody>
-                {data.items.map((order) => {
-                  const statusOption = getServiceOrderStatusOption(order.status);
-                  const isFinished = order.status === "FINALIZADA";
-                  const isChangingThis =
-                    statusMutation.isPending &&
-                    statusMutation.variables?.id === order.id;
+                return (
+                  <section
+                    key={column.status}
+                    onDragOver={(event) => {
+                      if (!draggingOrderId) {
+                        return;
+                      }
 
-                  return (
-                    <TableRow
-                      key={order.id}
-                      className="group transition-colors hover:bg-accent/40"
-                    >
-                      <TableCell className="font-mono text-sm font-medium text-foreground">
-                        #{order.code}
-                      </TableCell>
-                      <TableCell className="font-medium text-foreground">
-                        {order.vehicle?.plate ?? "-"}
-                      </TableCell>
-                      <TableCell className="max-w-64 text-muted-foreground">
-                        <Link
-                          href={order.client?.id ? `/clientes/${order.client.id}` : "#"}
-                          className="block truncate hover:text-foreground"
-                          title={order.client?.name ?? undefined}
-                        >
-                          {order.client?.name ?? "-"}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="max-w-52 text-muted-foreground">
-                        <span className="block truncate" title={order.vehicle?.model ?? undefined}>
-                          {order.vehicle?.model ?? "-"}
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverStatus(column.status);
+                    }}
+                    onDragLeave={(event) => {
+                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        return;
+                      }
+
+                      setDragOverStatus(null);
+                    }}
+                    onDrop={(event) => handleDrop(event, column.status)}
+                    className={`flex min-h-[520px] flex-col rounded-lg border p-3 transition-all ${column.className} ${
+                      dragOverStatus === column.status
+                        ? "ring-2 ring-primary ring-offset-2"
+                        : ""
+                    }`}
+                  >
+                    <header className="space-y-1 border-b border-black/10 pb-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-sm font-semibold text-foreground">
+                          {column.title}
+                        </h2>
+                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-white px-2 text-xs font-semibold text-foreground shadow-sm">
+                          {orders.length}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {order.responsible}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {formatDate(order.entryAt)} {formatTime(order.entryAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={statusOption.variant}
-                          className={statusOption.className}
-                        >
-                          {statusOption.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                            className="h-7 px-3 text-xs font-medium"
-                          >
-                            <Link href={`/ordens-servico/${order.id}/detalhes`}>
-                              Detalhes
-                            </Link>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-3 text-xs font-medium"
-                            onClick={() => setReportOrder(order)}
-                          >
-                            Relatorio
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={isChangingThis || isFinished}
-                            className="h-7 px-3 text-xs font-medium"
-                            onClick={() =>
-                              statusMutation.mutate({ id: order.id, status: "FINALIZADA" })
-                            }
-                          >
-                            {isFinished ? "Concluida" : "Concluir"}
-                          </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{column.description}</p>
+                    </header>
+
+                    <div className="mt-3 flex flex-1 flex-col gap-3">
+                      {orders.length === 0 ? (
+                        <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-black/15 bg-white/50 px-3 text-center text-xs text-muted-foreground">
+                          Nenhuma OS nesta etapa.
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      ) : null}
+
+                      {orders.map((order) => {
+                        const statusOption = getServiceOrderStatusOption(order.status);
+                        const isChangingThis =
+                          statusMutation.isPending &&
+                          statusMutation.variables?.id === order.id;
+
+                        return (
+                          <article
+                            key={order.id}
+                            draggable={!statusMutation.isPending}
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", order.id);
+                              setDraggingOrderId(order.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingOrderId(null);
+                              setDragOverStatus(null);
+                            }}
+                            className={`rounded-md border border-border bg-white p-3 shadow-sm transition-all ${
+                              draggingOrderId === order.id
+                                ? "scale-[0.98] cursor-grabbing opacity-60"
+                                : "cursor-grab hover:-translate-y-0.5 hover:shadow-md"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-mono text-xs font-semibold text-muted-foreground">
+                                  OS #{order.code}
+                                </p>
+                                <h3
+                                  className="mt-1 truncate text-sm font-semibold text-foreground"
+                                  title={order.client?.name ?? undefined}
+                                >
+                                  {order.client?.name ?? "-"}
+                                </h3>
+                              </div>
+                              <Badge
+                                variant={statusOption.variant}
+                                className={`shrink-0 text-[10px] ${statusOption.className ?? ""}`}
+                              >
+                                {statusOption.label}
+                              </Badge>
+                            </div>
+
+                            <dl className="mt-3 space-y-2 text-xs">
+                              <div>
+                                <dt className="text-muted-foreground">Veículo</dt>
+                                <dd className="font-medium text-foreground">
+                                  {order.vehicle?.plate ?? "-"}
+                                  {order.vehicle?.model ? ` - ${order.vehicle.model}` : ""}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-muted-foreground">Mecânico</dt>
+                                <dd className="font-medium text-foreground">
+                                  {order.mechanic?.name ?? "-"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-muted-foreground">Entrada</dt>
+                                <dd className="font-mono text-foreground">
+                                  {formatDate(order.entryAt)} {formatTime(order.entryAt)}
+                                </dd>
+                              </div>
+                            </dl>
+
+                            <div className="mt-3">
+                              <Select
+                                value={order.status}
+                                disabled={isChangingThis}
+                                onValueChange={(value) => {
+                                  if (value === order.status) {
+                                    return;
+                                  }
+
+                                  statusMutation.mutate({
+                                    id: order.id,
+                                    status: value as ServiceOrderStatus,
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="h-8 w-full bg-white text-xs">
+                                  <SelectValue placeholder="Mover para" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {serviceOrderStatusOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-8 px-2 text-xs"
+                              >
+                                <Link href={`/ordens-servico/${order.id}/detalhes`}>
+                                  Detalhes
+                                </Link>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => setReportOrder(order)}
+                              >
+                                Relatório
+                              </Button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

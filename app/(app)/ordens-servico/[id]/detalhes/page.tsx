@@ -3,6 +3,7 @@
 import { use, useMemo } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
 import { getServiceOrderStatusOption } from "../../status";
@@ -98,40 +99,48 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-3">
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <Link href="/ordens-servico">
+              <ArrowLeft className="size-4" />
+              Voltar para OS
+            </Link>
+          </Button>
           <Header
             title={`Ordem #${data.code}`}
             description="Informações completas para acompanhamento da OS."
           />
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={statusOption.variant} className={statusOption.className}>
-              {statusOption.label}
-            </Badge>
-            <Button
-              variant="default"
-              disabled={isChangingStatus || data.status === "FINALIZADA"}
-              onClick={() => statusMutation.mutate("FINALIZADA")}
-            >
-              Aprovar conclusão
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={isChangingStatus || data.status === "AGUARDANDO_PECAS"}
-              onClick={() => statusMutation.mutate("AGUARDANDO_PECAS")}
-            >
-              Aguardando peças
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={isChangingStatus || data.status === "IMPEDIDA"}
-              onClick={() => statusMutation.mutate("IMPEDIDA")}
-            >
-              Impedimento
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/ordens-servico/${data.id}`}>Editar</Link>
-            </Button>
-          </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={statusOption.variant} className={statusOption.className}>
+            {statusOption.label}
+          </Badge>
+          <Button
+            variant="default"
+            disabled={isChangingStatus || data.status === "FINALIZADA"}
+            onClick={() => statusMutation.mutate("FINALIZADA")}
+          >
+            Aprovar conclusão
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={isChangingStatus || data.status === "AGUARDANDO_PECAS"}
+            onClick={() => statusMutation.mutate("AGUARDANDO_PECAS")}
+          >
+            Aguardando peças
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={isChangingStatus || data.status === "IMPEDIDA"}
+            onClick={() => statusMutation.mutate("IMPEDIDA")}
+          >
+            Impedimento
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/ordens-servico/${data.id}`}>Editar</Link>
+          </Button>
+        </div>
+      </div>
 
         {statusMutation.error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -158,6 +167,12 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
           <div>
             <p className="text-xs text-muted-foreground">Responsável</p>
             <p className="text-sm font-semibold text-foreground">{data.responsible}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Mecânico</p>
+            <p className="text-sm font-semibold text-foreground">
+              {data.mechanic?.name ?? "-"}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Entrada</p>

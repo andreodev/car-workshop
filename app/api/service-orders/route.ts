@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
     );
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
+    const includeArchived = searchParams.get("includeArchived") === "true";
 
     const where: Prisma.ServiceOrderWhereInput = {};
 
@@ -199,11 +200,16 @@ export async function GET(request: NextRequest) {
       where.status = status as ServiceOrderStatusValue;
     }
 
+    if ((!status || status === "TODOS") && !includeArchived) {
+      where.status = { notIn: ["FINALIZADA", "CANCELADA"] };
+    }
+
     if (search) {
       const or: Prisma.ServiceOrderWhereInput[] = [
         { client: { name: { contains: search, mode: "insensitive" } } },
         { vehicle: { plate: { contains: search, mode: "insensitive" } } },
         { vehicle: { model: { contains: search, mode: "insensitive" } } },
+        { mechanic: { name: { contains: search, mode: "insensitive" } } },
         { responsible: { contains: search, mode: "insensitive" } },
       ];
 
@@ -222,6 +228,7 @@ export async function GET(request: NextRequest) {
         include: {
           client: { select: { id: true, name: true } },
           vehicle: { select: { id: true, plate: true, model: true } },
+          mechanic: { select: { id: true, name: true } },
           estimateConversion: { select: { id: true, code: true, status: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -256,6 +263,7 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json()) as Record<string, unknown>;
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
+  const mechanicId = normalizeString(payload.mechanicId);
   const responsible =
     normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
 
@@ -265,6 +273,10 @@ export async function POST(request: NextRequest) {
 
   if (!vehicleId) {
     return Response.json({ error: "Veículo é obrigatório." }, { status: 400 });
+  }
+
+  if (!mechanicId) {
+    return Response.json({ error: "Mecânico é obrigatório." }, { status: 400 });
   }
 
   if (!responsible) {
@@ -321,10 +333,24 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
   }
 
+  const mechanic = await prisma.mechanic.findUnique({
+    where: { id: mechanicId },
+    select: { id: true, active: true },
+  });
+
+  if (!mechanic) {
+    return Response.json({ error: "Mecânico não encontrado." }, { status: 400 });
+  }
+
+  if (!mechanic.active) {
+    return Response.json({ error: "Mecânico inativo." }, { status: 400 });
+  }
+
   const order = await prisma.serviceOrder.create({
     data: {
       client: { connect: { id: clientId } },
       vehicle: { connect: { id: vehicleId } },
+      mechanic: { connect: { id: mechanicId } },
       responsible,
       status: status.value,
       location,
@@ -344,6 +370,7 @@ export async function POST(request: NextRequest) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });

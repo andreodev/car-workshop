@@ -21,6 +21,7 @@ export type ServiceOrder = {
   status: ServiceOrderStatus;
   clientId: string;
   vehicleId: string;
+  mechanicId: string | null;
   responsible: string;
   location: string | null;
   km: number | null;
@@ -41,6 +42,10 @@ export type ServiceOrder = {
     id: string;
     plate: string;
     model: string | null;
+  } | null;
+  mechanic: {
+    id: string;
+    name: string;
   } | null;
   estimateConversion?: {
     id: string;
@@ -75,6 +80,7 @@ export type ServiceOrderPayloadItem = {
 export type ServiceOrderFormValues = {
   clientId: string;
   vehicleId: string;
+  mechanicId: string;
   responsible: string;
   location: string;
   km: string;
@@ -91,6 +97,7 @@ export type ServiceOrderFormValues = {
 export type ServiceOrderPayload = {
   clientId: string;
   vehicleId: string;
+  mechanicId: string;
   responsible: string;
   location: string | null;
   km: number | null;

@@ -250,3 +250,37 @@
     background: oklch(0.6 0.01 240);
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  .no-print {
+    display: none !important;
+  }
+
+  [data-slot="sidebar-wrapper"],
+  main {
+    display: block !important;
+    min-height: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-page {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+}

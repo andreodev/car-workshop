@@ -46,12 +46,14 @@ export async function fetchServiceOrders(params: {
   pageSize?: number;
   search?: string;
   status?: string;
+  includeArchived?: boolean;
 }) {
   const query = toQuery({
     page: params.page ?? 1,
     pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
     search: params.search,
     status: params.status,
+    includeArchived: params.includeArchived ? "true" : undefined,
   });
 
   const response = await fetch(`/api/service-orders?${query}`, {
