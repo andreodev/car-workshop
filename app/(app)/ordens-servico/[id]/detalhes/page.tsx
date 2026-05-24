@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Camera, Copy, ExternalLink } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
 import { getServiceOrderStatusOption } from "../../status";
@@ -54,6 +54,8 @@ type ServiceOrderDetailsPageProps = {
 export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsPageProps) {
   const { id } = use(params);
   const queryClient = useQueryClient();
+  const [copiedInspectionLink, setCopiedInspectionLink] = useState(false);
+  const [origin, setOrigin] = useState("");
   const { data, isLoading, isError } = useQuery({
     queryKey: ["service-order", id],
     queryFn: () => fetchServiceOrder(id),
@@ -65,6 +67,14 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
     },
   });
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setOrigin(window.location.origin);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const totals = useMemo(() => {
     if (!data) {
@@ -95,6 +105,20 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
 
   const statusOption = getServiceOrderStatusOption(data.status);
   const isChangingStatus = statusMutation.isPending;
+  const inspectionPath = data.vehicleInspection
+    ? `/vistoria/${data.vehicleInspection.token}`
+    : null;
+  const inspectionLink = inspectionPath && origin ? `${origin}${inspectionPath}` : inspectionPath;
+
+  async function copyInspectionLink() {
+    if (!inspectionLink) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(inspectionLink);
+    setCopiedInspectionLink(true);
+    window.setTimeout(() => setCopiedInspectionLink(false), 1600);
+  }
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-8">
@@ -205,6 +229,45 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               )}
             </p>
           </div>
+        </section>
+
+        <section className="grid gap-4 rounded-lg border-2 border-gray-700 bg-white/60 p-6 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Camera className="size-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Vistoria de entrada</h2>
+            </div>
+            {data.vehicleInspection ? (
+              <div className="space-y-1 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  Status:{" "}
+                  {data.vehicleInspection.status === "CONCLUIDA" ? "concluída" : "pendente"} ·{" "}
+                  {data.vehicleInspection.photos.length} foto(s)
+                  {data.vehicleInspection.completedAt
+                    ? ` · ${formatDateTime(data.vehicleInspection.completedAt)}`
+                    : ""}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Esta OS não possui link de vistoria gerado.
+              </p>
+            )}
+          </div>
+          {data.vehicleInspection && inspectionPath ? (
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <Button variant="outline" size="sm" className="gap-2" onClick={copyInspectionLink}>
+                <Copy className="size-3.5" />
+                {copiedInspectionLink ? "Copiado" : "Copiar"}
+              </Button>
+              <Button size="sm" asChild className="gap-2">
+                <Link href={inspectionPath} target="_blank">
+                  <ExternalLink className="size-3.5" />
+                  Abrir
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         <section className="rounded-3xl border-2 border-gray-700 bg-white/60 p-6">

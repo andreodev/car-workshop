@@ -1,4 +1,5 @@
 ﻿import type { NextRequest } from "next/server";
+import { randomBytes } from "crypto";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -10,6 +11,10 @@ type RouteContext = {
     id: string;
   }>;
 };
+
+function createInspectionToken() {
+  return randomBytes(24).toString("base64url");
+}
 
 export async function POST(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
@@ -66,12 +71,39 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
             total: item.total,
           })),
         },
+        vehicleInspection: {
+          create: {
+            token: createInspectionToken(),
+          },
+        },
       },
       include: {
         items: true,
         client: { select: { id: true, name: true } },
         vehicle: { select: { id: true, plate: true, model: true } },
         estimateConversion: { select: { id: true, code: true, status: true } },
+        vehicleInspection: {
+          select: {
+            id: true,
+            token: true,
+            status: true,
+            notes: true,
+            completedAt: true,
+            createdAt: true,
+            photos: {
+              select: {
+                id: true,
+                url: true,
+                filename: true,
+                contentType: true,
+                size: true,
+                caption: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        },
       },
     });
 

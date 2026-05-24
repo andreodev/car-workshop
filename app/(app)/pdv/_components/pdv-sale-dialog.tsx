@@ -94,6 +94,20 @@ function formatCurrency(value: number | string) {
   }).format(Number.isFinite(parsed) ? parsed : 0);
 }
 
+function formatStock(value: number | string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+}
+
 function formatDate(value: Date) {
   return value.toLocaleDateString("pt-BR", {
     day: "2-digit",
@@ -203,6 +217,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     mutationFn: createSale,
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
       setLines([]);
       setProductSearch("");
       setSelectedProduct(null);
@@ -289,6 +304,11 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
       return;
     }
 
+    if (!selectedProduct) {
+      setLocalError("Selecione um produto/serviço cadastrado ou cadastre o item antes de incluir.");
+      return;
+    }
+
     if (parsedQuantity <= 0) {
       setLocalError("Quantidade deve ser maior que zero.");
       return;
@@ -302,6 +322,29 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     if (parsedDiscount < 0 || parsedDiscount > 100) {
       setLocalError("Desconto deve estar entre 0 e 100%.");
       return;
+    }
+
+    if (selectedProduct?.type === "PRODUTO") {
+      const currentStock = Number(selectedProduct.stockCurrent ?? 0);
+      const availableLabel = formatStock(currentStock) ?? "0";
+      const quantityAlreadyAdded = lines
+        .filter((line) => line.catalogItemId === selectedProduct.id)
+        .reduce((total, line) => total + line.quantity, 0);
+      const requestedQuantity = quantityAlreadyAdded + parsedQuantity;
+
+      if (!Number.isFinite(currentStock) || currentStock <= 0) {
+        setLocalError(`Produto ${selectedProduct.name} sem estoque disponível.`);
+        return;
+      }
+
+      if (requestedQuantity > currentStock) {
+        setLocalError(
+          `Estoque insuficiente para ${selectedProduct.name}. Disponível: ${availableLabel}. Solicitado: ${formatStock(
+            requestedQuantity
+          )}.`
+        );
+        return;
+      }
     }
 
     const calculated = calculateLine(parsedQuantity, parsedUnitPrice, parsedDiscount);
@@ -687,8 +730,15 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                             }`}
                             onClick={() => handleSelectProduct(item)}
                           >
-                            <span>{item.name}</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="min-w-0">
+                              <span className="block truncate">{item.name}</span>
+                              {item.type === "PRODUTO" && item.stockCurrent !== null ? (
+                                <span className="block text-xs text-muted-foreground">
+                                  Estoque: {formatStock(item.stockCurrent)}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
                               {formatCurrency(item.unitPrice)}
                             </span>
                           </button>

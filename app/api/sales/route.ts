@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { Prisma, type SalePaymentMethod, type SaleStatus } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
@@ -28,6 +29,8 @@ type ParsedSaleItem = {
   discount: number;
   total: number;
 };
+
+class StockError extends Error {}
 
 function coerceNumber(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -110,6 +113,74 @@ function normalizeDateEnd(value: string | null) {
 
 function defaultResponsible(session: Awaited<ReturnType<typeof getServerAuthSession>>) {
   return session?.user?.name ?? session?.user?.email ?? "Operador";
+}
+
+function formatStock(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? parsed.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
+    : "0";
+}
+
+type StockMovementData = {
+  type: "ENTRADA" | "SAIDA" | "ESTORNO" | "AJUSTE";
+  catalogItemId: string;
+  saleId: string | null;
+  saleItemId: string | null;
+  quantity: Prisma.Decimal;
+  stockBefore: Prisma.Decimal | null;
+  stockAfter: Prisma.Decimal | null;
+  reason: string;
+  notes?: string | null;
+};
+
+type StockMovementWriter = {
+  stockMovement?: {
+    create(args: { data: StockMovementData }): Promise<unknown>;
+  };
+  $executeRaw(
+    query: TemplateStringsArray,
+    ...values: Array<string | Prisma.Decimal | null>
+  ): Promise<unknown>;
+};
+
+async function createStockMovement(
+  tx: StockMovementWriter,
+  data: StockMovementData
+) {
+  if (tx.stockMovement) {
+    await tx.stockMovement.create({ data });
+    return;
+  }
+
+  await tx.$executeRaw`
+    INSERT INTO "StockMovement" (
+      "id",
+      "type",
+      "catalogItemId",
+      "saleId",
+      "saleItemId",
+      "quantity",
+      "stockBefore",
+      "stockAfter",
+      "reason",
+      "notes",
+      "createdAt"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${data.type}::"StockMovementType",
+      ${data.catalogItemId},
+      ${data.saleId},
+      ${data.saleItemId},
+      ${data.quantity},
+      ${data.stockBefore},
+      ${data.stockAfter},
+      ${data.reason},
+      ${data.notes ?? null},
+      CURRENT_TIMESTAMP
+    )
+  `;
 }
 
 export async function GET(request: NextRequest) {
@@ -240,6 +311,13 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Descrição do item é obrigatória." }, { status: 400 });
     }
 
+    if (!catalogItemId) {
+      return Response.json(
+        { error: "Selecione um produto ou serviço cadastrado para vender." },
+        { status: 400 }
+      );
+    }
+
     if (quantity === null || quantity <= 0) {
       return Response.json({ error: "Quantidade deve ser maior que zero." }, { status: 400 });
     }
@@ -269,15 +347,63 @@ export async function POST(request: NextRequest) {
   const catalogItemIds = items
     .map((item) => item.catalogItemId)
     .filter((value): value is string => Boolean(value));
+  const uniqueCatalogItemIds = Array.from(new Set(catalogItemIds));
+  const catalogItemsById = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      type: "PRODUTO" | "SERVICO";
+      stockCurrent: Prisma.Decimal | null;
+    }
+  >();
 
-  if (catalogItemIds.length > 0) {
+  if (uniqueCatalogItemIds.length > 0) {
     const foundItems = await prisma.catalogItem.findMany({
-      where: { id: { in: catalogItemIds } },
-      select: { id: true },
+      where: { id: { in: uniqueCatalogItemIds } },
+      select: { id: true, name: true, type: true, stockCurrent: true },
     });
 
-    if (foundItems.length !== new Set(catalogItemIds).size) {
+    if (foundItems.length !== uniqueCatalogItemIds.length) {
       return Response.json({ error: "Produto da venda não encontrado." }, { status: 404 });
+    }
+
+    foundItems.forEach((item) => {
+      catalogItemsById.set(item.id, item);
+    });
+  }
+
+  const requestedStockByItem = new Map<string, Prisma.Decimal>();
+
+  items.forEach((item) => {
+    if (!item.catalogItemId) {
+      return;
+    }
+
+    const catalogItem = catalogItemsById.get(item.catalogItemId);
+
+    if (!catalogItem || catalogItem.type !== "PRODUTO") {
+      return;
+    }
+
+    const currentRequested = requestedStockByItem.get(catalogItem.id) ?? new Prisma.Decimal(0);
+    requestedStockByItem.set(
+      catalogItem.id,
+      currentRequested.add(new Prisma.Decimal(item.quantity))
+    );
+  });
+
+  for (const [catalogItemId, requestedQuantity] of requestedStockByItem) {
+    const catalogItem = catalogItemsById.get(catalogItemId);
+    const currentStock = new Prisma.Decimal(catalogItem?.stockCurrent ?? 0);
+
+    if (currentStock.lessThan(requestedQuantity)) {
+      return Response.json(
+        {
+          error: `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
+        },
+        { status: 400 }
+      );
     }
   }
 
@@ -285,39 +411,107 @@ export async function POST(request: NextRequest) {
   const discountTotal = items.reduce((sum, item) => sum + item.discount, 0);
   const total = items.reduce((sum, item) => sum + item.total, 0);
 
-  const sale = await prisma.sale.create({
-    data: {
-      clientId,
-      sectorId,
-      responsible,
-      sectorName: sector?.name ?? null,
-      paymentMethod,
-      notes: normalizeString(payload.notes),
-      subtotal: Math.round(subtotal * 100) / 100,
-      discountTotal: Math.round(discountTotal * 100) / 100,
-      total: Math.round(total * 100) / 100,
-      items: {
-        create: items.map((item) => ({
-          catalogItemId: item.catalogItemId,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          total: item.total,
-        })),
-      },
-    },
-    include: {
-      client: { select: { id: true, name: true } },
-      sector: { select: { id: true, name: true } },
-      items: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          catalogItem: { select: { id: true, code: true, name: true, type: true } },
+  try {
+    const sale = await prisma.$transaction(async (tx) => {
+      const createdSale = await tx.sale.create({
+        data: {
+          clientId,
+          sectorId,
+          responsible,
+          sectorName: sector?.name ?? null,
+          paymentMethod,
+          notes: normalizeString(payload.notes),
+          subtotal: Math.round(subtotal * 100) / 100,
+          discountTotal: Math.round(discountTotal * 100) / 100,
+          total: Math.round(total * 100) / 100,
+          items: {
+            create: items.map((item) => ({
+              catalogItemId: item.catalogItemId,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              total: item.total,
+            })),
+          },
         },
-      },
-    },
-  });
+        include: {
+          client: { select: { id: true, name: true } },
+          sector: { select: { id: true, name: true } },
+          items: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              catalogItem: { select: { id: true, code: true, name: true, type: true } },
+            },
+          },
+        },
+      });
 
-  return Response.json(sale, { status: 201 });
+      for (const item of createdSale.items) {
+        if (!item.catalogItemId || item.catalogItem?.type !== "PRODUTO") {
+          continue;
+        }
+
+        const catalogItem = await tx.catalogItem.findUnique({
+          where: { id: item.catalogItemId },
+          select: { id: true, name: true, stockCurrent: true },
+        });
+
+        if (!catalogItem) {
+          continue;
+        }
+
+        const quantity = new Prisma.Decimal(item.quantity);
+        const currentStock = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
+
+        if (currentStock.lessThan(quantity)) {
+          throw new StockError(
+            `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`
+          );
+        }
+
+        const updateResult = await tx.catalogItem.updateMany({
+          where: {
+            id: catalogItem.id,
+            stockCurrent: { not: null, gte: quantity },
+          },
+          data: {
+            stockCurrent: { decrement: quantity },
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new StockError(
+            `Estoque insuficiente para ${catalogItem.name}. Atualize a venda e tente novamente.`
+          );
+        }
+
+        const updatedItem = await tx.catalogItem.findUnique({
+          where: { id: catalogItem.id },
+          select: { stockCurrent: true },
+        });
+
+        await createStockMovement(tx, {
+          type: "SAIDA",
+          catalogItemId: catalogItem.id,
+          saleId: createdSale.id,
+          saleItemId: item.id,
+          quantity,
+            stockBefore: currentStock,
+          stockAfter: updatedItem?.stockCurrent ?? null,
+          reason: `Venda #${createdSale.code}`,
+        });
+      }
+
+      return createdSale;
+    });
+
+    return Response.json(sale, { status: 201 });
+  } catch (error) {
+    if (error instanceof StockError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+
+    throw error;
+  }
 }

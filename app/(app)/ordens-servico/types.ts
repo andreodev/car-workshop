@@ -15,6 +15,26 @@ export type ServiceOrderItem = {
   total: string;
 };
 
+export type ServiceOrderVehicleInspectionPhoto = {
+  id: string;
+  url: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  caption: string | null;
+  createdAt: string;
+};
+
+export type ServiceOrderVehicleInspection = {
+  id: string;
+  token: string;
+  status: "PENDENTE" | "CONCLUIDA";
+  notes: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  photos: ServiceOrderVehicleInspectionPhoto[];
+};
+
 export type ServiceOrder = {
   id: string;
   code: number;
@@ -52,6 +72,7 @@ export type ServiceOrder = {
     code: number;
     status: string;
   } | null;
+  vehicleInspection?: ServiceOrderVehicleInspection | null;
   items?: ServiceOrderItem[];
 };
 

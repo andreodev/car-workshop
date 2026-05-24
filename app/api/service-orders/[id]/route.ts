@@ -17,6 +17,29 @@ const serviceOrderStatuses = [
 
 type ServiceOrderStatusValue = (typeof serviceOrderStatuses)[number];
 
+const vehicleInspectionInclude = {
+  select: {
+    id: true,
+    token: true,
+    status: true,
+    notes: true,
+    completedAt: true,
+    createdAt: true,
+    photos: {
+      select: {
+        id: true,
+        url: true,
+        filename: true,
+        contentType: true,
+        size: true,
+        caption: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" as const },
+    },
+  },
+};
+
 function normalizeString(value: unknown) {
   if (typeof value !== "string") {
     return null;
@@ -184,6 +207,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       vehicle: { select: { id: true, plate: true, model: true } },
       mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
+      vehicleInspection: vehicleInspectionInclude,
     },
   });
 
@@ -316,6 +340,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       vehicle: { select: { id: true, plate: true, model: true } },
       mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
+      vehicleInspection: vehicleInspectionInclude,
     },
   });
 
@@ -346,6 +371,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       vehicle: { select: { id: true, plate: true, model: true } },
       mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
+      vehicleInspection: vehicleInspectionInclude,
     },
   });
 

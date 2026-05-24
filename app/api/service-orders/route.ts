@@ -19,6 +19,29 @@ const serviceOrderStatuses = [
 
 type ServiceOrderStatusValue = (typeof serviceOrderStatuses)[number];
 
+const vehicleInspectionInclude = {
+  select: {
+    id: true,
+    token: true,
+    status: true,
+    notes: true,
+    completedAt: true,
+    createdAt: true,
+    photos: {
+      select: {
+        id: true,
+        url: true,
+        filename: true,
+        contentType: true,
+        size: true,
+        caption: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" as const },
+    },
+  },
+};
+
 function coerceNumber(value: string | null, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -230,6 +253,7 @@ export async function GET(request: NextRequest) {
           vehicle: { select: { id: true, plate: true, model: true } },
           mechanic: { select: { id: true, name: true } },
           estimateConversion: { select: { id: true, code: true, status: true } },
+          vehicleInspection: vehicleInspectionInclude,
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
@@ -372,6 +396,7 @@ export async function POST(request: NextRequest) {
       vehicle: { select: { id: true, plate: true, model: true } },
       mechanic: { select: { id: true, name: true } },
       estimateConversion: { select: { id: true, code: true, status: true } },
+      vehicleInspection: vehicleInspectionInclude,
     },
   });
 

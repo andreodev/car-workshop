@@ -123,6 +123,15 @@ const sectorsSeed = [
   ["Garantia", "Retornos e garantia"],
 ];
 
+const supplierSeed = [
+  ["Auto Pecas Central", "Freios, filtros e oleos", "compras@autopecascentral.com"],
+  ["Distribuidora Motor Forte", "Motor e injecao", "vendas@motorforte.com"],
+  ["Pneus Brasil", "Pneus e balanceamento", "atendimento@pneusbrasil.com"],
+  ["Ferramentas Pro", "Ferramentas e consumiveis", "contato@ferramentaspro.com"],
+  ["Oficina Parceira", "Servicos terceirizados", "parceria@oficinaparceira.com"],
+  ["Ar Frio Auto", "Ar condicionado automotivo", "pecas@arfrioauto.com"],
+];
+
 function dateDaysAgo(days, hour = 9, minute = 0) {
   const date = new Date(now.getTime() - days * DAY);
   date.setHours(hour, minute, 0, 0);
@@ -185,13 +194,18 @@ function buildLineItems(catalogItems, seed, minItems = 2) {
 
 async function resetDatabase() {
   await prisma.$transaction([
+    prisma.serviceOrderVehicleInspectionPhoto.deleteMany(),
+    prisma.stockMovement.deleteMany(),
     prisma.serviceOrderItem.deleteMany(),
     prisma.estimateItem.deleteMany(),
     prisma.saleItem.deleteMany(),
+    prisma.serviceOrderVehicleInspection.deleteMany(),
     prisma.serviceOrder.deleteMany(),
     prisma.estimate.deleteMany(),
     prisma.sale.deleteMany(),
     prisma.financialAccount.deleteMany(),
+    prisma.supplierOrder.deleteMany(),
+    prisma.supplier.deleteMany(),
     prisma.vehicle.deleteMany(),
     prisma.catalogItem.deleteMany(),
     prisma.sector.deleteMany(),
@@ -244,17 +258,74 @@ async function main() {
   );
 
   const catalogItems = await Promise.all(
-    catalogSeed.map(([type, name, unitPrice, sku]) =>
-      prisma.catalogItem.create({
+    catalogSeed.map(([type, name, unitPrice, sku], index) => {
+      const isProduct = type === "PRODUTO";
+      const minimumStock = 6 + (index % 5) * 2;
+      const currentStock = index % 7 === 0 ? Math.max(0, minimumStock - 2) : 24 + (index % 10) * 3;
+      const maximumStock = Math.max(currentStock + 12, minimumStock * 5);
+      const price = Number(unitPrice);
+
+      return prisma.catalogItem.create({
         data: {
           type,
           name,
           sku,
           unitPrice: dec(unitPrice),
+          salePrice: dec(unitPrice),
+          purchasePrice: isProduct ? dec((price * 0.58).toFixed(2)) : null,
+          stockCurrent: isProduct ? dec(currentStock.toFixed(3)) : null,
+          stockMinimum: isProduct ? dec(minimumStock.toFixed(3)) : null,
+          stockMaximum: isProduct ? dec(maximumStock.toFixed(3)) : null,
+          unit: isProduct ? pick(["UN", "L", "JG", "PC"], index) : "SERV",
+          category: isProduct ? pick(["Freios", "Filtros", "Motor", "Pneus", "Eletrica"], index) : "Servicos",
+          location: isProduct ? `Prateleira ${1 + (index % 8)}` : null,
           notes: type === "SERVICO" ? "Servico recorrente da oficina" : "Item de giro",
+        },
+      });
+    })
+  );
+
+  const suppliers = await Promise.all(
+    supplierSeed.map(([name, productLine, email], index) =>
+      prisma.supplier.create({
+        data: {
+          personType: index % 3 === 0 ? "JURIDICA" : "FISICA",
+          name,
+          productLine,
+          email,
+          contact: pick(["Mariana", "Carlos", "Roberto", "Amanda", "Felipe"], index),
+          phone1: `1198${String(700000 + index * 371).slice(0, 6)}`,
+          cep: String(40100000 + index * 233).slice(0, 8),
+          city: pick(cities, index)[0],
+          state: pick(cities, index)[1],
+          address: `Avenida Fornecedores ${120 + index}`,
+          neighborhood: `Distrito ${1 + index}`,
+          bank: pick(["Itau", "Banco do Brasil", "Santander", "Bradesco"], index),
+          account: `${10000 + index * 13}-${index % 9}`,
+          agency: String(1000 + index * 11),
+          notes: "Fornecedor criado pelo seed operacional.",
         },
       })
     )
+  );
+
+  await Promise.all(
+    catalogItems
+      .filter((item) => item.type === "PRODUTO" && item.stockCurrent !== null)
+      .map((item) =>
+        prisma.stockMovement.create({
+          data: {
+            type: "AJUSTE",
+            catalogItemId: item.id,
+            quantity: item.stockCurrent,
+            stockBefore: null,
+            stockAfter: item.stockCurrent,
+            reason: "Saldo inicial seed",
+            notes: "Carga inicial de estoque para ambiente de desenvolvimento.",
+            createdAt: dateDaysAgo(45, 8),
+          },
+        })
+      )
   );
 
   const clients = [];
@@ -385,6 +456,26 @@ async function main() {
               total: item.total,
             })),
           },
+          vehicleInspection:
+            index % 4 === 0
+              ? {
+                  create: {
+                    token: `vistoria-seed-${String(index + 1).padStart(3, "0")}-${vehicle.plate.toLowerCase()}`,
+                    status:
+                      status === "FINALIZADA" || status === "CANCELADA" || index % 8 === 0
+                        ? "CONCLUIDA"
+                        : "PENDENTE",
+                    notes:
+                      status === "AGUARDANDO_PECAS"
+                        ? "Fotos e conferencia inicial indicam necessidade de peca."
+                        : "Vistoria inicial gerada pelo seed operacional.",
+                    completedAt:
+                      status === "FINALIZADA" || status === "CANCELADA" || index % 8 === 0
+                        ? updatedAt
+                        : null,
+                  },
+                }
+              : undefined,
         },
       })
     );
@@ -475,14 +566,15 @@ async function main() {
     const total = money(subtotal - discountTotal);
     const createdAt = dateDaysAgo(index % 35, 9 + (index % 8), (index * 13) % 50);
 
-    await prisma.sale.create({
+    const saleStatus = index % 21 === 0 ? "CANCELADA" : "CONCLUIDA";
+    const sale = await prisma.sale.create({
       data: {
         clientId: client?.id ?? null,
         sectorId: sector.id,
         responsible: pick(users, index + 1).name || "Atendimento",
         sectorName: sector.name,
         paymentMethod: pick(["PIX", "CARTAO_CREDITO", "CARTAO_DEBITO", "DINHEIRO", "BOLETO"], index),
-        status: index % 21 === 0 ? "CANCELADA" : "CONCLUIDA",
+        status: saleStatus,
         notes: index % 5 === 0 ? "Venda com retirada no balcao." : null,
         subtotal: dec(subtotal.toFixed(2)),
         discountTotal: dec(discountTotal.toFixed(2)),
@@ -491,7 +583,122 @@ async function main() {
         updatedAt: createdAt,
         items: { create: saleItems },
       },
+      include: {
+        items: {
+          include: {
+            catalogItem: { select: { id: true, name: true, type: true, stockCurrent: true } },
+          },
+        },
+      },
     });
+
+    if (saleStatus === "CONCLUIDA") {
+      for (const item of sale.items) {
+        if (!item.catalogItemId || item.catalogItem?.type !== "PRODUTO") {
+          continue;
+        }
+
+        const catalogItem = await prisma.catalogItem.findUnique({
+          where: { id: item.catalogItemId },
+          select: { id: true, name: true, stockCurrent: true },
+        });
+
+        if (!catalogItem || catalogItem.stockCurrent === null) {
+          continue;
+        }
+
+        const quantity = Number(item.quantity);
+        const currentStock = Number(catalogItem.stockCurrent);
+
+        if (currentStock < quantity) {
+          const replacementQuantity = money(quantity - currentStock + 8);
+          const replacementAfter = money(currentStock + replacementQuantity);
+
+          await prisma.catalogItem.update({
+            where: { id: catalogItem.id },
+            data: { stockCurrent: dec(replacementAfter.toFixed(3)) },
+          });
+
+          await prisma.stockMovement.create({
+            data: {
+              type: "ENTRADA",
+              catalogItemId: catalogItem.id,
+              saleId: sale.id,
+              saleItemId: item.id,
+              quantity: dec(replacementQuantity.toFixed(3)),
+              stockBefore: catalogItem.stockCurrent,
+              stockAfter: dec(replacementAfter.toFixed(3)),
+              reason: `Reposicao automatica seed - venda #${sale.code}`,
+              notes: "Entrada criada para manter massa de teste com saldo positivo.",
+              createdAt,
+            },
+          });
+        }
+
+        const stockBefore = await prisma.catalogItem.findUnique({
+          where: { id: item.catalogItemId },
+          select: { stockCurrent: true },
+        });
+        const stockBeforeValue = Number(stockBefore?.stockCurrent ?? 0);
+        const stockAfterValue = money(stockBeforeValue - quantity);
+
+        await prisma.catalogItem.update({
+          where: { id: item.catalogItemId },
+          data: { stockCurrent: dec(stockAfterValue.toFixed(3)) },
+        });
+
+        await prisma.stockMovement.create({
+          data: {
+            type: "SAIDA",
+            catalogItemId: item.catalogItemId,
+            saleId: sale.id,
+            saleItemId: item.id,
+            quantity: dec(quantity.toFixed(3)),
+            stockBefore: stockBefore?.stockCurrent ?? null,
+            stockAfter: dec(stockAfterValue.toFixed(3)),
+            reason: `Venda #${sale.code}`,
+            createdAt,
+          },
+        });
+      }
+    }
+  }
+
+  const supplierOrders = [];
+  for (let index = 0; index < 22; index += 1) {
+    const supplier = suppliers[index % suppliers.length];
+    const status = pick(["ABERTO", "ABERTO", "ABERTO", "RECEBIDO", "CANCELADO"], index);
+    const forecastAt =
+      status === "RECEBIDO"
+        ? dateDaysAgo(index % 12, 15)
+        : dateDaysAhead((index % 10) - 2, 16);
+
+    supplierOrders.push(
+      await prisma.supplierOrder.create({
+        data: {
+          supplierId: supplier.id,
+          employee: pick(users, index + 2).name || "Compras",
+          status,
+          forecastAt,
+          invoiceNumber: status === "RECEBIDO" ? `NF-${String(8000 + index)}` : null,
+          observation:
+            status === "ABERTO"
+              ? "Pedido aguardando confirmacao ou entrega parcial."
+              : "Pedido criado pelo seed de fornecedores.",
+          internalDescription: pick(
+            [
+              "Reposicao de filtros e oleos de alto giro.",
+              "Compra de pecas para ordens em andamento.",
+              "Itens de consumo e ferramentas pequenas.",
+              "Pneus e componentes sob encomenda.",
+            ],
+            index
+          ),
+          createdAt: dateDaysAgo(index % 18, 10),
+          updatedAt: status === "RECEBIDO" ? dateDaysAgo(index % 8, 16) : dateDaysAgo(index % 4, 11),
+        },
+      })
+    );
   }
 
   for (let index = 0; index < 42; index += 1) {
@@ -530,17 +737,24 @@ async function main() {
     });
   }
 
+  const stockMovementCount = await prisma.stockMovement.count();
+  const inspectionCount = await prisma.serviceOrderVehicleInspection.count();
+
   console.log(
     [
       "Seed completed.",
       `${users.length} users`,
       `${mechanics.length} mechanics`,
+      `${suppliers.length} suppliers`,
       `${clients.length} clients`,
       `${vehicles.length} vehicles`,
       `${catalogItems.length} catalog items`,
       `${serviceOrders.length} service orders`,
+      `${inspectionCount} inspections`,
       "34 estimates",
       "65 sales",
+      `${stockMovementCount} stock movements`,
+      `${supplierOrders.length} supplier orders`,
     ].join(" | ")
   );
 }

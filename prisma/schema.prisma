@@ -145,48 +145,60 @@ enum SupplierOrderStatus {
   CANCELADO
 }
 
+enum VehicleInspectionStatus {
+  PENDENTE
+  CONCLUIDA
+}
+
+enum StockMovementType {
+  ENTRADA
+  SAIDA
+  ESTORNO
+  AJUSTE
+}
+
 model Client {
-  id              String          @id @default(cuid())
-  personType      ClientPersonType @default(FISICA)
-  status          ClientStatus     @default(ATIVO)
-  icms            ClientIcms       @default(ISENTO)
-  name            String
-  cpf             String?
-  rg              String?
-  birthDate       DateTime?
-  notesBasic      String?          @db.Text
+  id         String           @id @default(cuid())
+  personType ClientPersonType @default(FISICA)
+  status     ClientStatus     @default(ATIVO)
+  icms       ClientIcms       @default(ISENTO)
+  name       String
+  cpf        String?
+  rg         String?
+  birthDate  DateTime?
+  notesBasic String?          @db.Text
 
-  email           String?
+  email            String?
   phoneResidential String?
-  phoneCommercial String?
-  mobile          String?
-  phone1          String?
-  phone2          String?
-  phone3          String?
-  phone4          String?
-  website         String?
-  social          String?
-  otherContact    String?
-  notesContacts   String?          @db.Text
+  phoneCommercial  String?
+  mobile           String?
+  phone1           String?
+  phone2           String?
+  phone3           String?
+  phone4           String?
+  website          String?
+  social           String?
+  otherContact     String?
+  notesContacts    String? @db.Text
 
-  cep             String?
-  address         String?
-  number          String?
-  complement      String?
-  state           String?
-  city            String?
-  neighborhood    String?
-  ibgeCode        String?
-  notesAddress    String?          @db.Text
+  cep          String?
+  address      String?
+  number       String?
+  complement   String?
+  state        String?
+  city         String?
+  neighborhood String?
+  ibgeCode     String?
+  notesAddress String? @db.Text
 
-  vehicles        Vehicle[]
-  serviceOrders   ServiceOrder[]
-  estimates       Estimate[]
-  sales           Sale[]
+  vehicles          Vehicle[]
+  serviceOrders     ServiceOrder[]
+  estimates         Estimate[]
+  sales             Sale[]
   financialAccounts FinancialAccount[]
 
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
   @@index([cpf])
@@ -216,8 +228,8 @@ model Vehicle {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  serviceOrders   ServiceOrder[]
-  estimates       Estimate[]
+  serviceOrders ServiceOrder[]
+  estimates     Estimate[]
 
   @@index([plate])
   @@index([brand])
@@ -228,29 +240,30 @@ model Vehicle {
 }
 
 model ServiceOrder {
-  id             String             @id @default(cuid())
-  code           Int                @unique @default(autoincrement())
-  status         ServiceOrderStatus @default(ABERTA)
-  clientId       String
-  client         Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  vehicleId      String
-  vehicle        Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  mechanicId     String?
-  mechanic       Mechanic?          @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
-  responsible    String
-  location       String?
-  km             Int?
-  entryAt        DateTime
-  estimatedAt    DateTime?
-  notesInternal  String?            @db.Text
-  notesClient    String?            @db.Text
-  subtotal       Decimal            @db.Decimal(10, 2)
-  discountTotal  Decimal            @default(0) @db.Decimal(10, 2)
-  total          Decimal            @db.Decimal(10, 2)
-  items          ServiceOrderItem[]
-  estimateConversion Estimate?       @relation("EstimateConversion")
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id                 String                         @id @default(cuid())
+  code               Int                            @unique @default(autoincrement())
+  status             ServiceOrderStatus             @default(ABERTA)
+  clientId           String
+  client             Client                         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vehicleId          String
+  vehicle            Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  mechanicId         String?
+  mechanic           Mechanic?                      @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+  responsible        String
+  location           String?
+  km                 Int?
+  entryAt            DateTime
+  estimatedAt        DateTime?
+  notesInternal      String?                        @db.Text
+  notesClient        String?                        @db.Text
+  subtotal           Decimal                        @db.Decimal(10, 2)
+  discountTotal      Decimal                        @default(0) @db.Decimal(10, 2)
+  total              Decimal                        @db.Decimal(10, 2)
+  items              ServiceOrderItem[]
+  vehicleInspection  ServiceOrderVehicleInspection?
+  estimateConversion Estimate?                      @relation("EstimateConversion")
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
 
   @@index([code])
   @@index([clientId])
@@ -258,6 +271,36 @@ model ServiceOrder {
   @@index([mechanicId])
   @@index([status])
   @@index([entryAt])
+}
+
+model ServiceOrderVehicleInspection {
+  id             String                               @id @default(cuid())
+  serviceOrderId String                               @unique
+  serviceOrder   ServiceOrder                         @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  token          String                               @unique
+  status         VehicleInspectionStatus              @default(PENDENTE)
+  notes          String?                              @db.Text
+  completedAt    DateTime?
+  photos         ServiceOrderVehicleInspectionPhoto[]
+  createdAt      DateTime                             @default(now())
+  updatedAt      DateTime                             @updatedAt
+
+  @@index([token])
+  @@index([status])
+}
+
+model ServiceOrderVehicleInspectionPhoto {
+  id           String                        @id @default(cuid())
+  inspectionId String
+  inspection   ServiceOrderVehicleInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  url          String
+  filename     String
+  contentType  String
+  size         Int
+  caption      String?
+  createdAt    DateTime                      @default(now())
+
+  @@index([inspectionId])
 }
 
 model ServiceOrderItem {
@@ -320,113 +363,114 @@ model EstimateItem {
 }
 
 model CatalogItem {
-  id                         String          @id @default(cuid())
-  code                       Int             @unique @default(autoincrement())
-  type                       CatalogItemType @default(PRODUTO)
-  name                       String
-  sku                        String?
-  barcode                    String?
-  category                   String?
-  unit                       String?
-  manufacturerBrand          String?
-  location                   String?
-  originalCode               String?
-  manufacturerCode           String?
-  sectorId                   String?
-  sector                     Sector?         @relation(fields: [sectorId], references: [id], onDelete: SetNull)
-  expirationDate             DateTime?
-  stockCurrent               Decimal?        @db.Decimal(10, 3)
-  stockMinimum               Decimal?        @db.Decimal(10, 3)
-  stockMaximum               Decimal?        @db.Decimal(10, 3)
-  tablePrice                 Decimal?        @db.Decimal(10, 2)
-  supplierDiscountPercent    Decimal?        @db.Decimal(5, 2)
-  purchasePrice              Decimal?        @db.Decimal(10, 2)
-  profitPercent              Decimal?        @db.Decimal(5, 2)
-  salePrice                  Decimal?        @db.Decimal(10, 2)
-  unitPrice                  Decimal         @db.Decimal(10, 2)
-  applicationDescription     String?         @db.Text
-  substituteCodes            Json?
-  supplierQuotes             Json?
-  taxCeanTrib                String?
-  taxNcm                     String?
-  taxCest                    String?
-  taxCfop                    String?
-  taxCommercialUnit          String?
-  taxCommercialQuantity      Decimal?        @db.Decimal(10, 4)
-  taxCommercialUnitValue     Decimal?        @db.Decimal(10, 2)
-  taxTribUnit                String?
-  taxTribQuantity            Decimal?        @db.Decimal(10, 4)
-  taxTribUnitValue           Decimal?        @db.Decimal(10, 2)
-  taxInsuranceTotal          Decimal?        @db.Decimal(10, 2)
-  taxDiscount                Decimal?        @db.Decimal(10, 2)
-  taxFreightTotal            Decimal?        @db.Decimal(10, 2)
-  taxOtherExpenses           Decimal?        @db.Decimal(10, 2)
-  taxGrossTotal              Decimal?        @db.Decimal(10, 2)
-  taxExTipi                  String?
-  taxScaleIndicator          String?
-  taxManufacturerCnpj        String?
-  taxBenefitCode             String?
-  taxPurchaseOrder           String?
-  taxPurchaseOrderItem       String?
-  taxFciControlNumber        String?
-  taxFederalApproxPercent    Decimal?        @db.Decimal(5, 2)
-  taxStateApproxPercent      Decimal?        @db.Decimal(5, 2)
-  ipiTaxSituation            String?
-  ipiClass                   String?
-  ipiLegalCode               String?
-  ipiProducerCnpj            String?
-  ipiSealCode                String?
-  ipiSealQuantity            Decimal?        @db.Decimal(10, 3)
-  ipiCalculationType         String?
-  ipiBase                    Decimal?        @db.Decimal(10, 2)
-  ipiRate                    Decimal?        @db.Decimal(5, 2)
-  ipiUnitValue               Decimal?        @db.Decimal(10, 2)
-  ipiValue                   Decimal?        @db.Decimal(10, 2)
-  icmsTaxSituation           String?
-  icmsCalculationType        String?
-  icmsBase                   Decimal?        @db.Decimal(10, 2)
-  icmsRate                   Decimal?        @db.Decimal(5, 2)
-  icmsValue                  Decimal?        @db.Decimal(10, 2)
-  icmsNotes                  String?         @db.Text
-  pisTaxSituation            String?
-  pisCalculationType         String?
-  pisBase                    Decimal?        @db.Decimal(10, 2)
-  pisRate                    Decimal?        @db.Decimal(5, 2)
-  pisValue                   Decimal?        @db.Decimal(10, 2)
-  pisNotes                   String?         @db.Text
-  cofinsTaxSituation         String?
-  cofinsCalculationType      String?
-  cofinsBase                 Decimal?        @db.Decimal(10, 2)
-  cofinsRate                 Decimal?        @db.Decimal(5, 2)
-  cofinsValue                Decimal?        @db.Decimal(10, 2)
-  cofinsNotes                String?         @db.Text
-  importBase                 Decimal?        @db.Decimal(10, 2)
-  importExpenses             Decimal?        @db.Decimal(10, 2)
-  importIof                  Decimal?        @db.Decimal(10, 2)
-  importValue                Decimal?        @db.Decimal(10, 2)
-  importNotes                String?         @db.Text
-  fuelAnpCode                String?
-  fuelDescription            String?
-  fuelGlpPercent             Decimal?        @db.Decimal(5, 2)
-  fuelNationalGasPercent     Decimal?        @db.Decimal(5, 2)
-  fuelImportedGasPercent     Decimal?        @db.Decimal(5, 2)
-  fuelCideBase               Decimal?        @db.Decimal(10, 2)
-  fuelCideRate               Decimal?        @db.Decimal(10, 4)
-  fuelCideValue              Decimal?        @db.Decimal(10, 2)
-  fuelNotes                  String?         @db.Text
-  ibsCbsCst                  String?
-  ibsCbsClassification       String?
-  ibsUfRate                  Decimal?        @db.Decimal(5, 2)
-  ibsMunicipalRate           Decimal?        @db.Decimal(5, 2)
-  cbsRate                    Decimal?        @db.Decimal(5, 2)
-  ibsValue                   Decimal?        @db.Decimal(10, 2)
-  cbsValue                   Decimal?        @db.Decimal(10, 2)
-  ibsCbsNotes                String?         @db.Text
-  active                     Boolean         @default(true)
-  notes                      String?         @db.Text
-  saleItems                  SaleItem[]
-  createdAt                  DateTime        @default(now())
-  updatedAt                  DateTime        @updatedAt
+  id                      String          @id @default(cuid())
+  code                    Int             @unique @default(autoincrement())
+  type                    CatalogItemType @default(PRODUTO)
+  name                    String
+  sku                     String?
+  barcode                 String?
+  category                String?
+  unit                    String?
+  manufacturerBrand       String?
+  location                String?
+  originalCode            String?
+  manufacturerCode        String?
+  sectorId                String?
+  sector                  Sector?         @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  expirationDate          DateTime?
+  stockCurrent            Decimal?        @db.Decimal(10, 3)
+  stockMinimum            Decimal?        @db.Decimal(10, 3)
+  stockMaximum            Decimal?        @db.Decimal(10, 3)
+  tablePrice              Decimal?        @db.Decimal(10, 2)
+  supplierDiscountPercent Decimal?        @db.Decimal(5, 2)
+  purchasePrice           Decimal?        @db.Decimal(10, 2)
+  profitPercent           Decimal?        @db.Decimal(5, 2)
+  salePrice               Decimal?        @db.Decimal(10, 2)
+  unitPrice               Decimal         @db.Decimal(10, 2)
+  applicationDescription  String?         @db.Text
+  substituteCodes         Json?
+  supplierQuotes          Json?
+  taxCeanTrib             String?
+  taxNcm                  String?
+  taxCest                 String?
+  taxCfop                 String?
+  taxCommercialUnit       String?
+  taxCommercialQuantity   Decimal?        @db.Decimal(10, 4)
+  taxCommercialUnitValue  Decimal?        @db.Decimal(10, 2)
+  taxTribUnit             String?
+  taxTribQuantity         Decimal?        @db.Decimal(10, 4)
+  taxTribUnitValue        Decimal?        @db.Decimal(10, 2)
+  taxInsuranceTotal       Decimal?        @db.Decimal(10, 2)
+  taxDiscount             Decimal?        @db.Decimal(10, 2)
+  taxFreightTotal         Decimal?        @db.Decimal(10, 2)
+  taxOtherExpenses        Decimal?        @db.Decimal(10, 2)
+  taxGrossTotal           Decimal?        @db.Decimal(10, 2)
+  taxExTipi               String?
+  taxScaleIndicator       String?
+  taxManufacturerCnpj     String?
+  taxBenefitCode          String?
+  taxPurchaseOrder        String?
+  taxPurchaseOrderItem    String?
+  taxFciControlNumber     String?
+  taxFederalApproxPercent Decimal?        @db.Decimal(5, 2)
+  taxStateApproxPercent   Decimal?        @db.Decimal(5, 2)
+  ipiTaxSituation         String?
+  ipiClass                String?
+  ipiLegalCode            String?
+  ipiProducerCnpj         String?
+  ipiSealCode             String?
+  ipiSealQuantity         Decimal?        @db.Decimal(10, 3)
+  ipiCalculationType      String?
+  ipiBase                 Decimal?        @db.Decimal(10, 2)
+  ipiRate                 Decimal?        @db.Decimal(5, 2)
+  ipiUnitValue            Decimal?        @db.Decimal(10, 2)
+  ipiValue                Decimal?        @db.Decimal(10, 2)
+  icmsTaxSituation        String?
+  icmsCalculationType     String?
+  icmsBase                Decimal?        @db.Decimal(10, 2)
+  icmsRate                Decimal?        @db.Decimal(5, 2)
+  icmsValue               Decimal?        @db.Decimal(10, 2)
+  icmsNotes               String?         @db.Text
+  pisTaxSituation         String?
+  pisCalculationType      String?
+  pisBase                 Decimal?        @db.Decimal(10, 2)
+  pisRate                 Decimal?        @db.Decimal(5, 2)
+  pisValue                Decimal?        @db.Decimal(10, 2)
+  pisNotes                String?         @db.Text
+  cofinsTaxSituation      String?
+  cofinsCalculationType   String?
+  cofinsBase              Decimal?        @db.Decimal(10, 2)
+  cofinsRate              Decimal?        @db.Decimal(5, 2)
+  cofinsValue             Decimal?        @db.Decimal(10, 2)
+  cofinsNotes             String?         @db.Text
+  importBase              Decimal?        @db.Decimal(10, 2)
+  importExpenses          Decimal?        @db.Decimal(10, 2)
+  importIof               Decimal?        @db.Decimal(10, 2)
+  importValue             Decimal?        @db.Decimal(10, 2)
+  importNotes             String?         @db.Text
+  fuelAnpCode             String?
+  fuelDescription         String?
+  fuelGlpPercent          Decimal?        @db.Decimal(5, 2)
+  fuelNationalGasPercent  Decimal?        @db.Decimal(5, 2)
+  fuelImportedGasPercent  Decimal?        @db.Decimal(5, 2)
+  fuelCideBase            Decimal?        @db.Decimal(10, 2)
+  fuelCideRate            Decimal?        @db.Decimal(10, 4)
+  fuelCideValue           Decimal?        @db.Decimal(10, 2)
+  fuelNotes               String?         @db.Text
+  ibsCbsCst               String?
+  ibsCbsClassification    String?
+  ibsUfRate               Decimal?        @db.Decimal(5, 2)
+  ibsMunicipalRate        Decimal?        @db.Decimal(5, 2)
+  cbsRate                 Decimal?        @db.Decimal(5, 2)
+  ibsValue                Decimal?        @db.Decimal(10, 2)
+  cbsValue                Decimal?        @db.Decimal(10, 2)
+  ibsCbsNotes             String?         @db.Text
+  active                  Boolean         @default(true)
+  notes                   String?         @db.Text
+  saleItems               SaleItem[]
+  stockMovements          StockMovement[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
 
   @@index([code])
   @@index([name])
@@ -439,15 +483,15 @@ model CatalogItem {
 }
 
 model Sector {
-  id        String   @id @default(cuid())
-  code      Int      @unique @default(autoincrement())
-  name      String   @unique
-  active    Boolean  @default(true)
-  notes     String?  @db.Text
+  id        String        @id @default(cuid())
+  code      Int           @unique @default(autoincrement())
+  name      String        @unique
+  active    Boolean       @default(true)
+  notes     String?       @db.Text
   sales     Sale[]
   products  CatalogItem[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([code])
   @@index([name])
@@ -455,14 +499,14 @@ model Sector {
 }
 
 model Mechanic {
-  id        String   @id @default(cuid())
-  code      Int      @unique @default(autoincrement())
-  name      String   @unique
-  active    Boolean  @default(true)
-  notes     String?  @db.Text
+  id            String         @id @default(cuid())
+  code          Int            @unique @default(autoincrement())
+  name          String         @unique
+  active        Boolean        @default(true)
+  notes         String?        @db.Text
   serviceOrders ServiceOrder[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([code])
   @@index([name])
@@ -470,32 +514,32 @@ model Mechanic {
 }
 
 model Supplier {
-  id              String             @id @default(cuid())
-  code            Int                @unique @default(autoincrement())
-  personType      SupplierPersonType @default(FISICA)
-  name            String
-  cpf             String?
-  rg              String?
-  contact         String?
-  productLine     String?
-  phone1          String?
-  phone2          String?
-  phone3          String?
-  phone4          String?
-  email           String?
-  website         String?
-  cep             String?
-  city            String?
-  state           String?
-  address         String?
-  neighborhood    String?
-  bank            String?
-  account         String?
-  agency          String?
-  notes           String?            @db.Text
-  orders          SupplierOrder[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  id           String             @id @default(cuid())
+  code         Int                @unique @default(autoincrement())
+  personType   SupplierPersonType @default(FISICA)
+  name         String
+  cpf          String?
+  rg           String?
+  contact      String?
+  productLine  String?
+  phone1       String?
+  phone2       String?
+  phone3       String?
+  phone4       String?
+  email        String?
+  website      String?
+  cep          String?
+  city         String?
+  state        String?
+  address      String?
+  neighborhood String?
+  bank         String?
+  account      String?
+  agency       String?
+  notes        String?            @db.Text
+  orders       SupplierOrder[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@index([code])
   @@index([name])
@@ -541,6 +585,7 @@ model Sale {
   discountTotal Decimal           @default(0) @db.Decimal(10, 2)
   total         Decimal           @db.Decimal(10, 2)
   items         SaleItem[]
+  stockMovements StockMovement[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -563,6 +608,7 @@ model SaleItem {
   unitPrice     Decimal      @db.Decimal(10, 2)
   discount      Decimal      @default(0) @db.Decimal(10, 2)
   total         Decimal      @db.Decimal(10, 2)
+  stockMovements StockMovement[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -570,25 +616,48 @@ model SaleItem {
   @@index([catalogItemId])
 }
 
+model StockMovement {
+  id            String            @id @default(cuid())
+  type          StockMovementType
+  catalogItemId String
+  catalogItem   CatalogItem       @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  saleId        String?
+  sale          Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  saleItemId    String?
+  saleItem      SaleItem?         @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  quantity      Decimal           @db.Decimal(10, 3)
+  stockBefore   Decimal?          @db.Decimal(10, 3)
+  stockAfter    Decimal?          @db.Decimal(10, 3)
+  reason        String
+  notes         String?           @db.Text
+  createdAt     DateTime          @default(now())
+
+  @@index([catalogItemId])
+  @@index([saleId])
+  @@index([saleItemId])
+  @@index([type])
+  @@index([createdAt])
+}
+
 model FinancialAccount {
-  id          String                 @id @default(cuid())
-  code        Int                    @unique @default(autoincrement())
-  type        FinancialAccountType
-  status      FinancialAccountStatus @default(ABERTA)
-  description String
-  clientId    String?
-  client      Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  counterparty String?
-  category    String?
+  id             String                 @id @default(cuid())
+  code           Int                    @unique @default(autoincrement())
+  type           FinancialAccountType
+  status         FinancialAccountStatus @default(ABERTA)
+  description    String
+  clientId       String?
+  client         Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  counterparty   String?
+  category       String?
   documentNumber String?
-  dueDate     DateTime
-  paymentDate DateTime?
-  amount      Decimal                @db.Decimal(10, 2)
-  paidAmount  Decimal?               @db.Decimal(10, 2)
-  paymentMethod SalePaymentMethod?
-  notes       String?                @db.Text
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  dueDate        DateTime
+  paymentDate    DateTime?
+  amount         Decimal                @db.Decimal(10, 2)
+  paidAmount     Decimal?               @db.Decimal(10, 2)
+  paymentMethod  SalePaymentMethod?
+  notes          String?                @db.Text
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   @@index([code])
   @@index([type])
