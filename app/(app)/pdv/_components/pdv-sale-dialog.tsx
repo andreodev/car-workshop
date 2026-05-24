@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -69,6 +69,17 @@ const paymentOptions: Array<{ value: SalePaymentMethod; label: string }> = [
 ];
 
 const NO_SECTOR_VALUE = "SEM_SETOR";
+const keyboardShortcuts = [
+  ["F2", "Produto"],
+  ["F3", "Cliente"],
+  ["F4", "Qtde"],
+  ["F5", "Valor"],
+  ["F6", "Pagamento"],
+  ["Enter", "Incluir"],
+  ["F8", "Guardar"],
+  ["Esc", "Fechar"],
+  ["Del", "Remover último"],
+] as const;
 
 function parseDecimal(value: string) {
   const parsed = Number(value.replace(",", "."));
@@ -98,8 +109,26 @@ function calculateLine(quantity: number, unitPrice: number, discountPercent: num
   return { discount, total };
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
+
 export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDialogProps) {
   const queryClient = useQueryClient();
+  const clientInputRef = useRef<HTMLInputElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+  const unitPriceInputRef = useRef<HTMLInputElement>(null);
+  const paymentTriggerRef = useRef<HTMLButtonElement>(null);
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null);
   const [responsible, setResponsible] = useState(defaultResponsible);
@@ -113,6 +142,10 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [clientHighlightIndex, setClientHighlightIndex] = useState(0);
+  const [productHighlightIndex, setProductHighlightIndex] = useState(0);
+  const [clientListOpen, setClientListOpen] = useState(false);
+  const [productListOpen, setProductListOpen] = useState(false);
 
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", clientSearch],
@@ -178,6 +211,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
       setDiscountPercent("0");
       setLocalError(null);
       setSuccessMessage(`Venda ${sale.code} guardada com sucesso.`);
+      requestAnimationFrame(() => productInputRef.current?.focus());
     },
     onError: (error) => {
       setLocalError(error instanceof Error ? error.message : "Erro ao guardar venda.");
@@ -195,15 +229,31 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     );
   }, [lines]);
 
+  const clientOptions = clientsQuery.data?.items ?? [];
+  const productOptions = productsQuery.data?.items ?? [];
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => productInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
   function handleSelectClient(client: ClientOption) {
     setSelectedClient(client);
     setClientSearch(client.name);
+    setClientListOpen(false);
+    productInputRef.current?.focus();
   }
 
   function handleSelectProduct(item: CatalogItem) {
     setSelectedProduct(item);
     setProductSearch(item.name);
     setUnitPrice(String(item.unitPrice));
+    setProductListOpen(false);
+    quantityInputRef.current?.focus();
   }
 
   function handleAddCatalogItem() {
@@ -276,7 +326,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     setSuccessMessage(null);
   }
 
-  function handleSaveSale() {
+  const handleSaveSale = useCallback(() => {
     if (lines.length === 0) {
       setLocalError("Inclua pelo menos um item na venda.");
       return;
@@ -296,12 +346,135 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
         discountPercent: line.discountPercent,
       })),
     });
-  }
+  }, [lines, paymentMethod, responsible, saleMutation, sectorId, selectedClient?.id]);
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     setLocalError(null);
     setSuccessMessage(null);
     onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handleShortcut(event: KeyboardEvent) {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleClose();
+        return;
+      }
+
+      if (event.key === "F2") {
+        event.preventDefault();
+        productInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "F3") {
+        event.preventDefault();
+        clientInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "F4") {
+        event.preventDefault();
+        quantityInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "F5") {
+        event.preventDefault();
+        unitPriceInputRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "F6") {
+        event.preventDefault();
+        paymentTriggerRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "F8") {
+        event.preventDefault();
+        handleSaveSale();
+        return;
+      }
+
+      if (event.key === "Delete" && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        setLines((current) => current.slice(0, -1));
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [handleClose, handleSaveSale, open]);
+
+  function handleClientSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (selectedClient || clientOptions.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setClientListOpen(true);
+      setClientHighlightIndex((current) => (current + 1) % clientOptions.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setClientListOpen(true);
+      setClientHighlightIndex((current) =>
+        current === 0 ? clientOptions.length - 1 : current - 1
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && clientListOpen) {
+      event.preventDefault();
+      const highlightedClient = clientOptions[Math.min(clientHighlightIndex, clientOptions.length - 1)];
+      if (highlightedClient) {
+        handleSelectClient(highlightedClient);
+      }
+    }
+  }
+
+  function handleProductSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (selectedProduct || productOptions.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setProductListOpen(true);
+      setProductHighlightIndex((current) => (current + 1) % productOptions.length);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setProductListOpen(true);
+      setProductHighlightIndex((current) =>
+        current === 0 ? productOptions.length - 1 : current - 1
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && productListOpen) {
+      event.preventDefault();
+      const highlightedProduct =
+        productOptions[Math.min(productHighlightIndex, productOptions.length - 1)];
+      if (highlightedProduct) {
+        handleSelectProduct(highlightedProduct);
+      }
+    }
   }
 
   if (!open) {
@@ -310,14 +483,20 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-md border bg-white shadow-2xl">
+      <div
+        className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-md border bg-white shadow-2xl"
+        data-pdv-dialog="true"
+        role="dialog"
+        aria-modal="true"
+        aria-label="PDV Venda balcão"
+      >
         <header className="flex items-start justify-between border-b px-6 py-5">
           <div>
             <h2 className="text-xl font-semibold text-neutral-800">
               PDV Venda balcão
             </h2>
             <p className="text-xs text-muted-foreground">
-              F2 abre o caixa em qualquer tela
+              Use o teclado para operar o caixa mais rápido.
             </p>
           </div>
           <Button
@@ -331,6 +510,17 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
           </Button>
         </header>
+
+        <div className="flex flex-wrap gap-2 border-b bg-muted/30 px-6 py-3 text-xs text-muted-foreground">
+          {keyboardShortcuts.map(([key, label]) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <kbd className="rounded border bg-white px-1.5 py-0.5 font-mono text-[0.68rem] font-semibold text-neutral-800 shadow-sm">
+                {key}
+              </kbd>
+              <span>{label}</span>
+            </span>
+          ))}
+        </div>
 
         <div className="grid gap-6 px-6 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
           <div className="space-y-4">
@@ -349,27 +539,41 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                   <HugeiconsIcon icon={Add01Icon} strokeWidth={2.5} />
                 </Button>
                 <Input
+                  ref={clientInputRef}
                   className="h-10 rounded-l-none"
                   placeholder="Digite para pesquisar..."
+                  title="F3"
                   value={clientSearch}
+                  onKeyDown={handleClientSearchKeyDown}
+                  onFocus={() => setClientListOpen(true)}
+                  onBlur={() => window.setTimeout(() => setClientListOpen(false), 120)}
                   onChange={(event) => {
                     setClientSearch(event.target.value);
                     setSelectedClient(null);
+                    setClientHighlightIndex(0);
+                    setClientListOpen(true);
                   }}
                 />
-                {clientSearch && !selectedClient ? (
+                {clientListOpen && !selectedClient ? (
                   <div className="absolute left-10 right-0 top-11 z-20 rounded-md border bg-white shadow-lg">
                     {clientsQuery.data?.items.length ? (
-                      clientsQuery.data.items.map((client) => (
+                      clientsQuery.data.items.map((client, index) => (
                         <button
                           key={client.id}
                           type="button"
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                          onMouseDown={(event) => event.preventDefault()}
+                          className={`block w-full px-3 py-2 text-left text-sm hover:bg-muted ${
+                            index === clientHighlightIndex ? "bg-muted" : ""
+                          }`}
                           onClick={() => handleSelectClient(client)}
                         >
                           {client.name}
                         </button>
                       ))
+                    ) : clientsQuery.isFetching ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Carregando clientes...
+                      </div>
                     ) : (
                       <div className="px-3 py-2 text-sm text-muted-foreground">
                         Nenhum cliente encontrado
@@ -420,7 +624,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                   value={paymentMethod}
                   onValueChange={(value) => setPaymentMethod(value as SalePaymentMethod)}
                 >
-                  <SelectTrigger className="h-10 w-full">
+                  <SelectTrigger ref={paymentTriggerRef} className="h-10 w-full" title="F6">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -454,23 +658,33 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                       className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                     />
                     <Input
+                      ref={productInputRef}
                       className="h-10 rounded-l-none pl-9"
                       placeholder="Digite para pesquisar..."
+                      title="F2"
                       value={productSearch}
+                      onKeyDown={handleProductSearchKeyDown}
+                      onFocus={() => setProductListOpen(true)}
+                      onBlur={() => window.setTimeout(() => setProductListOpen(false), 120)}
                       onChange={(event) => {
                         setProductSearch(event.target.value);
                         setSelectedProduct(null);
+                        setProductHighlightIndex(0);
+                        setProductListOpen(true);
                       }}
                     />
                   </div>
-                  {productSearch && !selectedProduct ? (
+                  {productListOpen && !selectedProduct ? (
                     <div className="absolute left-10 right-0 top-11 z-20 rounded-md border bg-white shadow-lg">
                       {productsQuery.data?.items.length ? (
-                        productsQuery.data.items.map((item) => (
+                        productsQuery.data.items.map((item, index) => (
                           <button
                             key={item.id}
                             type="button"
-                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
+                            onMouseDown={(event) => event.preventDefault()}
+                            className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted ${
+                              index === productHighlightIndex ? "bg-muted" : ""
+                            }`}
                             onClick={() => handleSelectProduct(item)}
                           >
                             <span>{item.name}</span>
@@ -479,6 +693,10 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                             </span>
                           </button>
                         ))
+                      ) : productsQuery.isFetching ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          Carregando produtos...
+                        </div>
                       ) : (
                         <div className="px-3 py-2 text-sm text-muted-foreground">
                           Nenhum produto encontrado
@@ -497,11 +715,21 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label>Qtde.</Label>
-                  <Input value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+                  <Input
+                    ref={quantityInputRef}
+                    title="F4"
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Valor unit. (R$)</Label>
-                  <Input value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} />
+                  <Input
+                    ref={unitPriceInputRef}
+                    title="F5"
+                    value={unitPrice}
+                    onChange={(event) => setUnitPrice(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Desc. %</Label>
@@ -633,6 +861,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
                 className="bg-emerald-600 hover:bg-emerald-700"
                 onClick={handleSaveSale}
                 disabled={saleMutation.isPending}
+                title="F8"
               >
                 <HugeiconsIcon icon={PaymentSuccess01Icon} strokeWidth={2.5} />
                 Guardar venda

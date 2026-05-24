@@ -1,10 +1,4 @@
-"use client";
-
-import { use } from "react";
-import { useQuery } from "@tanstack/react-query";
-
-import { SupplierOrderForm } from "../../_components/supplier-order-form";
-import { fetchSupplierOrder } from "../../supplier-api";
+import { redirect } from "next/navigation";
 
 type EditSupplierOrderPageProps = {
   params: Promise<{
@@ -12,29 +6,7 @@ type EditSupplierOrderPageProps = {
   }>;
 };
 
-export default function EditSupplierOrderPage({ params }: EditSupplierOrderPageProps) {
-  const { id } = use(params);
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["supplier-order", id],
-    queryFn: () => fetchSupplierOrder(id),
-    staleTime: 30_000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        Carregando pedido...
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Não foi possível carregar o pedido."}
-      </div>
-    );
-  }
-
-  return <SupplierOrderForm initialData={data} />;
+export default async function EditSupplierOrderRedirectPage({ params }: EditSupplierOrderPageProps) {
+  const { id } = await params;
+  redirect(`/pedidos/${id}`);
 }

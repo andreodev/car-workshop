@@ -1,5 +1,5 @@
-import { SupplierOrderForm } from "../../_components/supplier-order-form";
+import { redirect } from "next/navigation";
 
-export default function NewSupplierOrderPage() {
-  return <SupplierOrderForm />;
+export default function NewSupplierOrderRedirectPage() {
+  redirect("/pedidos/novo");
 }

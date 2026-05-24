@@ -89,7 +89,7 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-orders"] });
-      router.push("/fornecedores/pedidos");
+      router.push("/pedidos");
     },
     onError: (error) => {
       setLocalError(
@@ -205,7 +205,7 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => router.push("/fornecedores/pedidos")}>
+        <Button type="button" variant="outline" onClick={() => router.push("/pedidos")}>
           Cancelar
         </Button>
         <Button type="submit" disabled={mutation.isPending}>

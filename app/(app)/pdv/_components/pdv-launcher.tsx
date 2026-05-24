@@ -17,6 +17,10 @@ export function PdvLauncher({ defaultResponsible }: PdvLauncherProps) {
         return;
       }
 
+      if (document.querySelector("[data-pdv-dialog='true']")) {
+        return;
+      }
+
       event.preventDefault();
       setOpen(true);
     }

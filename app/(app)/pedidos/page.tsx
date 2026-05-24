@@ -4,9 +4,18 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { deleteSupplier, fetchSuppliers } from "./supplier-api";
+import { deleteSupplierOrder, fetchSupplierOrders } from "../fornecedores/supplier-api";
+import type { SupplierOrderStatus } from "../fornecedores/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -18,24 +27,40 @@ import {
 
 const PAGE_SIZE = 10;
 
-export default function SuppliersPage() {
+const statusLabels: Record<SupplierOrderStatus, string> = {
+  ABERTO: "Aberto",
+  RECEBIDO: "Recebido",
+  CANCELADO: "Cancelado",
+};
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(value));
+}
+
+export default function SupplierOrdersPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("TODOS");
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["suppliers", { page, search }],
-    queryFn: () => fetchSuppliers({ page, pageSize: PAGE_SIZE, search }),
+    queryKey: ["supplier-orders", { page, search, status }],
+    queryFn: () =>
+      fetchSupplierOrders({
+        page,
+        pageSize: PAGE_SIZE,
+        search,
+        status,
+      }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteSupplier,
+    mutationFn: deleteSupplierOrder,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-options"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-orders"] });
     },
   });
 
@@ -56,14 +81,17 @@ export default function SuppliersPage() {
     <div className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Fornecedores</h1>
+          <h1 className="text-2xl font-semibold">Pedidos</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastre e gerencie os fornecedores da oficina.
+            Controle previsões, notas fiscais e observações de compras.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" asChild>
+            <Link href="/fornecedores">Fornecedores</Link>
+          </Button>
           <Button asChild>
-            <Link href="/fornecedores/novo">Cadastrar fornecedor</Link>
+            <Link href="/pedidos/novo">Cadastrar pedido</Link>
           </Button>
         </div>
       </header>
@@ -71,32 +99,41 @@ export default function SuppliersPage() {
       <form onSubmit={handleSearch} className="flex flex-col gap-3 md:flex-row">
         <Input
           className="flex-1"
-          placeholder="Buscar por codigo, nome, CPF, email ou linha de produtos"
+          placeholder="Buscar por codigo, fornecedor, funcionário ou NF"
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
         />
+        <Select
+          value={status}
+          onValueChange={(value) => {
+            setPage(1);
+            setStatus(value);
+          }}
+        >
+          <SelectTrigger className="w-full md:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODOS">Todos</SelectItem>
+            <SelectItem value="ABERTO">Aberto</SelectItem>
+            <SelectItem value="RECEBIDO">Recebido</SelectItem>
+            <SelectItem value="CANCELADO">Cancelado</SelectItem>
+          </SelectContent>
+        </Select>
         <Button type="submit" variant="secondary">
           Buscar
         </Button>
       </form>
 
-      {deleteMutation.isError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {deleteMutation.error instanceof Error
-            ? deleteMutation.error.message
-            : "Não foi possível excluir o fornecedor."}
-        </div>
-      ) : null}
-
       {isLoading ? (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          Carregando fornecedores...
+          Carregando pedidos...
         </div>
       ) : null}
 
       {isError ? (
         <div className="py-8 text-center text-sm text-destructive">
-          {error instanceof Error ? error.message : "Erro ao carregar fornecedores."}
+          {error instanceof Error ? error.message : "Erro ao carregar pedidos."}
         </div>
       ) : null}
 
@@ -106,35 +143,36 @@ export default function SuppliersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Codigo</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Linha de produtos</TableHead>
-                <TableHead>Cidade/UF</TableHead>
+                <TableHead>Fornecedor</TableHead>
+                <TableHead>Funcionário</TableHead>
+                <TableHead>Previsão</TableHead>
+                <TableHead>Número NF</TableHead>
+                <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.items.map((supplier) => (
-                <TableRow key={supplier.id}>
-                  <TableCell>#{supplier.code}</TableCell>
-                  <TableCell className="font-medium">{supplier.name}</TableCell>
+              {data.items.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell>#{order.code}</TableCell>
+                  <TableCell className="font-medium">{order.supplier?.name ?? "-"}</TableCell>
+                  <TableCell>{order.employee}</TableCell>
+                  <TableCell>{formatDate(order.forecastAt)}</TableCell>
+                  <TableCell>{order.invoiceNumber || "-"}</TableCell>
                   <TableCell>
-                    <div>{supplier.contact || supplier.email || "-"}</div>
-                    <div className="text-xs text-muted-foreground">{supplier.phone1 || ""}</div>
-                  </TableCell>
-                  <TableCell>{supplier.productLine || "-"}</TableCell>
-                  <TableCell>
-                    {[supplier.city, supplier.state].filter(Boolean).join(" / ") || "-"}
+                    <Badge variant={order.status === "CANCELADO" ? "secondary" : "default"}>
+                      {statusLabels[order.status]}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/fornecedores/${supplier.id}`}>Editar</Link>
+                      <Link href={`/pedidos/${order.id}`}>Editar</Link>
                     </Button>
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => deleteMutation.mutate(supplier.id)}
+                      onClick={() => deleteMutation.mutate(order.id)}
                       disabled={deleteMutation.isPending}
                     >
                       Excluir
@@ -149,7 +187,7 @@ export default function SuppliersPage() {
 
       {data && data.items.length === 0 && !isLoading ? (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          Nenhum fornecedor encontrado.
+          Nenhum pedido encontrado.
         </div>
       ) : null}
 
