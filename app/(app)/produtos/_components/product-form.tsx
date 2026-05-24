@@ -67,7 +67,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
     },
     onError: (error) => {
       setLocalError(
-        error instanceof Error ? error.message : "Nao foi possivel salvar o cadastro."
+        error instanceof Error ? error.message : "Não foi possível salvar o cadastro."
       );
     },
   });
@@ -84,12 +84,12 @@ export function ProductForm({ initialData }: ProductFormProps) {
     setLocalError(null);
 
     if (!form.name.trim()) {
-      setLocalError("Nome e obrigatorio.");
+      setLocalError("Nome é obrigatório.");
       return;
     }
 
     if (!Number.isFinite(parseMoney(form.unitPrice)) || parseMoney(form.unitPrice) < 0) {
-      setLocalError("Valor unitario invalido.");
+      setLocalError("Valor unitário inválido.");
       return;
     }
 
@@ -100,7 +100,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
     <form onSubmit={handleSubmit} className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
       <header>
         <h1 className="text-2xl font-semibold">
-          {mode === "edit" ? "Editar produto/servico" : "Cadastrar produto/servico"}
+          {mode === "edit" ? "Editar produto/serviço" : "Cadastrar produto/serviço"}
         </h1>
         <p className="text-sm text-muted-foreground">
           Esses itens ficam disponiveis para pesquisa no PDV.
@@ -134,7 +134,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Situacao</Label>
+          <Label>Situação</Label>
           <Select
             value={form.active ? "ATIVO" : "INATIVO"}
             onValueChange={(value) => updateField("active", value === "ATIVO")}
@@ -160,7 +160,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
           />
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label>Observacoes</Label>
+          <Label>Observações</Label>
           <Textarea
             value={form.notes}
             onChange={(event) => updateField("notes", event.target.value)}

@@ -27,7 +27,7 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   if (isError || !data) {
     return (
       <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Nao foi possivel carregar o item."}
+        {error instanceof Error ? error.message : "Não foi possível carregar o item."}
       </div>
     );
   }

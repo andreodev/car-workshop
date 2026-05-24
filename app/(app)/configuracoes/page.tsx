@@ -73,7 +73,7 @@ const settingsItems = [
     status: "Prototipo",
   },
   {
-    title: "Situacao",
+    title: "Situação",
     icon: Flag03Icon,
     href: "#",
     status: "Prototipo",
@@ -91,7 +91,7 @@ const settingsItems = [
     status: "Ativo",
   },
   {
-    title: "Localizacao",
+    title: "Localização",
     icon: Location04Icon,
     href: "#",
     status: "Prototipo",
@@ -115,7 +115,7 @@ const settingsItems = [
     status: "Prototipo",
   },
   {
-    title: "Veiculo",
+    title: "Veículo",
     icon: Car03Icon,
     href: "/veiculos",
     status: "Ativo",

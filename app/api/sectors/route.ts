@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -70,14 +70,14 @@ export async function POST(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
   const name = normalizeString(payload.name);
 
   if (!name) {
-    return Response.json({ error: "Nome e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Nome é obrigatório." }, { status: 400 });
   }
 
   try {

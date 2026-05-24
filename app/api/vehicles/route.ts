@@ -31,7 +31,7 @@ function parseYear(value: unknown) {
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return { error: "Ano invalido." };
+    return { error: "Ano inválido." };
   }
 
   return { value: parsed };
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -113,11 +113,11 @@ export async function POST(request: NextRequest) {
   const clientId = normalizeString(payload.clientId);
 
   if (!plate) {
-    return Response.json({ error: "Placa e obrigatoria." }, { status: 400 });
+    return Response.json({ error: "Placa é obrigatória." }, { status: 400 });
   }
 
   if (!clientId) {
-    return Response.json({ error: "Cliente e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Cliente é obrigatório." }, { status: 400 });
   }
 
   const client = await prisma.client.findUnique({
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (!client) {
-    return Response.json({ error: "Cliente nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Cliente não encontrado." }, { status: 400 });
   }
 
   const manufactureYear = parseYear(payload.manufactureYear);

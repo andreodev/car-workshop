@@ -1,16 +1,21 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Fraunces, Sora } from "next/font/google";
 
 import { fetchClients } from "../../clientes/client-api";
 import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";
+import {
+  ServiceOrderFormStepper,
+  serviceOrderFormSteps,
+  type ServiceOrderFormStepValue,
+} from "./service-order-form-stepper";
 import type {
   ServiceOrder,
   ServiceOrderFormValues,
@@ -20,6 +25,7 @@ import type {
 } from "../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,10 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-
-const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
@@ -145,23 +149,16 @@ type ServiceOrderFormProps = {
 export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<ServiceOrderFormValues>(emptyForm);
+  const [form, setForm] = useState<ServiceOrderFormValues>(() =>
+    initialData ? mapOrderToForm(initialData) : emptyForm
+  );
+  const [activeTab, setActiveTab] =
+    useState<ServiceOrderFormStepValue>("cabecalho");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const sessionQuery = useAuthSession();
-
-  useEffect(() => {
-    if (initialData) {
-      setForm(mapOrderToForm(initialData));
-    }
-  }, [initialData]);
-
-  useEffect(() => {
-    const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
-    if (!initialData && sessionName && !form.responsible) {
-      setForm((prev) => ({ ...prev, responsible: sessionName }));
-    }
-  }, [form.responsible, initialData, sessionQuery.data]);
+  const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
+  const responsibleValue = form.responsible || (!initialData ? sessionName : "");
 
   const clientsQuery = useQuery({
     queryKey: ["service-order-clients"],
@@ -183,16 +180,6 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     return vehicles.filter((vehicle) => vehicle.clientId === form.clientId);
   }, [vehiclesQuery.data, form.clientId]);
 
-  useEffect(() => {
-    if (!form.vehicleId) {
-      return;
-    }
-    const exists = availableVehicles.some((vehicle) => vehicle.id === form.vehicleId);
-    if (!exists) {
-      setForm((prev) => ({ ...prev, vehicleId: "" }));
-    }
-  }, [availableVehicles, form.vehicleId]);
-
   const mutation = useMutation({
     mutationFn: async (payload: ServiceOrderPayload) => {
       if (mode === "edit" && initialData?.id) {
@@ -202,6 +189,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+      if (mode === "edit" && initialData?.id) {
+        queryClient.invalidateQueries({ queryKey: ["service-order", initialData.id] });
+      }
       router.push("/ordens-servico");
       router.refresh();
     },
@@ -230,6 +220,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
+      setLocalError(null);
     };
 
   function updateItem(itemId: string, field: keyof ServiceOrderItemFormValues, value: string) {
@@ -239,6 +230,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
         item.id === itemId ? { ...item, [field]: value } : item
       ),
     }));
+    setLocalError(null);
   }
 
   function addItem() {
@@ -258,21 +250,25 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
     if (!form.clientId) {
       setLocalError("Selecione o cliente.");
+      setActiveTab("cabecalho");
       return;
     }
 
     if (!form.vehicleId) {
-      setLocalError("Selecione o veiculo.");
+      setLocalError("Selecione o veículo.");
+      setActiveTab("cabecalho");
       return;
     }
 
-    if (!form.responsible.trim()) {
-      setLocalError("Responsavel e obrigatorio.");
+    if (!responsibleValue.trim()) {
+      setLocalError("Responsável é obrigatório.");
+      setActiveTab("cabecalho");
       return;
     }
 
     if (!form.entryDate) {
-      setLocalError("Data de entrada e obrigatoria.");
+      setLocalError("Data de entrada e obrigatória.");
+      setActiveTab("cabecalho");
       return;
     }
 
@@ -284,13 +280,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
     if (invalidItem) {
       setLocalError("Preencha descricao, quantidade e valor unitario dos itens.");
+      setActiveTab("itens");
       return;
     }
 
     const payload: ServiceOrderPayload = {
       clientId: form.clientId,
       vehicleId: form.vehicleId,
-      responsible: form.responsible.trim(),
+      responsible: responsibleValue.trim(),
       location: form.location.trim() || null,
       km: form.km ? Math.trunc(normalizeAmount(form.km)) : null,
       entryAt: combineDateTime(form.entryDate, form.entryTime) ?? "",
@@ -311,325 +308,388 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
   const isSaving = mutation.isPending;
   const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+  const activeStepIndex = serviceOrderFormSteps.findIndex(
+    (step) => step.value === activeTab
+  );
+  const previousStep = serviceOrderFormSteps[activeStepIndex - 1]?.value;
+  const nextStep = serviceOrderFormSteps[activeStepIndex + 1]?.value;
 
   return (
-    <div
-      className={`${bodyFont.className} relative overflow-hidden rounded-[32px] border bg-white/80 p-6 shadow-lg backdrop-blur`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.2),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.18),transparent_50%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-100/70 via-transparent to-emerald-100/70" />
-
-      <div className="relative z-10 space-y-6">
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Oficina integrada
-            </p>
-            <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              {mode === "edit" ? "Editar ordem de servico" : "Nova ordem de servico"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Registre a OS, acompanhe itens e mantenha o time alinhado.
-            </p>
-          </div>
-          <Badge variant="secondary" className="h-fit text-[11px]">
-            {serviceOrderStatusOptions.find((option) => option.value === form.status)?.label}
-          </Badge>
-        </header>
-
-        <form
-          onSubmit={handleSubmit}
-          className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]"
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as ServiceOrderFormStepValue)}
+          className="flex-1"
         >
-          <div className="space-y-6">
-            <section className="rounded-2xl border bg-white/90 p-5 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-semibold text-foreground">Cabecalho</h2>
-              <p className="text-xs text-muted-foreground">
-                Cliente, veiculo e datas principais da OS.
-              </p>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Cliente</Label>
-                  <Select
-                    value={form.clientId}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, clientId: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(clientsQuery.data?.items ?? []).map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {clientsQuery.isError ? (
-                    <p className="text-xs text-destructive">
-                      Nao foi possivel carregar clientes.
-                    </p>
+          <div className="flex flex-1 flex-col gap-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <Header
+                title={mode === "edit" ? "Editar ordem de serviço" : "Nova ordem de serviço"}
+                description="Registre a OS, acompanhe itens e mantenha o time alinhado."
+              />
+              <Badge variant="secondary" className="h-fit text-[11px]">
+                {serviceOrderStatusOptions.find((option) => option.value === form.status)?.label}
+              </Badge>
+            </div>
+
+            <div className="pb-6">
+              <ServiceOrderFormStepper activeStep={activeTab} />
+            </div>
+
+            <div className="rounded-3xl border-2 border-gray-700 bg-white/60 p-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="space-y-6"
+                >
+                  {activeTab === "cabecalho" ? (
+                    <section className="space-y-5">
+                      <div className="space-y-1">
+                        <h3 className="font-heading text-lg text-foreground">Cabeçalho</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Cliente, veículo e datas principais da OS.
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Cliente</Label>
+                          <Select
+                            value={form.clientId}
+                            onValueChange={(value) => {
+                              setForm((prev) => ({ ...prev, clientId: value, vehicleId: "" }));
+                              setLocalError(null);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(clientsQuery.data?.items ?? []).map((client) => (
+                                <SelectItem key={client.id} value={client.id}>
+                                  {client.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {clientsQuery.isError ? (
+                            <p className="text-xs text-destructive">
+                              Não foi possível carregar clientes.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label>Status</Label>
+                          <Select
+                            value={form.status}
+                            onValueChange={(value) => {
+                              setForm((prev) => ({
+                                ...prev,
+                                status: value as ServiceOrderStatus,
+                              }));
+                              setLocalError(null);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {serviceOrderStatusOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Veículo</Label>
+                          <Select
+                            value={form.vehicleId}
+                            onValueChange={(value) => {
+                              setForm((prev) => ({ ...prev, vehicleId: value }));
+                              setLocalError(null);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableVehicles.map((vehicle) => (
+                                <SelectItem key={vehicle.id} value={vehicle.id}>
+                                  {vehicle.plate} {vehicle.model ? `- ${vehicle.model}` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {vehiclesQuery.isError ? (
+                            <p className="text-xs text-destructive">
+                              Não foi possível carregar veículos.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label>Responsável</Label>
+                          <Input value={responsibleValue} onChange={onChange("responsible")} />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <div className="grid gap-2">
+                          <Label>Localização</Label>
+                          <Input value={form.location} onChange={onChange("location")} />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Km</Label>
+                          <Input value={form.km} onChange={onChange("km")} />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Data entrada</Label>
+                          <Input
+                            type="date"
+                            value={form.entryDate}
+                            onChange={onChange("entryDate")}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Hora entrada</Label>
+                          <Input
+                            type="time"
+                            value={form.entryTime}
+                            onChange={onChange("entryTime")}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Data prevista</Label>
+                          <Input
+                            type="date"
+                            value={form.estimatedDate}
+                            onChange={onChange("estimatedDate")}
+                          />
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Hora prevista</Label>
+                          <Input
+                            type="time"
+                            value={form.estimatedTime}
+                            onChange={onChange("estimatedTime")}
+                          />
+                        </div>
+                      </div>
+                    </section>
                   ) : null}
-                </div>
-                <div className="grid gap-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        status: value as ServiceOrderStatus,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {serviceOrderStatusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Veiculo</Label>
-                  <Select
-                    value={form.vehicleId}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, vehicleId: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          vehiclesQuery.isLoading ? "Carregando veiculos..." : "Selecione"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>
-                          {vehicle.plate} {vehicle.model ? `- ${vehicle.model}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {vehiclesQuery.isError ? (
-                    <p className="text-xs text-destructive">
-                      Nao foi possivel carregar veiculos.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="grid gap-2">
-                  <Label>Responsavel</Label>
-                  <Input value={form.responsible} onChange={onChange("responsible")} />
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-4">
-                <div className="grid gap-2">
-                  <Label>Localizacao</Label>
-                  <Input value={form.location} onChange={onChange("location")} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Km</Label>
-                  <Input value={form.km} onChange={onChange("km")} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Data entrada</Label>
-                  <Input type="date" value={form.entryDate} onChange={onChange("entryDate")} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Hora entrada</Label>
-                  <Input type="time" value={form.entryTime} onChange={onChange("entryTime")} />
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-4">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Data prevista</Label>
-                  <Input
-                    type="date"
-                    value={form.estimatedDate}
-                    onChange={onChange("estimatedDate")}
-                  />
-                </div>
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Hora prevista</Label>
-                  <Input
-                    type="time"
-                    value={form.estimatedTime}
-                    onChange={onChange("estimatedTime")}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border bg-white/90 p-5 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Itens e servicos</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Registre os itens executados e atualize o total automaticamente.
-                  </p>
-                </div>
-                <Button type="button" variant="secondary" onClick={addItem}>
-                  Adicionar item
-                </Button>
-              </div>
-              <div className="mt-4 space-y-3">
-                {form.items.map((item, index) => {
-                  const quantity = normalizeAmount(item.quantity);
-                  const unitPrice = normalizeAmount(item.unitPrice);
-                  const discount = normalizeAmount(item.discount);
-                  const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3 md:grid-cols-[2.2fr_0.8fr_1fr_1fr_auto]"
-                    >
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">
-                          Descricao
-                        </Label>
-                        <Input
-                          value={item.description}
-                          onChange={(event) =>
-                            updateItem(item.id, "description", event.target.value)
-                          }
-                          placeholder={`Servico ${index + 1}`}
-                        />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Qtd</Label>
-                        <Input
-                          value={item.quantity}
-                          onChange={(event) =>
-                            updateItem(item.id, "quantity", event.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Valor</Label>
-                        <Input
-                          value={item.unitPrice}
-                          onChange={(event) =>
-                            updateItem(item.id, "unitPrice", event.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Desconto</Label>
-                        <Input
-                          value={item.discount}
-                          onChange={(event) =>
-                            updateItem(item.id, "discount", event.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="flex flex-col items-end justify-between gap-2">
-                        <span className="text-xs font-semibold text-foreground">
-                          {formatCurrency(lineTotal)}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          Remover
+                  {activeTab === "itens" ? (
+                    <section className="space-y-5">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-1">
+                          <h3 className="font-heading text-lg text-foreground">
+                            Itens e serviços
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Registre os itens executados e atualize o total automaticamente.
+                          </p>
+                        </div>
+                        <Button type="button" variant="secondary" onClick={addItem}>
+                          Adicionar item
                         </Button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
 
-            <section className="rounded-2xl border bg-white/90 p-5 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-semibold text-foreground">Observacoes</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>Observacao interna</Label>
-                  <Textarea
-                    value={form.notesInternal}
-                    onChange={onChange("notesInternal")}
-                    rows={5}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Observacao para o cliente</Label>
-                  <Textarea
-                    value={form.notesClient}
-                    onChange={onChange("notesClient")}
-                    rows={5}
-                  />
-                </div>
-              </div>
-            </section>
-          </div>
+                      <div className="space-y-3">
+                        {form.items.map((item, index) => {
+                          const quantity = normalizeAmount(item.quantity);
+                          const unitPrice = normalizeAmount(item.unitPrice);
+                          const discount = normalizeAmount(item.discount);
+                          const lineTotal = Math.max(quantity * unitPrice - discount, 0);
 
-          <aside className="space-y-6">
-            <section className="rounded-2xl border bg-white/90 p-5 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-semibold text-foreground">Resumo financeiro</h2>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Descontos</span>
-                  <span className="font-semibold text-amber-700">
-                    -{formatCurrency(totals.discountTotal)}
-                  </span>
-                </div>
-                <div className="h-px bg-border" />
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-semibold">Total</span>
-                  <span className="font-semibold text-foreground">
-                    {formatCurrency(totals.total)}
-                  </span>
-                </div>
-              </div>
-            </section>
+                          return (
+                            <div
+                              key={item.id}
+                              className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3 md:grid-cols-[2.2fr_0.8fr_1fr_1fr_auto]"
+                            >
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Descrição
+                                </Label>
+                                <Input
+                                  value={item.description}
+                                  onChange={(event) =>
+                                    updateItem(item.id, "description", event.target.value)
+                                  }
+                                  placeholder={`Servico ${index + 1}`}
+                                />
+                              </div>
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">Qtd</Label>
+                                <Input
+                                  value={item.quantity}
+                                  onChange={(event) =>
+                                    updateItem(item.id, "quantity", event.target.value)
+                                  }
+                                />
+                              </div>
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">Valor</Label>
+                                <Input
+                                  value={item.unitPrice}
+                                  onChange={(event) =>
+                                    updateItem(item.id, "unitPrice", event.target.value)
+                                  }
+                                />
+                              </div>
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Desconto
+                                </Label>
+                                <Input
+                                  value={item.discount}
+                                  onChange={(event) =>
+                                    updateItem(item.id, "discount", event.target.value)
+                                  }
+                                />
+                              </div>
+                              <div className="flex flex-col items-end justify-between gap-2">
+                                <span className="text-xs font-semibold text-foreground">
+                                  {formatCurrency(lineTotal)}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeItem(item.id)}
+                                >
+                                  Remover
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
 
-            <section className="rounded-2xl border bg-white/90 p-5 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-semibold text-foreground">Acoes</h2>
-              <div className="mt-4 space-y-3">
-                {errorMessage ? (
-                  <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {errorMessage}
-                  </div>
-                ) : null}
-                <Button type="submit" className="w-full" disabled={isSaving}>
-                  {isSaving ? "Salvando..." : "Salvar ordem de servico"}
-                </Button>
+                      <div className="ml-auto max-w-md rounded-2xl border border-border bg-background/70 p-4 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-muted-foreground">Descontos</span>
+                          <span className="font-semibold text-amber-700">
+                            -{formatCurrency(totals.discountTotal)}
+                          </span>
+                        </div>
+                        <div className="my-3 h-px bg-border" />
+                        <div className="flex items-center justify-between text-base">
+                          <span className="font-semibold">Total</span>
+                          <span className="font-semibold text-foreground">
+                            {formatCurrency(totals.total)}
+                          </span>
+                        </div>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {activeTab === "observações" ? (
+                    <section className="space-y-5">
+                      <div className="space-y-1">
+                        <h3 className="font-heading text-lg text-foreground">Observações</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Registre notas internas e mensagens visiveis ao cliente.
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label>Observação interna</Label>
+                          <Textarea
+                            value={form.notesInternal}
+                            onChange={onChange("notesInternal")}
+                            rows={5}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Observação para o cliente</Label>
+                          <Textarea
+                            value={form.notesClient}
+                            onChange={onChange("notesClient")}
+                            rows={5}
+                          />
+                        </div>
+                      </div>
+                    </section>
+                  ) : null}
+                </motion.div>
+              </AnimatePresence>
+
+              {errorMessage ? (
+                <p className="mt-6 rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                  {errorMessage}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
+              <p className="text-xs text-muted-foreground">
+                Revise os dados antes de salvar. A ordem ficará disponível para acompanhamento.
+              </p>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full"
+                  size="lg"
                   onClick={() => router.push("/ordens-servico")}
                 >
                   Cancelar
                 </Button>
+                {previousStep ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setActiveTab(previousStep)}
+                  >
+                    Anterior
+                  </Button>
+                ) : null}
+                {nextStep ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => setActiveTab(nextStep)}
+                  >
+                    Próxima
+                  </Button>
+                ) : null}
+                <Button type="submit" size="lg" disabled={isSaving}>
+                  {isSaving ? "Salvando..." : "Salvar ordem de serviço"}
+                </Button>
               </div>
-            </section>
-          </aside>
-        </form>
-      </div>
-    </div>
+            </div>
+          </div>
+        </Tabs>
+      </form>
+    </section>
   );
 }

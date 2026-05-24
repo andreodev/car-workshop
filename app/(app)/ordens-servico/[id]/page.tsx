@@ -22,7 +22,7 @@ export default function ServiceOrderEditPage({ params }: ServiceOrderEditPagePro
   if (isLoading) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        Carregando ordem de servico...
+        Carregando ordem de serviço...
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function ServiceOrderEditPage({ params }: ServiceOrderEditPagePro
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar a ordem de servico.
+        Não foi possível carregar a ordem de serviço.
       </div>
     );
   }

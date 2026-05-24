@@ -50,7 +50,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -60,7 +60,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   });
 
   if (!sale) {
-    return Response.json({ error: "Venda nao encontrada." }, { status: 404 });
+    return Response.json({ error: "Venda não encontrada." }, { status: 404 });
   }
 
   return Response.json(sale);
@@ -70,7 +70,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const status = normalizeStatus(payload.status);
 
   if (!status) {
-    return Response.json({ error: "Status invalido." }, { status: 400 });
+    return Response.json({ error: "Status inválido." }, { status: 400 });
   }
 
   try {
@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Response.json({ error: "Venda nao encontrada." }, { status: 404 });
+      return Response.json({ error: "Venda não encontrada." }, { status: 404 });
     }
 
     throw error;

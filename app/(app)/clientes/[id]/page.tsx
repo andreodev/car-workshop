@@ -30,7 +30,7 @@ export default function ClientEditPage({ params }: ClientEditPageProps) {
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar o cliente.
+        Não foi possível carregar o cliente.
       </div>
     );
   }

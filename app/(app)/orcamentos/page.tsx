@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -114,14 +114,14 @@ export default function EstimatesPage() {
               Frente de atendimento
             </p>
             <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              Orcamentos
+              OrÃ§amentos
             </h1>
             <p className="text-sm text-muted-foreground">
-              Busque propostas, aprove valores e converta em ordem de servico.
+              Busque propostas, aprove valores e converta em ordem de serviÃ§o.
             </p>
           </div>
           <Button asChild>
-            <Link href="/orcamentos/novo">Incluir orcamento</Link>
+            <Link href="/orcamentos/novo">Incluir orÃ§amento</Link>
           </Button>
         </header>
 
@@ -131,7 +131,7 @@ export default function EstimatesPage() {
         >
           <div className="flex-1">
             <Input
-              placeholder="Buscar por cliente, veiculo, responsavel ou numero"
+              placeholder="Buscar por cliente, veÃ­culo, responsÃ¡vel ou numero"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
             />
@@ -158,19 +158,19 @@ export default function EstimatesPage() {
 
         {isLoading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Carregando orcamentos...
+            Carregando orÃ§amentos...
           </div>
         ) : null}
 
         {isError ? (
           <div className="py-8 text-center text-sm text-destructive">
-            {error instanceof Error ? error.message : "Erro ao carregar orcamentos."}
+            {error instanceof Error ? error.message : "Erro ao carregar orÃ§amentos."}
           </div>
         ) : null}
 
         {data && data.items.length === 0 && !isLoading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum orcamento encontrado.
+            Nenhum orÃ§amento encontrado.
           </div>
         ) : null}
 
@@ -183,9 +183,9 @@ export default function EstimatesPage() {
                   <TableHead className="w-24">No</TableHead>
                   <TableHead className="w-28">Tipo</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Veiculo</TableHead>
+                  <TableHead>VeÃ­culo</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total servicos</TableHead>
+                  <TableHead className="text-right">Total serviÃ§os</TableHead>
                   <TableHead className="text-right">Desconto</TableHead>
                   <TableHead className="text-right">Total da nota</TableHead>
                   <TableHead className="w-28">Validade</TableHead>
@@ -198,8 +198,7 @@ export default function EstimatesPage() {
                   const isOpen = openMenuId === estimate.id;
                   const canConvert =
                     !estimate.convertedServiceOrderId &&
-                    estimate.status !== "REJEITADO" &&
-                    estimate.status !== "CANCELADO";
+                    estimate.status === "APROVADO";
                   const isConverting =
                     convertMutation.isPending && convertMutation.variables === estimate.id;
                   return (
@@ -225,7 +224,7 @@ export default function EstimatesPage() {
                               onClick={() => setOpenMenuId(null)}
                             >
                               <HugeiconsIcon icon={File02Icon} strokeWidth={2} className="size-4" />
-                              Visualizar orcamento
+                              Visualizar orÃ§amento
                             </Link>
                             <Link
                               href={`/orcamentos/${estimate.id}`}
@@ -237,7 +236,7 @@ export default function EstimatesPage() {
                                 strokeWidth={2}
                                 className="size-4"
                               />
-                              Editar orcamento
+                              Editar orÃ§amento
                             </Link>
                           </div>
                         ) : null}
@@ -294,7 +293,11 @@ export default function EstimatesPage() {
                           <Button
                             type="button"
                             size="icon-lg"
-                            title="Aprovar e gerar OS"
+                            title={
+                              estimate.status === "APROVADO"
+                                ? "Gerar OS"
+                                : "Aprove o orçamento para gerar a OS"
+                            }
                             disabled={!canConvert || isConverting}
                             className="bg-emerald-600 text-white hover:bg-emerald-700"
                             onClick={() => convertMutation.mutate(estimate.id)}
@@ -315,13 +318,13 @@ export default function EstimatesPage() {
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {convertMutation.error instanceof Error
               ? convertMutation.error.message
-              : "Nao foi possivel gerar a OS."}
+              : "NÃ£o foi possÃ­vel gerar a OS."}
           </div>
         ) : null}
 
         <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
           <div className="text-xs text-muted-foreground">
-            Pagina {data?.page ?? page} de {totalPages}
+            PÃ¡gina {data?.page ?? page} de {totalPages}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -338,7 +341,7 @@ export default function EstimatesPage() {
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
             >
-              Proxima
+              PrÃ³xima
             </Button>
           </div>
         </div>

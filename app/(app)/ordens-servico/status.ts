@@ -15,7 +15,7 @@ export const serviceOrderStatusOptions: Array<{
   { value: "EM_ANDAMENTO", label: "Em andamento", variant: "secondary" },
   {
     value: "AGUARDANDO_PECAS",
-    label: "Aguardando pecas",
+    label: "Aguardando peças",
     variant: "destructive",
     className: "border-amber-300 bg-amber-100 text-amber-800",
   },

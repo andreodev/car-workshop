@@ -211,12 +211,12 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     }
 
     if (!form.vehicleId) {
-      setLocalError("Selecione o veiculo.");
+      setLocalError("Selecione o veículo.");
       return;
     }
 
     if (!responsibleValue.trim()) {
-      setLocalError("Responsavel e obrigatorio.");
+      setLocalError("Responsável é obrigatório.");
       return;
     }
 
@@ -260,13 +260,13 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Orcamento de oficina
+              Orçamento de oficina
             </p>
             <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              {mode === "edit" ? "Editar orcamento" : "Novo orcamento"}
+              {mode === "edit" ? "Editar orçamento" : "Novo orçamento"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Monte servicos, pecas, descontos e aprove a OS a partir da proposta.
+              Monte serviços, peças, descontos e aprove a OS a partir da proposta.
             </p>
           </div>
           <Badge variant="secondary" className="h-fit text-[11px]">
@@ -277,7 +277,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
         <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Dados do orcamento</h2>
+              <h2 className="text-sm font-semibold text-foreground">Dados do orçamento</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 <div className="grid gap-2 md:col-span-2">
                   <Label>Cliente</Label>
@@ -308,7 +308,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                   </Select>
                   {clientsQuery.isError ? (
                     <p className="text-xs text-destructive">
-                      Nao foi possivel carregar clientes.
+                      Não foi possível carregar clientes.
                     </p>
                   ) : null}
                 </div>
@@ -336,7 +336,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
 
               <div className="mt-4 grid gap-4 md:grid-cols-4">
                 <div className="grid gap-2 md:col-span-2">
-                  <Label>Veiculo</Label>
+                  <Label>Veículo</Label>
                   <Select
                     value={form.vehicleId}
                     onValueChange={(value) =>
@@ -346,7 +346,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                     <SelectTrigger>
                       <SelectValue
                         placeholder={
-                          vehiclesQuery.isLoading ? "Carregando veiculos..." : "Selecione"
+                          vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"
                         }
                       />
                     </SelectTrigger>
@@ -375,7 +375,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label>Responsavel</Label>
+                  <Label>Responsável</Label>
                   <Input value={responsibleValue} onChange={onChange("responsible")} />
                 </div>
               </div>
@@ -384,9 +384,9 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
             <section className="border bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">Servicos e pecas</h2>
+                  <h2 className="text-sm font-semibold text-foreground">Serviços e peças</h2>
                   <p className="text-xs text-muted-foreground">
-                    Inclua mao de obra, pecas e descontos por linha.
+                    Inclua mão de obra, peças e descontos por linha.
                   </p>
                 </div>
                 <Button type="button" variant="secondary" onClick={addItem}>
@@ -406,7 +406,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                       className="grid gap-3 border border-dashed bg-muted/30 p-3 md:grid-cols-[2.2fr_0.8fr_1fr_1fr_auto]"
                     >
                       <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Descricao</Label>
+                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
                         <Input
                           value={item.description}
                           onChange={(event) =>
@@ -462,10 +462,10 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
             </section>
 
             <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Observacoes</h2>
+              <h2 className="text-sm font-semibold text-foreground">Observações</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label>Observacao interna</Label>
+                  <Label>Observação interna</Label>
                   <Textarea
                     value={form.notesInternal}
                     onChange={onChange("notesInternal")}
@@ -473,7 +473,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Observacao para o cliente</Label>
+                  <Label>Observação para o cliente</Label>
                   <Textarea
                     value={form.notesClient}
                     onChange={onChange("notesClient")}
@@ -489,7 +489,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
               <h2 className="text-sm font-semibold text-foreground">Resumo financeiro</h2>
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Total servicos</span>
+                  <span className="text-muted-foreground">Total serviços</span>
                   <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -509,7 +509,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
             </section>
 
             <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Acoes</h2>
+              <h2 className="text-sm font-semibold text-foreground">Ações</h2>
               <div className="mt-4 space-y-3">
                 {errorMessage ? (
                   <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -517,7 +517,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                   </div>
                 ) : null}
                 <Button type="submit" className="w-full" disabled={isSaving}>
-                  {isSaving ? "Salvando..." : "Salvar orcamento"}
+                  {isSaving ? "Salvando..." : "Salvar orçamento"}
                 </Button>
                 <Button
                   type="button"

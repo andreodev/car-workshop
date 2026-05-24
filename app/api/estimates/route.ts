@@ -37,7 +37,7 @@ function parseEstimateStatus(value: unknown) {
   const status = normalizeString(value) ?? "RASCUNHO";
 
   if (!estimateStatuses.includes(status as EstimateStatusValue)) {
-    return { error: "Status do orcamento invalido." };
+    return { error: "Status do orçamento inválido." };
   }
 
   return { value: status as EstimateStatusValue };
@@ -52,7 +52,7 @@ function parseDecimal(value: unknown, fieldLabel: string) {
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: new Prisma.Decimal(parsed) };
@@ -66,7 +66,7 @@ function parseDateTime(value: unknown, fieldLabel: string) {
 
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: parsed };
@@ -81,7 +81,7 @@ function parsePositiveInt(value: unknown, fieldLabel: string) {
   const parsed = Number(normalized);
 
   if (!Number.isFinite(parsed) || parsed < 0) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: Math.trunc(parsed) };
@@ -111,13 +111,13 @@ function parseItems(payload: unknown) {
 
   for (const rawItem of payload) {
     if (!rawItem || typeof rawItem !== "object") {
-      return { error: "Item invalido." };
+      return { error: "Item inválido." };
     }
 
     const item = rawItem as Record<string, unknown>;
     const description = normalizeString(item.description);
     if (!description) {
-      return { error: "Descricao do item e obrigatoria." };
+      return { error: "Descrição do item é obrigatória." };
     }
 
     const quantityParsed = parsePositiveInt(item.quantity, "Quantidade");
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
     const session = await getServerAuthSession();
 
     if (!session?.user) {
-      return Response.json({ error: "Nao autorizado." }, { status: 401 });
+      return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== "TODOS") {
       if (!estimateStatuses.includes(status as EstimateStatusValue)) {
-        return Response.json({ error: "Status do orcamento invalido." }, { status: 400 });
+        return Response.json({ error: "Status do orçamento inválido." }, { status: 400 });
       }
 
       where.status = status as EstimateStatusValue;
@@ -221,11 +221,11 @@ export async function GET(request: NextRequest) {
 
     return Response.json(JSON.parse(JSON.stringify({ items, total, page, pageSize })));
   } catch (error) {
-    console.error("Erro ao listar orcamentos", error);
+    console.error("Erro ao listar orçamentos", error);
 
     return Response.json(
       {
-        error: error instanceof Error ? error.message : "Erro ao carregar orcamentos.",
+        error: error instanceof Error ? error.message : "Erro ao carregar orçamentos.",
       },
       { status: 500 }
     );
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -246,15 +246,15 @@ export async function POST(request: NextRequest) {
     normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
 
   if (!clientId) {
-    return Response.json({ error: "Cliente e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Cliente é obrigatório." }, { status: 400 });
   }
 
   if (!vehicleId) {
-    return Response.json({ error: "Veiculo e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Veículo é obrigatório." }, { status: 400 });
   }
 
   if (!responsible) {
-    return Response.json({ error: "Responsavel e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Responsável é obrigatório." }, { status: 400 });
   }
 
   const status = parseEstimateStatus(payload.status);
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (!client) {
-    return Response.json({ error: "Cliente nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Cliente não encontrado." }, { status: 400 });
   }
 
   const vehicle = await prisma.vehicle.findUnique({
@@ -287,11 +287,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!vehicle) {
-    return Response.json({ error: "Veiculo nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Veículo não encontrado." }, { status: 400 });
   }
 
   if (vehicle.clientId !== clientId) {
-    return Response.json({ error: "Veiculo nao pertence ao cliente." }, { status: 400 });
+    return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
   }
 
   const estimate = await prisma.estimate.create({

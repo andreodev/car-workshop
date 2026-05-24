@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("E-mail ou senha invalidos.");
+      setError("E-mail ou senha inválidos.");
       return;
     }
 
@@ -56,6 +57,16 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <div className="mb-2 flex justify-center">
+            <Image
+              src="/assets/logo.png"
+              alt="Rikinho Auto Center"
+              width={140}
+              height={84}
+              className="h-16 w-auto object-contain"
+              priority
+            />
+          </div>
           <CardTitle>Entrar</CardTitle>
           <CardDescription>
             Acesse sua conta para gerenciar a oficina.

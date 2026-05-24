@@ -109,7 +109,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const account = await prisma.financialAccount.findUnique({
@@ -118,7 +118,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   });
 
   if (!account) {
-    return Response.json({ error: "Conta financeira nao encontrada." }, { status: 404 });
+    return Response.json({ error: "Conta financeira não encontrada." }, { status: 404 });
   }
 
   return Response.json(account);
@@ -129,7 +129,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -144,15 +144,15 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const clientId = normalizeString(payload.clientId);
 
   if (!type) {
-    return Response.json({ error: "Tipo de conta invalido." }, { status: 400 });
+    return Response.json({ error: "Tipo de conta inválido." }, { status: 400 });
   }
 
   if (!description) {
-    return Response.json({ error: "Descricao e obrigatoria." }, { status: 400 });
+    return Response.json({ error: "Descrição é obrigatória." }, { status: 400 });
   }
 
   if (!dueDate) {
-    return Response.json({ error: "Vencimento invalido." }, { status: 400 });
+    return Response.json({ error: "Vencimento inválido." }, { status: 400 });
   }
 
   if (amount === null || amount <= 0) {
@@ -170,7 +170,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     });
 
     if (!client) {
-      return Response.json({ error: "Cliente nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Cliente não encontrado." }, { status: 404 });
     }
   }
 
@@ -202,14 +202,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
   const status = normalizeStatus(payload.status);
 
   if (!status) {
-    return Response.json({ error: "Status invalido." }, { status: 400 });
+    return Response.json({ error: "Status inválido." }, { status: 400 });
   }
 
   const existing = await prisma.financialAccount.findUnique({
@@ -218,7 +218,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   });
 
   if (!existing) {
-    return Response.json({ error: "Conta financeira nao encontrada." }, { status: 404 });
+    return Response.json({ error: "Conta financeira não encontrada." }, { status: 404 });
   }
 
   const account = await prisma.financialAccount.update({
@@ -239,7 +239,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   await prisma.financialAccount.delete({ where: { id } });

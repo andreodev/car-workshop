@@ -20,7 +20,7 @@ export function PdvHome({ defaultResponsible }: PdvHomeProps) {
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            Venda balcao
+            Venda balcão
           </p>
           <h1 className="text-2xl font-semibold">PDV</h1>
           <p className="text-sm text-muted-foreground">

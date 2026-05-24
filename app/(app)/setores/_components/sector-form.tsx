@@ -52,7 +52,7 @@ export function SectorForm({ initialData }: SectorFormProps) {
     },
     onError: (error) => {
       setLocalError(
-        error instanceof Error ? error.message : "Nao foi possivel salvar o setor."
+        error instanceof Error ? error.message : "Não foi possível salvar o setor."
       );
     },
   });
@@ -69,7 +69,7 @@ export function SectorForm({ initialData }: SectorFormProps) {
     setLocalError(null);
 
     if (!form.name.trim()) {
-      setLocalError("Nome e obrigatorio.");
+      setLocalError("Nome é obrigatório.");
       return;
     }
 
@@ -99,7 +99,7 @@ export function SectorForm({ initialData }: SectorFormProps) {
           <Input value={form.name} onChange={(event) => updateField("name", event.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Situacao</Label>
+          <Label>Situação</Label>
           <Select
             value={form.active ? "ATIVO" : "INATIVO"}
             onValueChange={(value) => updateField("active", value === "ATIVO")}
@@ -114,7 +114,7 @@ export function SectorForm({ initialData }: SectorFormProps) {
           </Select>
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label>Observacoes</Label>
+          <Label>Observações</Label>
           <Textarea
             value={form.notes}
             onChange={(event) => updateField("notes", event.target.value)}

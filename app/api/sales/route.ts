@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!client) {
-      return Response.json({ error: "Cliente nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Cliente não encontrado." }, { status: 404 });
     }
   }
 
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
     : null;
 
   if (sectorId && !sector) {
-    return Response.json({ error: "Setor nao encontrado." }, { status: 404 });
+    return Response.json({ error: "Setor não encontrado." }, { status: 404 });
   }
 
   if (sector && !sector.active) {
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
     const catalogItemId = normalizeString(item.catalogItemId);
 
     if (!description) {
-      return Response.json({ error: "Descricao do item e obrigatoria." }, { status: 400 });
+      return Response.json({ error: "Descrição do item é obrigatória." }, { status: 400 });
     }
 
     if (quantity === null || quantity <= 0) {
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (unitPrice === null) {
-      return Response.json({ error: "Valor unitario invalido." }, { status: 400 });
+      return Response.json({ error: "Valor unitário inválido." }, { status: 400 });
     }
 
     if (discountPercent < 0 || discountPercent > 100) {
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (foundItems.length !== new Set(catalogItemIds).size) {
-      return Response.json({ error: "Produto da venda nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Produto da venda não encontrado." }, { status: 404 });
     }
   }
 

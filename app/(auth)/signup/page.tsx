@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 import { signup, type SignupState } from "@/app/actions/auth";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
@@ -35,6 +36,16 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <div className="mb-2 flex justify-center">
+            <Image
+              src="/assets/logo.png"
+              alt="Rikinho Auto Center"
+              width={140}
+              height={84}
+              className="h-16 w-auto object-contain"
+              priority
+            />
+          </div>
           <CardTitle>Criar conta</CardTitle>
           <CardDescription>
             Configure o perfil da sua oficina em minutos.

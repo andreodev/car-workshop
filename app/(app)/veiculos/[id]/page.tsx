@@ -22,7 +22,7 @@ export default function VehicleEditPage({ params }: VehicleEditPageProps) {
   if (isLoading) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        Carregando veiculo...
+        Carregando veículo...
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function VehicleEditPage({ params }: VehicleEditPageProps) {
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar o veiculo.
+        Não foi possível carregar o veículo.
       </div>
     );
   }

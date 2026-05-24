@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { fetchClients } from "./client-api";
 import type { ClientStatus } from "./types";
@@ -40,7 +40,7 @@ export default function ClientsPage() {
     queryKey: ["clients", { page, status, search }],
     queryFn: () => fetchClients({ page, pageSize: PAGE_SIZE, status, search }),
     staleTime: 30_000,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const totalPages = useMemo(() => {
@@ -86,14 +86,14 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      {/* ── Barra de filtros ── */}
+      {/* Barra de filtros */}
       <form
         onSubmit={handleSearch}
         className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
       >
         <div className="flex-1">
           <Input
-            placeholder="Buscar por nome, CPF ou telefone…"
+            placeholder="Buscar por nome, CPF ou telefone..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="h-9 text-sm"
@@ -118,14 +118,14 @@ export default function ClientsPage() {
         </Button>
       </form>
 
-      {/* ── Área de conteúdo ── */}
-      <div className="flex flex-col gap-4">
+      {/* Área de conteúdo */}
+      <div className="flex min-h-[560px] flex-col gap-4">
 
         {/* Estado: carregando */}
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            Carregando clientes…
+            Carregando clientes...
           </div>
         )}
 
@@ -195,13 +195,13 @@ export default function ClientsPage() {
                       {client.name}
                     </TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">
-                      {client.cpf ?? "—"}
+                      {client.cpf ?? "-"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {client.neighborhood ?? "—"}
+                      {client.neighborhood ?? "-"}
                     </TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">
-                      {client.mobile ?? client.phoneResidential ?? "—"}
+                      {client.mobile ?? client.phoneResidential ?? "-"}
                     </TableCell>
                     <TableCell>
                       {client.status === "ATIVO" ? (
@@ -240,7 +240,7 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {/* ── Paginação ── */}
+      {/* Paginação */}
       {data && totalPages > 1 && (
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
           <p className="text-xs text-muted-foreground">
@@ -248,7 +248,7 @@ export default function ClientsPage() {
             <span className="font-medium text-foreground">{data.page ?? page}</span>
             {" "}de{" "}
             <span className="font-medium text-foreground">{totalPages}</span>
-            {data.total ? ` — ${data.total} clientes` : ""}
+            {data.total ? ` - ${data.total} clientes` : ""}
           </p>
 
           <div className="flex items-center gap-2">

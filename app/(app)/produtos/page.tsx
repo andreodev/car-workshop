@@ -83,7 +83,7 @@ export default function ProductsPage() {
     <div className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Produtos e servicos</h1>
+          <h1 className="text-2xl font-semibold">Produtos e serviços</h1>
           <p className="text-sm text-muted-foreground">
             Cadastre itens para usar nas vendas do PDV.
           </p>
@@ -113,7 +113,7 @@ export default function ProductsPage() {
           <SelectContent>
             <SelectItem value="TODOS">Todos</SelectItem>
             <SelectItem value="PRODUTO">Produtos</SelectItem>
-            <SelectItem value="SERVICO">Servicos</SelectItem>
+            <SelectItem value="SERVICO">Serviços</SelectItem>
           </SelectContent>
         </Select>
         <Button type="submit" variant="secondary">
@@ -143,8 +143,8 @@ export default function ProductsPage() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Situacao</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead>Situação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -200,7 +200,7 @@ export default function ProductsPage() {
           disabled={page >= totalPages}
           onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
         >
-          Proxima
+          Próxima
         </Button>
       </div>
     </div>

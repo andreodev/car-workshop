@@ -66,7 +66,7 @@ export default function SectorsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Setores</h1>
           <p className="text-sm text-muted-foreground">
-            Organize vendas por balcao, oficina, pecas ou outro setor.
+            Organize vendas por balcão, oficina, peças ou outro setor.
           </p>
         </div>
         <Button asChild>
@@ -105,8 +105,8 @@ export default function SectorsPage() {
               <TableRow>
                 <TableHead>Codigo</TableHead>
                 <TableHead>Nome</TableHead>
-                <TableHead>Situacao</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead>Situação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -159,7 +159,7 @@ export default function SectorsPage() {
           disabled={page >= totalPages}
           onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
         >
-          Proxima
+          Próxima
         </Button>
       </div>
     </div>

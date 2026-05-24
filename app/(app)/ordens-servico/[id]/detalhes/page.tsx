@@ -3,13 +3,13 @@
 import { use, useMemo } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fraunces, Sora } from "next/font/google";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
 import { getServiceOrderStatusOption } from "../../status";
 import type { ServiceOrderStatus } from "../../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/ui/header";
 import {
   Table,
   TableBody,
@@ -18,9 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -82,7 +79,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
   if (isLoading) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        Carregando ordem de servico...
+        Carregando ordem de serviço...
       </div>
     );
   }
@@ -90,7 +87,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar a ordem de servico.
+        Não foi possível carregar a ordem de serviço.
       </div>
     );
   }
@@ -99,25 +96,12 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
   const isChangingStatus = statusMutation.isPending;
 
   return (
-    <div
-      className={`${bodyFont.className} relative overflow-hidden rounded-[32px] border bg-white/80 p-6 shadow-lg backdrop-blur`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_bottom_right,rgba(14,116,144,0.18),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-slate-100/70 via-transparent to-sky-100/70" />
-
-      <div className="relative z-10 space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Ordem #{data.code}
-            </p>
-            <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              Detalhes da ordem de servico
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Informacoes completas para acompanhamento da OS.
-            </p>
-          </div>
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <Header
+            title={`Ordem #${data.code}`}
+            description="Informações completas para acompanhamento da OS."
+          />
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={statusOption.variant} className={statusOption.className}>
               {statusOption.label}
@@ -127,14 +111,14 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               disabled={isChangingStatus || data.status === "FINALIZADA"}
               onClick={() => statusMutation.mutate("FINALIZADA")}
             >
-              Aprovar conclusao
+              Aprovar conclusão
             </Button>
             <Button
               variant="secondary"
               disabled={isChangingStatus || data.status === "AGUARDANDO_PECAS"}
               onClick={() => statusMutation.mutate("AGUARDANDO_PECAS")}
             >
-              Aguardando pecas
+              Aguardando peças
             </Button>
             <Button
               variant="destructive"
@@ -147,17 +131,17 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               <Link href={`/ordens-servico/${data.id}`}>Editar</Link>
             </Button>
           </div>
-        </header>
+        </div>
 
         {statusMutation.error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {statusMutation.error instanceof Error
               ? statusMutation.error.message
-              : "Nao foi possivel alterar o status."}
+              : "Não foi possível alterar o status."}
           </div>
         ) : null}
 
-        <section className="grid gap-4 rounded-2xl border bg-white/90 p-5 shadow-sm md:grid-cols-3">
+        <section className="grid gap-4 rounded-3xl border-2 border-gray-700 bg-white/60 p-6 md:grid-cols-3">
           <div>
             <p className="text-xs text-muted-foreground">Cliente</p>
             <p className="text-sm font-semibold text-foreground">
@@ -165,14 +149,14 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Veiculo</p>
+            <p className="text-xs text-muted-foreground">Veículo</p>
             <p className="text-sm font-semibold text-foreground">
               {data.vehicle?.plate ?? "-"}
               {data.vehicle?.model ? ` - ${data.vehicle.model}` : ""}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Responsavel</p>
+            <p className="text-xs text-muted-foreground">Responsável</p>
             <p className="text-sm font-semibold text-foreground">{data.responsible}</p>
           </div>
           <div>
@@ -188,15 +172,30 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Localizacao</p>
+            <p className="text-xs text-muted-foreground">Localização</p>
             <p className="text-sm font-semibold text-foreground">{data.location ?? "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Orçamento de origem</p>
+            <p className="text-sm font-semibold text-foreground">
+              {data.estimateConversion ? (
+                <Link
+                  href={`/orcamentos/${data.estimateConversion.id}/detalhes`}
+                  className="text-primary hover:underline"
+                >
+                  Orçamento #{data.estimateConversion.code}
+                </Link>
+              ) : (
+                "-"
+              )}
+            </p>
           </div>
         </section>
 
-        <section className="rounded-2xl border bg-white/90 p-5 shadow-sm">
+        <section className="rounded-3xl border-2 border-gray-700 bg-white/60 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Itens e servicos</h2>
+              <h2 className="text-sm font-semibold text-foreground">Itens e serviços</h2>
               <p className="text-xs text-muted-foreground">
                 {(data.items ?? []).length} item(ns) cadastrados
               </p>
@@ -212,7 +211,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Descricao</TableHead>
+                  <TableHead>Descrição</TableHead>
                   <TableHead>Qtd</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Desconto</TableHead>
@@ -248,21 +247,20 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
           </div>
         </section>
 
-        <section className="grid gap-4 rounded-2xl border bg-white/90 p-5 shadow-sm md:grid-cols-2">
+        <section className="grid gap-4 rounded-3xl border-2 border-gray-700 bg-white/60 p-6 md:grid-cols-2">
           <div>
-            <p className="text-xs text-muted-foreground">Observacao interna</p>
+            <p className="text-xs text-muted-foreground">Observação interna</p>
             <p className="text-sm font-semibold text-foreground">
               {data.notesInternal ?? "-"}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Observacao para o cliente</p>
+            <p className="text-xs text-muted-foreground">Observação para o cliente</p>
             <p className="text-sm font-semibold text-foreground">
               {data.notesClient ?? "-"}
             </p>
           </div>
         </section>
-      </div>
-    </div>
+    </section>
   );
 }

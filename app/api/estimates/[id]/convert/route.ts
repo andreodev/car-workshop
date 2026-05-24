@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -16,7 +16,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "NÃ£o autorizado." }, { status: 401 });
   }
 
   const estimate = await prisma.estimate.findUnique({
@@ -25,22 +25,22 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
   });
 
   if (!estimate) {
-    return Response.json({ error: "Orcamento nao encontrado." }, { status: 404 });
+    return Response.json({ error: "OrÃ§amento nÃ£o encontrado." }, { status: 404 });
   }
 
   if (estimate.convertedServiceOrderId) {
-    return Response.json({ error: "Orcamento ja convertido em OS." }, { status: 400 });
+    return Response.json({ error: "OrÃ§amento ja convertido em OS." }, { status: 400 });
   }
 
-  if (estimate.status === "REJEITADO" || estimate.status === "CANCELADO") {
+  if (estimate.status !== "APROVADO") {
     return Response.json(
-      { error: "Orcamentos rejeitados ou cancelados nao podem virar OS." },
+      { error: "Apenas orçamentos aprovados podem virar OS." },
       { status: 400 }
     );
   }
 
   if (estimate.items.length === 0) {
-    return Response.json({ error: "Orcamento sem itens." }, { status: 400 });
+    return Response.json({ error: "OrÃ§amento sem itens." }, { status: 400 });
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -71,6 +71,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         items: true,
         client: { select: { id: true, name: true } },
         vehicle: { select: { id: true, plate: true, model: true } },
+        estimateConversion: { select: { id: true, code: true, status: true } },
       },
     });
 

@@ -139,7 +139,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           </p>
           <h1 className="text-2xl font-semibold">Listar vendas</h1>
           <p className="text-sm text-muted-foreground">
-            Consulte o movimento de venda balcao e cancele registros quando necessario.
+            Consulte o movimento de venda balcão e cancele registros quando necessário.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -206,7 +206,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           </p>
         </div>
         <div className="rounded-md border p-4">
-          <p className="text-sm text-muted-foreground">Pagina</p>
+          <p className="text-sm text-muted-foreground">Página</p>
           <p className="text-xl font-semibold">
             {page} de {totalPages}
           </p>
@@ -348,7 +348,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           disabled={page >= totalPages}
           onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
         >
-          Proxima
+          Próxima
         </Button>
       </div>
 

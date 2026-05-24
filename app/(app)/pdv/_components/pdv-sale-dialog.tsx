@@ -161,7 +161,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     },
     onError: (error) => {
       setLocalError(
-        error instanceof Error ? error.message : "Nao foi possivel cadastrar o produto."
+        error instanceof Error ? error.message : "Não foi possível cadastrar o produto."
       );
     },
   });
@@ -211,7 +211,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     const price = parseDecimal(unitPrice);
 
     if (!name) {
-      setLocalError("Digite o nome do produto ou servico.");
+      setLocalError("Digite o nome do produto ou serviço.");
       return;
     }
 
@@ -245,7 +245,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
     }
 
     if (parsedUnitPrice < 0) {
-      setLocalError("Valor unitario invalido.");
+      setLocalError("Valor unitário inválido.");
       return;
     }
 
@@ -314,7 +314,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
         <header className="flex items-start justify-between border-b px-6 py-5">
           <div>
             <h2 className="text-xl font-semibold text-neutral-800">
-              PDV Venda balcao
+              PDV Venda balcão
             </h2>
             <p className="text-xs text-muted-foreground">
               F2 abre o caixa em qualquer tela
@@ -489,7 +489,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
               </div>
               <div className="text-right">
                 <Link href="/produtos/novo" className="text-xs text-primary hover:underline">
-                  Cadastrar produto/servico
+                  Cadastrar produto/serviço
                 </Link>
               </div>
               </div>

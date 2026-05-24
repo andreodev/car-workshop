@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, useMemo } from "react";
 import Link from "next/link";
@@ -92,7 +92,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
   if (isLoading) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        Carregando orcamento...
+        Carregando orÃ§amento...
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar o orcamento.
+        NÃ£o foi possÃ­vel carregar o orÃ§amento.
       </div>
     );
   }
@@ -108,8 +108,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
   const statusOption = getEstimateStatusOption(data.status);
   const canConvert =
     !data.convertedServiceOrderId &&
-    data.status !== "REJEITADO" &&
-    data.status !== "CANCELADO";
+    data.status === "APROVADO";
   const mutationError = statusMutation.error ?? convertMutation.error;
 
   return (
@@ -118,13 +117,13 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Orcamento #{data.code}
+              OrÃ§amento #{data.code}
             </p>
             <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              Detalhes do orcamento
+              Detalhes do orÃ§amento
             </h1>
             <p className="text-sm text-muted-foreground">
-              Proposta comercial para aprovacao antes da ordem de servico.
+              Proposta comercial para aprovaÃ§Ã£o antes da ordem de serviÃ§o.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +168,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {mutationError instanceof Error
               ? mutationError.message
-              : "Nao foi possivel atualizar o orcamento."}
+              : "NÃ£o foi possÃ­vel atualizar o orÃ§amento."}
           </div>
         ) : null}
 
@@ -179,14 +178,14 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
             <p className="text-sm font-semibold text-foreground">{data.client?.name ?? "-"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Veiculo</p>
+            <p className="text-xs text-muted-foreground">VeÃ­culo</p>
             <p className="text-sm font-semibold text-foreground">
               {data.vehicle?.plate ?? "-"}
               {data.vehicle?.model ? ` - ${data.vehicle.model}` : ""}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Responsavel</p>
+            <p className="text-xs text-muted-foreground">ResponsÃ¡vel</p>
             <p className="text-sm font-semibold text-foreground">{data.responsible}</p>
           </div>
           <div>
@@ -210,7 +209,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
         <section className="border bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Servicos e pecas</h2>
+              <h2 className="text-sm font-semibold text-foreground">ServiÃ§os e peÃ§as</h2>
               <p className="text-xs text-muted-foreground">
                 {(data.items ?? []).length} item(ns) cadastrados
               </p>
@@ -226,7 +225,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Descricao</TableHead>
+                  <TableHead>DescriÃ§Ã£o</TableHead>
                   <TableHead>Qtd</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Desconto</TableHead>
@@ -248,7 +247,7 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
           </div>
           <div className="mt-4 grid gap-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Total servicos</span>
+              <span className="text-muted-foreground">Total serviÃ§os</span>
               <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
             </div>
             <div className="flex items-center justify-between">
@@ -264,13 +263,13 @@ export default function EstimateDetailsPage({ params }: EstimateDetailsPageProps
 
         <section className="grid gap-4 border bg-white p-5 shadow-sm md:grid-cols-2">
           <div>
-            <p className="text-xs text-muted-foreground">Observacao interna</p>
+            <p className="text-xs text-muted-foreground">ObservaÃ§Ã£o interna</p>
             <p className="text-sm font-semibold text-foreground">
               {data.notesInternal ?? "-"}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Observacao para o cliente</p>
+            <p className="text-xs text-muted-foreground">ObservaÃ§Ã£o para o cliente</p>
             <p className="text-sm font-semibold text-foreground">
               {data.notesClient ?? "-"}
             </p>

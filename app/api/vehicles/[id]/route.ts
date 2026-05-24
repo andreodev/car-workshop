@@ -23,7 +23,7 @@ function parseYear(value: unknown) {
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return { error: "Ano invalido." };
+    return { error: "Ano inválido." };
   }
 
   return { value: parsed };
@@ -40,7 +40,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const vehicle = await prisma.vehicle.findUnique({
@@ -49,7 +49,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   });
 
   if (!vehicle) {
-    return Response.json({ error: "Veiculo nao encontrado." }, { status: 404 });
+    return Response.json({ error: "Veículo não encontrado." }, { status: 404 });
   }
 
   return Response.json(vehicle);
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -68,11 +68,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const clientId = normalizeString(payload.clientId);
 
   if (!plate) {
-    return Response.json({ error: "Placa e obrigatoria." }, { status: 400 });
+    return Response.json({ error: "Placa é obrigatória." }, { status: 400 });
   }
 
   if (!clientId) {
-    return Response.json({ error: "Cliente e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Cliente é obrigatório." }, { status: 400 });
   }
 
   const client = await prisma.client.findUnique({
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   });
 
   if (!client) {
-    return Response.json({ error: "Cliente nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Cliente não encontrado." }, { status: 400 });
   }
 
   const manufactureYear = parseYear(payload.manufactureYear);
@@ -130,7 +130,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   await prisma.vehicle.delete({ where: { id } });

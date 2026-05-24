@@ -53,14 +53,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
   const item = await prisma.catalogItem.findUnique({ where: { id } });
 
   if (!item) {
-    return Response.json({ error: "Produto ou servico nao encontrado." }, { status: 404 });
+    return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
   }
 
   return Response.json(item);
@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -80,15 +80,15 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const unitPrice = normalizeMoney(payload.unitPrice);
 
   if (!name) {
-    return Response.json({ error: "Nome e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Nome é obrigatório." }, { status: 400 });
   }
 
   if (!type) {
-    return Response.json({ error: "Tipo invalido." }, { status: 400 });
+    return Response.json({ error: "Tipo inválido." }, { status: 400 });
   }
 
   if (unitPrice === null) {
-    return Response.json({ error: "Valor unitario invalido." }, { status: 400 });
+    return Response.json({ error: "Valor unitário inválido." }, { status: 400 });
   }
 
   try {
@@ -110,7 +110,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Response.json({ error: "Produto ou servico nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
     }
 
     throw error;
@@ -121,7 +121,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -134,7 +134,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Response.json({ error: "Produto ou servico nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
     }
 
     throw error;

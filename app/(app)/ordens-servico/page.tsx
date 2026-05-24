@@ -8,22 +8,14 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Fraunces, Sora } from "next/font/google";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  Calendar03Icon,
-  Clock01Icon,
-  File02Icon,
-  Flag03Icon,
-  InformationCircleIcon,
-  Tick02Icon,
-  UserIcon,
-} from "@hugeicons/core-free-icons";
 
 import { fetchServiceOrders, updateServiceOrderStatus } from "./service-order-api";
-import { serviceOrderStatusOptions } from "./status";
+import {
+  getServiceOrderStatusOption,
+  serviceOrderStatusOptions,
+} from "./status";
 import type { ServiceOrder, ServiceOrderStatus } from "./types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,9 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
+import Header from "@/components/ui/header";
 
 const PAGE_SIZE = 10;
 
@@ -121,7 +111,6 @@ export default function ServiceOrdersPage() {
   const [status, setStatus] = useState<StatusFilter>("TODOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -157,112 +146,140 @@ export default function ServiceOrdersPage() {
   }
 
   return (
-    <div
-      className={`${bodyFont.className} relative overflow-hidden rounded-[32px] border bg-white/80 p-6 shadow-lg backdrop-blur`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(14,116,144,0.16),transparent_50%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-slate-100/70 via-transparent to-sky-100/70" />
+    <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <Header
+          title="Ordens de serviço"
+          description="Acompanhe o fluxo de OS, prazos e responsaveis."
+        />
 
-      <div className="relative z-10 space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Operacao diaria
-            </p>
-            <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              Ordens de servico
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Acompanhe o fluxo de OS, prazos e responsaveis.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/ordens-servico/novo">Cadastrar OS</Link>
-          </Button>
-        </header>
+        <Button asChild className="shrink-0 gap-2 font-medium">
+          <Link href="/ordens-servico/novo">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M12 5v14" />
+            </svg>
+            Cadastrar OS
+          </Link>
+        </Button>
+      </div>
 
-        <form
-          onSubmit={handleSearch}
-          className="flex flex-col gap-3 rounded-2xl border bg-white/90 p-4 shadow-sm md:flex-row md:items-center"
-        >
-          <div className="flex-1">
-            <Input
-              placeholder="Buscar por cliente, veiculo, responsavel ou OS"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
-          </div>
-          <div className="w-full md:w-56">
-            <Select value={status} onValueChange={handleStatusChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TODOS">Todos os status</SelectItem>
-                {serviceOrderStatusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="submit" variant="secondary">
-            Buscar
-          </Button>
-        </form>
+      <form
+        onSubmit={handleSearch}
+        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
+      >
+        <div className="flex-1">
+          <Input
+            placeholder="Buscar por cliente, veículo, responsável ou OS..."
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            className="h-9 text-sm"
+          />
+        </div>
 
-        {isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Carregando ordens de servico...
-          </div>
-        ) : null}
+        <div className="w-full sm:w-56">
+          <Select value={status} onValueChange={handleStatusChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos os status</SelectItem>
+              {serviceOrderStatusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {isError ? (
-          <div className="py-8 text-center text-sm text-destructive">
+        <Button type="submit" variant="secondary" size="sm" className="h-9 px-5 font-medium">
+          Buscar
+        </Button>
+      </form>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {isLoading && (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Carregando ordens de serviço...
+          </div>
+        )}
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error instanceof Error
               ? error.message
-              : "Erro ao carregar ordens de servico."}
+              : "Erro ao carregar ordens de serviço."}
           </div>
-        ) : null}
+        )}
 
-        {data && data.items.length === 0 && !isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma ordem de servico encontrada.
+        {data && data.items.length === 0 && !isLoading && (
+          <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="opacity-40"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M9 15h6M9 11h2" />
+            </svg>
+            Nenhuma ordem de serviço encontrada para os filtros aplicados.
           </div>
-        ) : null}
+        )}
 
-        {data && data.items.length > 0 ? (
-          <div className="overflow-x-auto rounded-sm border bg-white shadow-sm">
-            <Table className="min-w-[1180px]">
+        {data && data.items.length > 0 && (
+          <div className="w-full overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
+            <Table className="min-w-[1080px]">
               <TableHeader>
-                <TableRow className="h-12 border-b-2 bg-white text-[15px]">
-                  <TableHead className="w-36">Opcoes</TableHead>
-                  <TableHead className="w-20">#</TableHead>
-                  <TableHead>Placa</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Veiculo</TableHead>
-                  <TableHead>Responsavel</TableHead>
-                  <TableHead className="w-28">Data</TableHead>
-                  <TableHead className="w-28">Hora</TableHead>
-                  <TableHead className="w-24 text-center">
-                    <span className="sr-only">Concluir</span>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    OS
                   </TableHead>
-                  <TableHead className="w-24 text-center">
-                    <HugeiconsIcon
-                      icon={InformationCircleIcon}
-                      strokeWidth={2.5}
-                      className="mx-auto size-4 text-neutral-700"
-                    />
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Placa
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Cliente
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Veículo
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Responsável
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Entrada
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Ações
                   </TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {data.items.map((order) => {
-                  const isOpen = openMenuId === order.id;
+                  const statusOption = getServiceOrderStatusOption(order.status);
                   const isFinished = order.status === "FINALIZADA";
-                  const hasFlag =
-                    order.status === "AGUARDANDO_PECAS" || order.status === "IMPEDIDA";
                   const isChangingThis =
                     statusMutation.isPending &&
                     statusMutation.variables?.id === order.id;
@@ -270,109 +287,76 @@ export default function ServiceOrdersPage() {
                   return (
                     <TableRow
                       key={order.id}
-                      className="h-[76px] bg-neutral-50 text-base"
+                      className="group transition-colors hover:bg-accent/40"
                     >
-                      <TableCell className="relative align-middle">
-                        <Button
-                          type="button"
-                          className="h-9 bg-blue-600 px-3 text-sm text-white hover:bg-blue-700"
-                          onClick={() => setOpenMenuId(isOpen ? null : order.id)}
-                        >
-                          Opcoes
-                          <HugeiconsIcon
-                            icon={ArrowDown01Icon}
-                            strokeWidth={2.4}
-                            className="size-3.5"
-                          />
-                        </Button>
-                        {isOpen ? (
-                          <div className="absolute left-4 top-[-86px] z-20 w-56 overflow-hidden rounded-md border bg-white text-sm shadow-lg">
-                            <Link
-                              href={order.client?.id ? `/clientes/${order.client.id}` : "#"}
-                              className="flex items-center gap-2 px-4 py-3 text-neutral-600 hover:bg-neutral-50"
-                              onClick={() => setOpenMenuId(null)}
-                            >
-                              <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="size-4" />
-                              Visualizar Cliente
-                            </Link>
-                            <Link
-                              href={`/ordens-servico/${order.id}/detalhes`}
-                              className="flex items-center gap-2 px-4 py-3 text-neutral-600 hover:bg-neutral-50"
-                              onClick={() => setOpenMenuId(null)}
-                            >
-                              <HugeiconsIcon icon={File02Icon} strokeWidth={2} className="size-4" />
-                              Visualizar OS
-                            </Link>
-                          </div>
-                        ) : null}
+                      <TableCell className="font-mono text-sm font-medium text-foreground">
+                        #{order.code}
                       </TableCell>
-                      <TableCell className="align-middle text-center font-medium">
-                        {order.code}
-                      </TableCell>
-                      <TableCell className="align-middle font-semibold text-neutral-700">
+                      <TableCell className="font-medium text-foreground">
                         {order.vehicle?.plate ?? "-"}
                       </TableCell>
-                      <TableCell className="max-w-64 align-middle">
+                      <TableCell className="max-w-64 text-muted-foreground">
                         <Link
                           href={order.client?.id ? `/clientes/${order.client.id}` : "#"}
-                          className="block truncate text-lg text-blue-400 hover:text-blue-600"
+                          className="block truncate hover:text-foreground"
                           title={order.client?.name ?? undefined}
                         >
                           {order.client?.name ?? "-"}
                         </Link>
                       </TableCell>
-                      <TableCell className="max-w-52 align-middle font-medium text-neutral-700">
+                      <TableCell className="max-w-52 text-muted-foreground">
                         <span className="block truncate" title={order.vehicle?.model ?? undefined}>
                           {order.vehicle?.model ?? "-"}
                         </span>
                       </TableCell>
-                      <TableCell className="align-middle">
-                        <span className="text-lg text-blue-400">{order.responsible}</span>
+                      <TableCell className="text-muted-foreground">
+                        {order.responsible}
                       </TableCell>
-                      <TableCell className="align-middle">
-                        <span className="inline-flex h-9 items-center gap-1 rounded-md bg-red-500 px-3 text-sm font-semibold text-white shadow-sm">
-                          <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4" />
-                          {formatDate(order.entryAt)}
-                        </span>
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        {formatDate(order.entryAt)} {formatTime(order.entryAt)}
                       </TableCell>
-                      <TableCell className="align-middle">
-                        <span className="inline-flex h-9 items-center gap-1 rounded-md bg-red-500 px-3 text-sm font-semibold text-white shadow-sm">
-                          <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-4" />
-                          {formatTime(order.entryAt)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="align-middle text-center">
-                        <Button
-                          type="button"
-                          size="icon-lg"
-                          title={isFinished ? "Servico concluido" : "Aprovar conclusao"}
-                          disabled={isChangingThis || isFinished}
-                          className={
-                            isFinished
-                              ? "bg-emerald-600 text-white"
-                              : "bg-blue-500 text-white hover:bg-blue-600"
-                          }
-                          onClick={() =>
-                            statusMutation.mutate({ id: order.id, status: "FINALIZADA" })
-                          }
+                      <TableCell>
+                        <Badge
+                          variant={statusOption.variant}
+                          className={statusOption.className}
                         >
-                          <HugeiconsIcon icon={Tick02Icon} strokeWidth={3} className="size-5" />
-                        </Button>
+                          {statusOption.label}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="align-middle text-center">
-                        <Button
-                          type="button"
-                          size="icon-lg"
-                          title="Relatorio de situacoes"
-                          className={
-                            hasFlag
-                              ? "bg-red-700 text-white hover:bg-red-800"
-                              : "bg-red-600 text-white hover:bg-red-700"
-                          }
-                          onClick={() => setReportOrder(order)}
-                        >
-                          <HugeiconsIcon icon={Flag03Icon} strokeWidth={2.4} className="size-5" />
-                        </Button>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            className="h-7 px-3 text-xs font-medium"
+                          >
+                            <Link href={`/ordens-servico/${order.id}/detalhes`}>
+                              Detalhes
+                            </Link>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-3 text-xs font-medium"
+                            onClick={() => setReportOrder(order)}
+                          >
+                            Relatorio
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isChangingThis || isFinished}
+                            className="h-7 px-3 text-xs font-medium"
+                            onClick={() =>
+                              statusMutation.mutate({ id: order.id, status: "FINALIZADA" })
+                            }
+                          >
+                            {isFinished ? "Concluida" : "Concluir"}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -380,19 +364,26 @@ export default function ServiceOrdersPage() {
               </TableBody>
             </Table>
           </div>
-        ) : null}
+        )}
+      </div>
 
-        <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
-          <div className="text-xs text-muted-foreground">
-            Pagina {data?.page ?? page} de {totalPages}
-          </div>
+      {data && totalPages > 1 && (
+        <div className="mt-auto flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
+          <p className="text-xs text-muted-foreground">
+            Página <span className="font-medium text-foreground">{data.page ?? page}</span>{" "}
+            de <span className="font-medium text-foreground">{totalPages}</span>
+            {data.total ? ` - ${data.total} ordens de serviço` : ""}
+          </p>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page <= 1}
+              className="h-8 gap-1 px-3 text-xs"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               Anterior
             </Button>
             <Button
@@ -400,27 +391,29 @@ export default function ServiceOrdersPage() {
               size="sm"
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
+              className="h-8 gap-1 px-3 text-xs"
             >
-              Proxima
+              Próxima
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
             </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {reportOrder ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="relative w-full max-w-6xl rounded-md bg-white p-7 shadow-2xl md:p-10">
+          <div className="relative w-full max-w-6xl rounded-lg border border-border bg-card p-7 shadow-2xl md:p-10">
             <button
               type="button"
               aria-label="Fechar"
-              className="absolute right-5 top-5 text-3xl leading-none text-neutral-300 hover:text-neutral-500"
+              className="absolute right-5 top-5 text-3xl leading-none text-muted-foreground hover:text-foreground"
               onClick={() => setReportOrder(null)}
             >
               x
             </button>
 
-            <h2 className="text-2xl font-normal text-neutral-700">
-              Relatorio de situacoes
+            <h2 className="font-heading text-2xl font-700 text-foreground">
+              Relatório de situações
             </h2>
 
             <div className="mt-8 border-t pt-5">
@@ -428,13 +421,13 @@ export default function ServiceOrdersPage() {
                 <TableHeader>
                   <TableRow className="border-y text-base">
                     <TableHead className="h-14 px-4 text-base font-bold uppercase">
-                      Situacao
+                      Situação
                     </TableHead>
                     <TableHead className="h-14 px-4 text-base font-bold uppercase">
-                      Data de inicio
+                      Data de início
                     </TableHead>
                     <TableHead className="h-14 px-4 text-base font-bold uppercase">
-                      Data de termino
+                      Data de término
                     </TableHead>
                     <TableHead className="h-14 px-4 text-base font-bold uppercase">
                       Tempo total
@@ -443,48 +436,42 @@ export default function ServiceOrdersPage() {
                 </TableHeader>
                 <TableBody>
                   <TableRow className="h-16">
-                    <TableCell className="px-4 text-lg font-medium text-neutral-700">
+                    <TableCell className="px-4 text-lg font-medium text-foreground">
                       SUPERVISAO
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-blue-500 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4" />
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-primary/15 px-3 text-sm font-medium text-primary">
                         {formatDateTime(reportOrder.entryAt)}
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-green-600 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4" />
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-100 px-3 text-sm font-medium text-emerald-700">
                         {formatDateTime(reportOrder.updatedAt)}
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-amber-400 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-4" />
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-amber-100 px-3 text-sm font-medium text-amber-700">
                         {formatElapsed(reportOrder.entryAt, reportOrder.updatedAt)}
                       </span>
                     </TableCell>
                   </TableRow>
                   <TableRow className="h-16">
-                    <TableCell className="px-4 text-lg font-medium text-neutral-700">
+                    <TableCell className="px-4 text-lg font-medium text-foreground">
                       {getSituationLabel(reportOrder.status)}
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-blue-500 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4" />
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-primary/15 px-3 text-sm font-medium text-primary">
                         {formatDateTime(reportOrder.updatedAt)}
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-green-600 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4" />
-                        Situacao atual
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-100 px-3 text-sm font-medium text-emerald-700">
+                        Situação atual
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
-                      <span className="inline-flex h-9 items-center gap-2 rounded bg-amber-400 px-3 text-base italic text-white">
-                        <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-4" />
-                        Situacao atual
+                      <span className="inline-flex h-9 items-center gap-2 rounded-md bg-amber-100 px-3 text-sm font-medium text-amber-700">
+                        Situação atual
                       </span>
                     </TableCell>
                   </TableRow>
@@ -492,14 +479,14 @@ export default function ServiceOrdersPage() {
               </Table>
             </div>
 
-            <div className="ml-auto mt-4 max-w-[560px] border-l-4 border-cyan-300 bg-sky-50 px-7 py-6 text-lg text-sky-800">
-              Tempo gasto ate o momento:{" "}
+            <div className="ml-auto mt-4 max-w-[560px] rounded-lg border border-primary/20 bg-primary/5 px-7 py-6 text-sm text-primary">
+              Tempo gasto até o momento:{" "}
               <span className="ml-8 font-bold">{formatElapsed(reportOrder.updatedAt)}</span>
             </div>
 
-            <p className="mt-16 text-sm text-neutral-500">
-              * O tempo total de cada situacao e calculado baseado nos horarios registrados
-              nesta ordem de servico.
+            <p className="mt-16 text-sm text-muted-foreground">
+              * O tempo total de cada situação e calculado baseado nos horários registrados
+              nesta ordem de serviço.
             </p>
 
             <div className="mt-14 border-t pt-6 text-right">
@@ -515,6 +502,6 @@ export default function ServiceOrdersPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

@@ -42,6 +42,11 @@ export type ServiceOrder = {
     plate: string;
     model: string | null;
   } | null;
+  estimateConversion?: {
+    id: string;
+    code: number;
+    status: string;
+  } | null;
   items?: ServiceOrderItem[];
 };
 

@@ -25,14 +25,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
   const sector = await prisma.sector.findUnique({ where: { id } });
 
   if (!sector) {
-    return Response.json({ error: "Setor nao encontrado." }, { status: 404 });
+    return Response.json({ error: "Setor não encontrado." }, { status: 404 });
   }
 
   return Response.json(sector);
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const name = normalizeString(payload.name);
 
   if (!name) {
-    return Response.json({ error: "Nome e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Nome é obrigatório." }, { status: 400 });
   }
 
   try {
@@ -69,7 +69,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Response.json({ error: "Setor nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Setor não encontrado." }, { status: 404 });
     }
 
     if (
@@ -87,7 +87,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { id } = await params;
@@ -100,7 +100,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Response.json({ error: "Setor nao encontrado." }, { status: 404 });
+      return Response.json({ error: "Setor não encontrado." }, { status: 404 });
     }
 
     throw error;

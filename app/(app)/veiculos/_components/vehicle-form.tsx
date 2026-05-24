@@ -1,21 +1,15 @@
 "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { fetchClients } from "../../clientes/client-api";
 import { createVehicle, updateVehicle } from "../vehicle-api";
 import type { Vehicle, VehicleFormValues } from "../types";
+import Header from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,6 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+
+const inputClassName = "h-11 bg-background text-sm";
+const textareaClassName = "min-h-28 bg-background text-sm";
 
 const emptyForm: VehicleFormValues = {
   clientId: "",
@@ -72,17 +69,68 @@ type VehicleFormProps = {
   initialData?: Vehicle | null;
 };
 
+type FormSectionProps = {
+  title: string;
+  description: string;
+  children: ReactNode;
+};
+
+function FormSection({ title, description, children }: FormSectionProps) {
+  return (
+    <section className="space-y-5 border-t border-border/70 pt-8 first:border-t-0 first:pt-0">
+      <div className="space-y-1">
+        <h3 className="font-heading text-lg text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+type InputFieldProps = {
+  field: keyof VehicleFormValues;
+  label: string;
+  onChange: (field: keyof VehicleFormValues) => (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => void;
+  value: string;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+};
+
+function InputField({
+  field,
+  label,
+  onChange,
+  value,
+  placeholder,
+  required,
+  type,
+}: InputFieldProps) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={field}>{label}</Label>
+      <Input
+        id={field}
+        type={type}
+        value={value}
+        onChange={onChange(field)}
+        placeholder={placeholder}
+        required={required}
+        className={inputClassName}
+      />
+    </div>
+  );
+}
+
 export function VehicleForm({ mode, initialData }: VehicleFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<VehicleFormValues>(emptyForm);
+  const [form, setForm] = useState<VehicleFormValues>(() =>
+    initialData ? mapVehicleToForm(initialData) : emptyForm
+  );
   const [localError, setLocalError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialData) {
-      setForm(mapVehicleToForm(initialData));
-    }
-  }, [initialData]);
 
   const clientsQuery = useQuery({
     queryKey: ["vehicle-clients"],
@@ -111,6 +159,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
+      setLocalError(null);
     };
 
   const fuelOptions = useMemo(
@@ -120,8 +169,8 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
       { value: "DIESEL", label: "Diesel" },
       { value: "FLEX", label: "Flex" },
       { value: "GNV", label: "GNV" },
-      { value: "ELETRICO", label: "Eletrico" },
-      { value: "HIBRIDO", label: "Hibrido" },
+      { value: "ELETRICO", label: "Elétrico" },
+      { value: "HIBRIDO", label: "Híbrido" },
     ],
     []
   );
@@ -134,6 +183,11 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     []
   );
 
+  function updateField(field: keyof VehicleFormValues, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setLocalError(null);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
@@ -144,202 +198,194 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     }
 
     if (!form.plate.trim()) {
-      setLocalError("Placa e obrigatoria.");
+      setLocalError("Placa é obrigatória.");
       return;
     }
 
-    mutation.mutate({ ...form, plate: form.plate.trim() });
+    mutation.mutate({ ...form, plate: form.plate.trim().toUpperCase() });
   }
 
   const clients = clientsQuery.data?.items ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {mode === "edit" ? "Editar veiculo" : "Cadastrar veiculo"}
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-2 grid gap-2">
-              <Label>Cliente</Label>
-              <Select
-                value={form.clientId}
-                onValueChange={(value) =>
-                  setForm((prev) => ({ ...prev, clientId: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      clientsQuery.isLoading
-                        ? "Carregando clientes..."
-                        : "Selecione"
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <div className="flex flex-1 flex-col gap-8">
+          <Header
+            title={mode === "edit" ? "Editar veículo" : "Cadastro de veículo"}
+            description="Preencha os dados do veículo para salvar no sistema."
+          />
+
+          <div className="space-y-8 bg-white/60 rounded-3xl border-2 border-gray-700 p-6">
+            <FormSection
+              title="Vínculo e situação"
+              description="Associe o veículo ao cliente e defina se ele segue ativo nos atendimentos."
+            >
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-2 md:col-span-2">
+                  <Label>Cliente</Label>
+                  <Select
+                    value={form.clientId}
+                    onValueChange={(value) => updateField("clientId", value)}
+                  >
+                    <SelectTrigger className={inputClassName}>
+                      <SelectValue
+                        placeholder={
+                          clientsQuery.isLoading
+                            ? "Carregando clientes..."
+                            : "Selecione"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {clientsQuery.isError ? (
+                    <p className="text-xs text-destructive">
+                      Não foi possível carregar clientes.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Situação</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(value) =>
+                      updateField("status", value as VehicleFormValues["status"])
                     }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {clientsQuery.isError ? (
-                <p className="text-xs text-destructive">
-                  Nao foi possivel carregar clientes.
-                </p>
-              ) : null}
-            </div>
-            <div className="grid gap-2">
-              <Label>Situacao</Label>
-              <Select
-                value={form.status}
-                onValueChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    status: value as VehicleFormValues["status"],
-                  }))
-                }
+                  >
+                    <SelectTrigger className={inputClassName}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Identificação"
+              description="Informe placa, marca, modelo e características básicas do veículo."
+            >
+              <div className="grid gap-4 md:grid-cols-4">
+                <InputField
+                  field="plate"
+                  label="Placa"
+                  value={form.plate}
+                  onChange={onChange}
+                  placeholder="AAA-0000"
+                  required
+                />
+                <InputField field="brand" label="Marca" value={form.brand} onChange={onChange} />
+                <InputField field="model" label="Modelo" value={form.model} onChange={onChange} />
+                <InputField field="version" label="Versão" value={form.version} onChange={onChange} />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <InputField
+                  field="manufactureYear"
+                  label="Ano fabricação"
+                  value={form.manufactureYear}
+                  onChange={onChange}
+                  type="number"
+                />
+                <InputField
+                  field="modelYear"
+                  label="Ano modelo"
+                  value={form.modelYear}
+                  onChange={onChange}
+                  type="number"
+                />
+                <div className="grid gap-2">
+                  <Label>Combustível</Label>
+                  <Select
+                    value={form.fuel}
+                    onValueChange={(value) =>
+                      updateField("fuel", value as VehicleFormValues["fuel"])
+                    }
+                  >
+                    <SelectTrigger className={inputClassName}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fuelOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <InputField field="color" label="Cor" value={form.color} onChange={onChange} />
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Dados técnicos"
+              description="Registre informações úteis para consulta em ordens e orçamentos."
+            >
+              <div className="grid gap-4 md:grid-cols-4">
+                <InputField field="fleet" label="Frota" value={form.fleet} onChange={onChange} />
+                <InputField field="chassis" label="Chassi" value={form.chassis} onChange={onChange} />
+                <InputField field="renavam" label="Renavam" value={form.renavam} onChange={onChange} />
+                <InputField field="engine" label="Motor" value={form.engine} onChange={onChange} />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <InputField field="city" label="Cidade" value={form.city} onChange={onChange} />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Observações</Label>
+                <Textarea
+                  id="notes"
+                  value={form.notes}
+                  onChange={onChange("notes")}
+                  className={textareaClassName}
+                />
+              </div>
+            </FormSection>
+
+            {errorMessage ? (
+              <p className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                {errorMessage}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
+            <p className="text-xs text-muted-foreground">
+              Revise os dados antes de salvar. O veículo ficará disponível para os demais módulos do sistema.
+            </p>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                onClick={() => router.push("/veiculos")}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Cancelar
+              </Button>
+              <Button type="submit" size="lg" disabled={isSaving}>
+                {isSaving ? "Salvando..." : "Salvar veículo"}
+              </Button>
             </div>
           </div>
-
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="grid gap-2">
-              <Label htmlFor="plate">Placa</Label>
-              <Input
-                id="plate"
-                value={form.plate}
-                onChange={onChange("plate")}
-                placeholder="AAA-0000"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="brand">Marca</Label>
-              <Input id="brand" value={form.brand} onChange={onChange("brand")} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="model">Modelo</Label>
-              <Input id="model" value={form.model} onChange={onChange("model")} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="version">Versao</Label>
-              <Input id="version" value={form.version} onChange={onChange("version")} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="grid gap-2">
-              <Label htmlFor="manufactureYear">Ano fab</Label>
-              <Input
-                id="manufactureYear"
-                type="number"
-                value={form.manufactureYear}
-                onChange={onChange("manufactureYear")}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="modelYear">Ano mod</Label>
-              <Input
-                id="modelYear"
-                type="number"
-                value={form.modelYear}
-                onChange={onChange("modelYear")}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fuel">Combustivel</Label>
-              <Select
-                value={form.fuel}
-                onValueChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    fuel: value as VehicleFormValues["fuel"],
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fuelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="color">Cor</Label>
-              <Input id="color" value={form.color} onChange={onChange("color")} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="grid gap-2">
-              <Label htmlFor="fleet">Frota</Label>
-              <Input id="fleet" value={form.fleet} onChange={onChange("fleet")} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="chassis">Chassi</Label>
-              <Input id="chassis" value={form.chassis} onChange={onChange("chassis")} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="renavam">Renavam</Label>
-              <Input id="renavam" value={form.renavam} onChange={onChange("renavam")} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="engine">Motor</Label>
-              <Input id="engine" value={form.engine} onChange={onChange("engine")} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="city">Cidade</Label>
-              <Input id="city" value={form.city} onChange={onChange("city")} />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="notes">Obs</Label>
-            <Textarea id="notes" value={form.notes} onChange={onChange("notes")} />
-          </div>
-
-          {errorMessage ? (
-            <p className="text-xs text-destructive">{errorMessage}</p>
-          ) : null}
-        </CardContent>
-        <CardFooter className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.push("/veiculos")}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isSaving}>
-            {isSaving ? "Salvando..." : "Salvar"}
-          </Button>
-        </CardFooter>
+        </div>
       </form>
-    </Card>
+    </section>
   );
 }

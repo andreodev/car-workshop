@@ -20,7 +20,7 @@ export async function signup(
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { error: "E-mail e senha sao obrigatorios." };
+    return { error: "E-mail e senha são obrigatórios." };
   }
 
   if (password.length < 8) {

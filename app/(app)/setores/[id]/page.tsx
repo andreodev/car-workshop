@@ -27,7 +27,7 @@ export default function EditSectorPage({ params }: EditSectorPageProps) {
   if (isError || !data) {
     return (
       <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Nao foi possivel carregar o setor."}
+        {error instanceof Error ? error.message : "Não foi possível carregar o setor."}
       </div>
     );
   }

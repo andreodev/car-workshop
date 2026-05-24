@@ -22,7 +22,7 @@ export default function EstimateEditPage({ params }: EstimateEditPageProps) {
   if (isLoading) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        Carregando orcamento...
+        Carregando orçamento...
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function EstimateEditPage({ params }: EstimateEditPageProps) {
   if (isError || !data) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        Nao foi possivel carregar o orcamento.
+        Não foi possível carregar o orçamento.
       </div>
     );
   }

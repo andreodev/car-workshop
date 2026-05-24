@@ -30,7 +30,7 @@ function parseServiceOrderStatus(value: unknown) {
   const status = normalizeString(value) ?? "ABERTA";
 
   if (!serviceOrderStatuses.includes(status as ServiceOrderStatusValue)) {
-    return { error: "Status da ordem de servico invalido." };
+    return { error: "Status da ordem de serviço inválido." };
   }
 
   return { value: status as ServiceOrderStatusValue };
@@ -45,7 +45,7 @@ function parsePositiveInt(value: unknown, fieldLabel: string) {
   const parsed = Number(normalized);
 
   if (!Number.isFinite(parsed) || parsed < 0) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: Math.trunc(parsed) };
@@ -60,7 +60,7 @@ function parseDecimal(value: unknown, fieldLabel: string) {
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: new Prisma.Decimal(parsed) };
@@ -69,12 +69,12 @@ function parseDecimal(value: unknown, fieldLabel: string) {
 function parseDateTime(value: unknown, fieldLabel: string) {
   const normalized = normalizeString(value);
   if (!normalized) {
-    return { error: `${fieldLabel} obrigatorio.` };
+    return { error: `${fieldLabel} obrigatório.` };
   }
 
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
-    return { error: `${fieldLabel} invalido.` };
+    return { error: `${fieldLabel} inválido.` };
   }
 
   return { value: parsed };
@@ -104,13 +104,13 @@ function parseItems(payload: unknown) {
 
   for (const rawItem of payload) {
     if (!rawItem || typeof rawItem !== "object") {
-      return { error: "Item invalido." };
+      return { error: "Item inválido." };
     }
 
     const item = rawItem as Record<string, unknown>;
     const description = normalizeString(item.description);
     if (!description) {
-      return { error: "Descricao do item e obrigatoria." };
+      return { error: "Descrição do item é obrigatória." };
     }
 
     const quantityParsed = parsePositiveInt(item.quantity, "Quantidade");
@@ -173,7 +173,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const order = await prisma.serviceOrder.findUnique({
@@ -182,11 +182,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });
 
   if (!order) {
-    return Response.json({ error: "Ordem de servico nao encontrada." }, { status: 404 });
+    return Response.json({ error: "Ordem de serviço não encontrada." }, { status: 404 });
   }
 
   return Response.json(order);
@@ -197,7 +198,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -207,15 +208,15 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
 
   if (!clientId) {
-    return Response.json({ error: "Cliente e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Cliente é obrigatório." }, { status: 400 });
   }
 
   if (!vehicleId) {
-    return Response.json({ error: "Veiculo e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Veículo é obrigatório." }, { status: 400 });
   }
 
   if (!responsible) {
-    return Response.json({ error: "Responsavel e obrigatorio." }, { status: 400 });
+    return Response.json({ error: "Responsável é obrigatório." }, { status: 400 });
   }
 
   const entryAt = parseDateTime(payload.entryAt, "Data de entrada");
@@ -252,7 +253,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   });
 
   if (!client) {
-    return Response.json({ error: "Cliente nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Cliente não encontrado." }, { status: 400 });
   }
 
   const vehicle = await prisma.vehicle.findUnique({
@@ -261,11 +262,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   });
 
   if (!vehicle) {
-    return Response.json({ error: "Veiculo nao encontrado." }, { status: 400 });
+    return Response.json({ error: "Veículo não encontrado." }, { status: 400 });
   }
 
   if (vehicle.clientId !== clientId) {
-    return Response.json({ error: "Veiculo nao pertence ao cliente." }, { status: 400 });
+    return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
   }
 
   const order = await prisma.serviceOrder.update({
@@ -293,6 +294,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });
 
@@ -304,7 +306,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -321,6 +323,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       items: true,
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      estimateConversion: { select: { id: true, code: true, status: true } },
     },
   });
 
@@ -332,7 +335,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
 
   if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   await prisma.serviceOrder.delete({ where: { id } });

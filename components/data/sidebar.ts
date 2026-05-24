@@ -1,19 +1,23 @@
 import {
-  Home,
-  Users,
   Car,
-  ClipboardList,
   FileText,
-  Wallet,
+  Grid2X2,
+  LayoutDashboard,
+  Package,
   Settings,
+  ShoppingCart,
+  Users,
+  Wrench,
 } from "lucide-react";
 
 export const menuItems = [
-  { title: "Início", href: "/dashboard", icon: Home },
+  { title: "Dashboard", href: "/", icon: LayoutDashboard },
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Veículos", href: "/veiculos", icon: Car },
-  { title: "Ordem de serviço", href: "/ordens-servico", icon: ClipboardList },
-  { title: "Orçamentos", href: "/orçamentos", icon: FileText },
-  { title: "Financeiro", href: "/financeiro", icon: Wallet },
-  { title: "Configurações", href: "/configuracoes", icon: Settings },
+  { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
+  { title: "Orçamentos", href: "/orcamentos", icon: FileText },
+  { title: "Produtos", href: "/produtos", icon: Package },
+  { title: "Setores", href: "/setores", icon: Grid2X2 },
+  { title: "PDV", href: "/pdv", icon: ShoppingCart },
+  { title: "Configuracoes", href: "/configuracoes", icon: Settings },
 ];
