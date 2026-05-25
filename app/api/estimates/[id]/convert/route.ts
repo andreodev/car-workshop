@@ -16,6 +16,14 @@ function createInspectionToken() {
   return randomBytes(24).toString("base64url");
 }
 
+const catalogItemSelect = {
+  id: true,
+  code: true,
+  name: true,
+  type: true,
+  stockCurrent: true,
+} as const;
+
 export async function POST(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
   const { id } = await params;
@@ -26,7 +34,14 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
   const estimate = await prisma.estimate.findUnique({
     where: { id },
-    include: { items: true },
+    include: {
+      items: {
+        include: {
+          catalogItem: { select: catalogItemSelect },
+        },
+      },
+      mechanic: { select: { id: true, active: true } },
+    },
   });
 
   if (!estimate) {
@@ -48,11 +63,36 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "OrÃ§amento sem itens." }, { status: 400 });
   }
 
+  const itemWithoutCatalog = estimate.items.find((item) => !item.catalogItemId || !item.catalogItem);
+  if (itemWithoutCatalog) {
+    return Response.json(
+      { error: `Selecione um item do catálogo para "${itemWithoutCatalog.description}".` },
+      { status: 400 }
+    );
+  }
+
+  if (!estimate.mechanicId || !estimate.mechanic) {
+    return Response.json(
+      { error: "Atribua um mecânico antes de gerar a OS." },
+      { status: 400 }
+    );
+  }
+
+  if (!estimate.mechanic.active) {
+    return Response.json(
+      { error: "Mecânico inativo não pode receber OS." },
+      { status: 400 }
+    );
+  }
+
+  const mechanicId = estimate.mechanicId;
+
   const result = await prisma.$transaction(async (tx) => {
     const order = await tx.serviceOrder.create({
       data: {
         client: { connect: { id: estimate.clientId } },
         vehicle: { connect: { id: estimate.vehicleId } },
+        mechanic: { connect: { id: mechanicId } },
         responsible: estimate.responsible,
         status: "ABERTA",
         entryAt: new Date(),
@@ -64,6 +104,8 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         total: estimate.total,
         items: {
           create: estimate.items.map((item) => ({
+            type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
+            catalogItemId: item.catalogItemId,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -78,9 +120,14 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         },
       },
       include: {
-        items: true,
+        items: {
+          include: {
+            catalogItem: { select: catalogItemSelect },
+          },
+        },
         client: { select: { id: true, name: true } },
         vehicle: { select: { id: true, plate: true, model: true } },
+        mechanic: { select: { id: true, name: true } },
         estimateConversion: { select: { id: true, code: true, status: true } },
         vehicleInspection: {
           select: {
@@ -114,7 +161,11 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         convertedServiceOrder: { connect: { id: order.id } },
       },
       include: {
-        items: true,
+        items: {
+          include: {
+            catalogItem: { select: catalogItemSelect },
+          },
+        },
         client: { select: { id: true, name: true } },
         vehicle: {
           select: {
@@ -128,6 +179,8 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
             modelYear: true,
           },
         },
+        mechanic: { select: { id: true, name: true } },
+        sector: { select: { id: true, name: true } },
         convertedServiceOrder: {
           select: {
             id: true,

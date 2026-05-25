@@ -8,11 +8,19 @@ export type EstimateStatus =
 
 export type EstimateItem = {
   id: string;
+  catalogItemId: string | null;
   description: string;
   quantity: number;
   unitPrice: string;
   discount: string;
   total: string;
+  catalogItem: {
+    id: string;
+    code: number;
+    name: string;
+    type: "PRODUTO" | "SERVICO";
+    stockCurrent: string | null;
+  } | null;
 };
 
 export type Estimate = {
@@ -22,6 +30,8 @@ export type Estimate = {
   type: string;
   clientId: string;
   vehicleId: string;
+  mechanicId: string | null;
+  sectorId: string | null;
   responsible: string;
   validUntil: string | null;
   notesInternal: string | null;
@@ -46,6 +56,14 @@ export type Estimate = {
     manufactureYear?: number | null;
     modelYear?: number | null;
   } | null;
+  mechanic: {
+    id: string;
+    name: string;
+  } | null;
+  sector: {
+    id: string;
+    name: string;
+  } | null;
   convertedServiceOrder: {
     id: string;
     code: number;
@@ -67,6 +85,8 @@ export type EstimateListResponse = {
 
 export type EstimateItemFormValues = {
   id: string;
+  type: "SERVICE" | "PRODUCT";
+  catalogItemId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -74,6 +94,8 @@ export type EstimateItemFormValues = {
 };
 
 export type EstimatePayloadItem = {
+  type: "SERVICE" | "PRODUCT";
+  catalogItemId: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -83,6 +105,8 @@ export type EstimatePayloadItem = {
 export type EstimateFormValues = {
   clientId: string;
   vehicleId: string;
+  mechanicId: string;
+  sectorId: string;
   responsible: string;
   validUntil: string;
   status: EstimateStatus;
@@ -95,6 +119,8 @@ export type EstimateFormValues = {
 export type EstimatePayload = {
   clientId: string;
   vehicleId: string;
+  mechanicId: string;
+  sectorId: string | null;
   responsible: string;
   validUntil: string | null;
   status: EstimateStatus;

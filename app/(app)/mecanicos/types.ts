@@ -1,8 +1,11 @@
+import type { MechanicFormSchemaOutput } from "./mechanic-form-schema";
+
 export type Mechanic = {
   id: string;
   code: number;
   name: string;
   active: boolean;
+  commissionPercent: string;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -18,8 +21,11 @@ export type MechanicListResponse = {
 export type MechanicFormValues = {
   name: string;
   active: boolean;
+  commissionPercent: string;
   notes: string;
 };
+
+export type MechanicSavePayload = MechanicFormSchemaOutput;
 
 export type MechanicReportOrder = {
   id: string;
@@ -29,6 +35,8 @@ export type MechanicReportOrder = {
   estimatedAt: string | null;
   updatedAt: string;
   total: string;
+  serviceTotal: string;
+  commissionTotal: string;
   location: string | null;
   client: {
     id: string;
@@ -59,6 +67,12 @@ export type MechanicReport = {
     totalRevenue: string;
     activeRevenue: string;
     completedRevenue: string;
+    serviceRevenue: string;
+    activeServiceRevenue: string;
+    completedServiceRevenue: string;
+    commissionPercent: string;
+    commissionTotal: string;
+    completedCommissionTotal: string;
   };
   statusSummary: MechanicReportStatusSummary[];
   activeOrders: MechanicReportOrder[];

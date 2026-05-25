@@ -105,14 +105,14 @@ const catalogSeed = [
 ];
 
 const mechanicSeed = [
-  ["Lucas Ferreira", "Especialista em motor e injecao"],
-  ["Marcos Oliveira", "Suspensao, freios e alinhamento"],
-  ["Rafael Lima", "Eletrica e diagnostico"],
-  ["Thiago Santos", "Revisao geral e troca de oleo"],
-  ["Priscila Rocha", "Ar condicionado e acabamento"],
-  ["Bruno Carvalho", "Transmissao e embreagem"],
-  ["Cesar Almeida", "Diesel e utilitarios"],
-  ["Felipe Martins", "Servicos rapidos"],
+  ["Lucas Ferreira", "Especialista em motor e injecao", "12.00"],
+  ["Marcos Oliveira", "Suspensao, freios e alinhamento", "10.00"],
+  ["Rafael Lima", "Eletrica e diagnostico", "15.00"],
+  ["Thiago Santos", "Revisao geral e troca de oleo", "8.00"],
+  ["Priscila Rocha", "Ar condicionado e acabamento", "11.50"],
+  ["Bruno Carvalho", "Transmissao e embreagem", "13.00"],
+  ["Cesar Almeida", "Diesel e utilitarios", "14.00"],
+  ["Felipe Martins", "Servicos rapidos", "7.50"],
 ];
 
 const sectorsSeed = [
@@ -242,11 +242,12 @@ async function main() {
   });
 
   const mechanics = await Promise.all(
-    mechanicSeed.map(([name, notes], index) =>
+    mechanicSeed.map(([name, notes, commissionPercent], index) =>
       prisma.mechanic.create({
         data: {
           name,
           notes,
+          commissionPercent: dec(commissionPercent),
           active: index !== mechanicSeed.length - 1,
         },
       })

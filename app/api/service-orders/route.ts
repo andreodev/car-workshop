@@ -321,7 +321,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { code: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

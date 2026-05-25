@@ -1,8 +1,8 @@
 import type {
   Mechanic,
-  MechanicFormValues,
   MechanicListResponse,
   MechanicReport,
+  MechanicSavePayload,
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -77,7 +77,7 @@ export async function fetchMechanicReport(id: string) {
   return parseResponse<MechanicReport>(response);
 }
 
-export async function createMechanic(payload: MechanicFormValues) {
+export async function createMechanic(payload: MechanicSavePayload) {
   const response = await fetch("/api/mechanics", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -87,7 +87,7 @@ export async function createMechanic(payload: MechanicFormValues) {
   return parseResponse<Mechanic>(response);
 }
 
-export async function updateMechanic(id: string, payload: MechanicFormValues) {
+export async function updateMechanic(id: string, payload: MechanicSavePayload) {
   const response = await fetch(`/api/mechanics/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

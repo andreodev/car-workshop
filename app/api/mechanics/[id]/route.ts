@@ -55,6 +55,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       data: {
         name: parsed.data.name,
         active: parsed.data.active,
+        commissionPercent: parsed.data.commissionPercent,
         notes: toNullableString(parsed.data.notes),
       },
     });

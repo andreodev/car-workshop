@@ -24,6 +24,18 @@ import {
 
 const PAGE_SIZE = 10;
 
+function formatPercent(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  return `${new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: parsed % 1 === 0 ? 0 : 2,
+  }).format(parsed)}%`;
+}
+
 export default function MechanicsPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -151,6 +163,9 @@ export default function MechanicsPage() {
                     Situação
                   </TableHead>
                   <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Comissão
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Ações
                   </TableHead>
                 </TableRow>
@@ -180,6 +195,9 @@ export default function MechanicsPage() {
                           Inativo
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {formatPercent(mechanic.commissionPercent)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

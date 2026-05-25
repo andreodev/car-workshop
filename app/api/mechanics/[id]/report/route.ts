@@ -45,6 +45,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     include: {
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      items: { select: { type: true, total: true } },
     },
     orderBy: { entryAt: "desc" },
   });
@@ -66,9 +67,23 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   let totalRevenue = new Prisma.Decimal(0);
   let activeRevenue = new Prisma.Decimal(0);
   let completedRevenue = new Prisma.Decimal(0);
+  let serviceRevenue = new Prisma.Decimal(0);
+  let activeServiceRevenue = new Prisma.Decimal(0);
+  let completedServiceRevenue = new Prisma.Decimal(0);
   let monthCompletedOrders = 0;
+  const commissionRate = mechanic.commissionPercent.div(100);
+
+  const getServiceTotal = (order: (typeof orders)[number]) =>
+    order.items.reduce((sum, item) => {
+      if (item.type !== "SERVICE") {
+        return sum;
+      }
+
+      return sum.add(item.total);
+    }, new Prisma.Decimal(0));
 
   orders.forEach((order) => {
+    const orderServiceTotal = getServiceTotal(order);
     const bucket = totalsByStatus.get(order.status);
     if (bucket) {
       bucket.count += 1;
@@ -77,32 +92,41 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     if (order.status !== "CANCELADA") {
       totalRevenue = totalRevenue.add(order.total);
+      serviceRevenue = serviceRevenue.add(orderServiceTotal);
     }
 
     if (activeStatuses.includes(order.status as (typeof activeStatuses)[number])) {
       activeRevenue = activeRevenue.add(order.total);
+      activeServiceRevenue = activeServiceRevenue.add(orderServiceTotal);
     }
 
     if (order.status === "FINALIZADA") {
       completedRevenue = completedRevenue.add(order.total);
+      completedServiceRevenue = completedServiceRevenue.add(orderServiceTotal);
       if (order.updatedAt >= startOfMonth) {
         monthCompletedOrders += 1;
       }
     }
   });
 
-  const mapOrder = (order: (typeof orders)[number]) => ({
-    id: order.id,
-    code: order.code,
-    status: order.status,
-    entryAt: order.entryAt,
-    estimatedAt: order.estimatedAt,
-    updatedAt: order.updatedAt,
-    total: order.total,
-    location: order.location,
-    client: order.client,
-    vehicle: order.vehicle,
-  });
+  const mapOrder = (order: (typeof orders)[number]) => {
+    const serviceTotal = getServiceTotal(order);
+
+    return {
+      id: order.id,
+      code: order.code,
+      status: order.status,
+      entryAt: order.entryAt,
+      estimatedAt: order.estimatedAt,
+      updatedAt: order.updatedAt,
+      total: order.total,
+      serviceTotal,
+      commissionTotal: serviceTotal.mul(commissionRate),
+      location: order.location,
+      client: order.client,
+      vehicle: order.vehicle,
+    };
+  };
 
   const report = {
     mechanic,
@@ -118,6 +142,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       totalRevenue: decimalToString(totalRevenue),
       activeRevenue: decimalToString(activeRevenue),
       completedRevenue: decimalToString(completedRevenue),
+      serviceRevenue: decimalToString(serviceRevenue),
+      activeServiceRevenue: decimalToString(activeServiceRevenue),
+      completedServiceRevenue: decimalToString(completedServiceRevenue),
+      commissionPercent: decimalToString(mechanic.commissionPercent),
+      commissionTotal: decimalToString(serviceRevenue.mul(commissionRate)),
+      completedCommissionTotal: decimalToString(completedServiceRevenue.mul(commissionRate)),
     },
     statusSummary: serviceOrderStatuses.map((status) => {
       const bucket = totalsByStatus.get(status);

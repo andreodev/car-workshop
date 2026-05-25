@@ -37,6 +37,18 @@ function formatCurrency(value: string) {
   }).format(parsed);
 }
 
+function formatPercent(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  return `${new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: parsed % 1 === 0 ? 0 : 2,
+  }).format(parsed)}%`;
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return "-";
@@ -72,7 +84,7 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
 
   return (
     <div className="overflow-x-auto rounded-md border">
-      <Table className="min-w-[860px]">
+      <Table className="min-w-[1040px]">
         <TableHeader>
           <TableRow>
             <TableHead>OS</TableHead>
@@ -80,6 +92,8 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
             <TableHead>Veículo</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Entrada</TableHead>
+            <TableHead className="text-right">Serviços</TableHead>
+            <TableHead className="text-right">Comissão</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
@@ -99,6 +113,10 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
                   </Badge>
                 </TableCell>
                 <TableCell>{formatDateTime(order.entryAt)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(order.serviceTotal)}</TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(order.commissionTotal)}
+                </TableCell>
                 <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" asChild>
@@ -162,9 +180,14 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
             description="Rastreabilidade de serviços, carga atual e histórico de OS."
           />
         </div>
-        <Badge variant={data.mechanic.active ? "default" : "secondary"} className="h-fit">
-          {data.mechanic.active ? "Ativo" : "Inativo"}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="h-fit">
+            Comissão {formatPercent(data.summary.commissionPercent)}
+          </Badge>
+          <Badge variant={data.mechanic.active ? "default" : "secondary"} className="h-fit">
+            {data.mechanic.active ? "Ativo" : "Inativo"}
+          </Badge>
+        </div>
       </div>
 
       <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -174,6 +197,33 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
             <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
           </div>
         ))}
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-md border bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Serviços movimentados</p>
+          <p className="mt-2 text-xl font-semibold text-foreground">
+            {formatCurrency(data.summary.serviceRevenue)}
+          </p>
+        </div>
+        <div className="rounded-md border bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Comissão total</p>
+          <p className="mt-2 text-xl font-semibold text-foreground">
+            {formatCurrency(data.summary.commissionTotal)}
+          </p>
+        </div>
+        <div className="rounded-md border bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Serviços concluídos</p>
+          <p className="mt-2 text-xl font-semibold text-foreground">
+            {formatCurrency(data.summary.completedServiceRevenue)}
+          </p>
+        </div>
+        <div className="rounded-md border bg-white p-4 shadow-sm">
+          <p className="text-xs text-muted-foreground">Comissão concluída</p>
+          <p className="mt-2 text-xl font-semibold text-foreground">
+            {formatCurrency(data.summary.completedCommissionTotal)}
+          </p>
+        </div>
       </section>
 
       <section className="grid gap-3 md:grid-cols-3">

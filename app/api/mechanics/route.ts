@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: parsed.data.name,
         active: parsed.data.active,
+        commissionPercent: parsed.data.commissionPercent,
         notes: toNullableString(parsed.data.notes),
       },
     });

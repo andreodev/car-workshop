@@ -3,10 +3,24 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Car,
+  CheckCircle2,
+  Circle,
+  ClipboardList,
+  FileText,
+  Plus,
+  StickyNote,
+  Trash2,
+  UserCog,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Fraunces, Sora } from "next/font/google";
 
 import { fetchClients } from "../../clientes/client-api";
+import { fetchMechanics } from "../../mecanicos/mechanic-api";
+import { fetchCatalogItems, fetchSectors } from "../../pdv/pdv-api";
 import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { createEstimate, updateEstimate } from "../estimate-api";
@@ -20,6 +34,7 @@ import type {
 } from "../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,12 +47,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 
-const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
+const noSelection = "__none__";
 
 function createEmptyItem(): EstimateItemFormValues {
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`,
+    type: "SERVICE",
+    catalogItemId: "",
     description: "",
     quantity: "1",
     unitPrice: "",
@@ -48,6 +64,8 @@ function createEmptyItem(): EstimateItemFormValues {
 const emptyForm: EstimateFormValues = {
   clientId: "",
   vehicleId: "",
+  mechanicId: "",
+  sectorId: "",
   responsible: "",
   validUntil: "",
   status: "RASCUNHO",
@@ -61,10 +79,12 @@ function toInputDate(value: string | null) {
   if (!value) {
     return "";
   }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "";
   }
+
   return date.toLocaleDateString("en-CA");
 }
 
@@ -74,6 +94,8 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
   return {
     clientId: estimate.clientId,
     vehicleId: estimate.vehicleId,
+    mechanicId: estimate.mechanicId ?? "",
+    sectorId: estimate.sectorId ?? "",
     responsible: estimate.responsible ?? "",
     validUntil: toInputDate(estimate.validUntil),
     status: estimate.status,
@@ -84,6 +106,8 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
       items.length > 0
         ? items.map((item) => ({
             id: item.id,
+            type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
+            catalogItemId: item.catalogItemId ?? "",
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: String(item.unitPrice ?? ""),
@@ -96,6 +120,7 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
 function normalizeAmount(value: string) {
   const normalized = value.replace(",", ".");
   const parsed = Number(normalized);
+
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -104,6 +129,16 @@ function formatCurrency(value: number) {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+function getVehicleLabel(
+  vehicle?: { plate: string; brand?: string | null; model: string | null } | null
+) {
+  if (!vehicle) {
+    return "Veículo não selecionado";
+  }
+
+  return [vehicle.plate, vehicle.brand, vehicle.model].filter(Boolean).join(" - ");
 }
 
 type EstimateFormProps = {
@@ -135,19 +170,62 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     staleTime: 60_000,
   });
 
+  const mechanicsQuery = useQuery({
+    queryKey: ["estimate-mechanics", { includeInactive: mode === "edit" }],
+    queryFn: () =>
+      fetchMechanics({ page: 1, pageSize: 50, includeInactive: mode === "edit" }),
+    staleTime: 60_000,
+  });
+
+  const sectorsQuery = useQuery({
+    queryKey: ["estimate-sectors", { includeInactive: mode === "edit" }],
+    queryFn: () =>
+      fetchSectors({ page: 1, pageSize: 50, includeInactive: mode === "edit" }),
+    staleTime: 60_000,
+  });
+
+  const catalogItemsQuery = useQuery({
+    queryKey: ["estimate-catalog-items"],
+    queryFn: () => fetchCatalogItems({ page: 1, pageSize: 100 }),
+    staleTime: 60_000,
+  });
+
+  const catalogItems = catalogItemsQuery.data?.items ?? [];
+
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
+
     if (!form.clientId) {
       return vehicles;
     }
+
     return vehicles.filter((vehicle) => vehicle.clientId === form.clientId);
   }, [vehiclesQuery.data, form.clientId]);
+
+  const selectedClient = useMemo(() => {
+    return (clientsQuery.data?.items ?? []).find((client) => client.id === form.clientId);
+  }, [clientsQuery.data, form.clientId]);
+
+  const selectedVehicle = useMemo(() => {
+    return (vehiclesQuery.data?.items ?? []).find((vehicle) => vehicle.id === form.vehicleId);
+  }, [vehiclesQuery.data, form.vehicleId]);
+
+  const selectedMechanic = useMemo(() => {
+    return (mechanicsQuery.data?.items ?? []).find(
+      (mechanic) => mechanic.id === form.mechanicId
+    );
+  }, [mechanicsQuery.data, form.mechanicId]);
+
+  const selectedSector = useMemo(() => {
+    return (sectorsQuery.data?.items ?? []).find((sector) => sector.id === form.sectorId);
+  }, [sectorsQuery.data, form.sectorId]);
 
   const mutation = useMutation({
     mutationFn: async (payload: EstimatePayload) => {
       if (mode === "edit" && initialData?.id) {
         return updateEstimate(initialData.id, payload);
       }
+
       return createEstimate(payload);
     },
     onSuccess: (estimate) => {
@@ -207,6 +285,41 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     }));
   }
 
+  function updateItemType(itemId: string, type: EstimateItemFormValues["type"]) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId
+          ? { ...item, type, catalogItemId: "", description: "", unitPrice: "" }
+          : item
+      ),
+    }));
+  }
+
+  function updateItemCatalog(itemId: string, catalogItemId: string) {
+    const catalogItem = catalogItems.find((item) => item.id === catalogItemId);
+
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              catalogItemId,
+              description: catalogItem?.name ?? "",
+              unitPrice: catalogItem ? String(catalogItem.unitPrice) : "",
+              type:
+                catalogItem?.type === "PRODUTO"
+                  ? "PRODUCT"
+                  : catalogItem?.type === "SERVICO"
+                    ? "SERVICE"
+                    : item.type,
+            }
+          : item
+      ),
+    }));
+  }
+
   function addItem() {
     setForm((prev) => ({ ...prev, items: [...prev.items, createEmptyItem()] }));
   }
@@ -214,6 +327,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   function removeItem(itemId: string) {
     setForm((prev) => {
       const nextItems = prev.items.filter((item) => item.id !== itemId);
+
       return { ...prev, items: nextItems.length > 0 ? nextItems : [createEmptyItem()] };
     });
   }
@@ -232,6 +346,11 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
       return;
     }
 
+    if (!form.mechanicId) {
+      setLocalError("Selecione o mecânico responsável.");
+      return;
+    }
+
     if (!responsibleValue.trim()) {
       setLocalError("Responsável é obrigatório.");
       return;
@@ -240,17 +359,20 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
-      return !item.description.trim() || quantity <= 0 || unitPrice <= 0;
+
+      return !item.catalogItemId || !item.description.trim() || quantity <= 0 || unitPrice <= 0;
     });
 
     if (invalidItem) {
-      setLocalError("Preencha descricao, quantidade e valor unitario dos itens.");
+      setLocalError("Selecione os itens do catálogo e preencha quantidade e valor.");
       return;
     }
 
     const payload: EstimatePayload = {
       clientId: form.clientId,
       vehicleId: form.vehicleId,
+      mechanicId: form.mechanicId,
+      sectorId: form.sectorId || null,
       responsible: responsibleValue.trim(),
       validUntil: form.validUntil ? new Date(`${form.validUntil}T23:59:59`).toISOString() : null,
       status: form.status,
@@ -258,6 +380,8 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
       notesInternal: form.notesInternal.trim() || null,
       notesClient: form.notesClient.trim() || null,
       items: form.items.map((item) => ({
+        type: item.type,
+        catalogItemId: item.catalogItemId,
         description: item.description.trim(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -270,65 +394,209 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
 
   const isSaving = mutation.isPending;
   const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+  const statusOption = estimateStatusOptions.find((option) => option.value === form.status);
+  const validItemsCount = form.items.filter((item) => {
+    return (
+      item.catalogItemId &&
+      item.description.trim() &&
+      normalizeAmount(item.quantity) > 0 &&
+      normalizeAmount(item.unitPrice) > 0
+    );
+  }).length;
+  const workflowSteps = [
+    { label: "Cliente", done: Boolean(form.clientId && form.vehicleId) },
+    { label: "Execução", done: Boolean(form.mechanicId && responsibleValue.trim()) },
+    { label: "Itens", done: validItemsCount > 0 },
+    { label: "Salvar", done: false },
+  ];
+  const completedWorkflowCount = workflowSteps.filter((step) => step.done).length;
+  const workflowProgress = Math.round((completedWorkflowCount / workflowSteps.length) * 100);
 
   return (
-    <div className={`${bodyFont.className} border bg-white p-6 shadow-sm`}>
-      <div className="space-y-6">
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Orçamento de oficina
-            </p>
-            <h1 className={`${titleFont.className} text-2xl text-foreground md:text-3xl`}>
-              {mode === "edit" ? "Editar orçamento" : "Novo orçamento"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Monte serviços, peças, descontos e aprove a OS a partir da proposta.
-            </p>
-          </div>
-          <Badge variant="secondary" className="h-fit text-[11px]">
-            {estimateStatusOptions.find((option) => option.value === form.status)?.label}
-          </Badge>
-        </header>
+    <form
+      onSubmit={handleSubmit}
+      className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-5"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <Header
+          title={mode === "edit" ? "Editar orçamento" : "Novo orçamento"}
+          description="Crie a proposta com cliente, responsável, setor e itens do catálogo."
+        />
 
-        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-6">
-            <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Dados do orçamento</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Cliente</Label>
-                  <Select
-                    value={form.clientId}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        clientId: value,
-                        vehicleId: "",
-                      }))
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 px-4"
+            onClick={() => router.push("/orcamentos")}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" className="h-10 px-5" disabled={isSaving}>
+            {isSaving ? "Salvando..." : "Salvar orçamento"}
+          </Button>
+        </div>
+      </div>
+
+      <section className="border-y border-border bg-card">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px]">
+          <div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-r">
+            <UserRound className="size-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedClient?.name ?? "Cliente pendente"}
+              </p>
+              <p className="text-xs text-muted-foreground">Cliente</p>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-r">
+            <Car className="size-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {getVehicleLabel(selectedVehicle)}
+              </p>
+              <p className="text-xs text-muted-foreground">Veículo</p>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-r">
+            <UserCog className="size-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedMechanic?.name ?? "Mecânico pendente"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {selectedSector?.name ?? "Sem setor"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div>
+              <p className="font-mono text-base font-semibold text-foreground">
+                {formatCurrency(totals.total)}
+              </p>
+              <p className="text-xs text-muted-foreground">Total previsto</p>
+            </div>
+            <Badge
+              variant={statusOption?.variant ?? "secondary"}
+              className={statusOption?.className}
+            >
+              {statusOption?.label ?? form.status}
+            </Badge>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 border border-border bg-card p-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-center">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="size-4 text-primary" />
+          <span className="text-sm font-semibold text-foreground">Progresso do orçamento</span>
+        </div>
+        <div className="grid gap-3">
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${workflowProgress}%` }}
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-4">
+            {workflowSteps.map((step) => {
+              const StepIcon = step.done ? CheckCircle2 : Circle;
+
+              return (
+                <div
+                  key={step.label}
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <StepIcon
+                    className={
+                      step.done ? "size-3.5 text-emerald-600" : "size-3.5 text-muted-foreground"
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(clientsQuery.data?.items ?? []).map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {clientsQuery.isError ? (
-                    <p className="text-xs text-destructive">
-                      Não foi possível carregar clientes.
-                    </p>
-                  ) : null}
+                  />
+                  <span className={step.done ? "font-medium text-foreground" : undefined}>
+                    {step.label}
+                  </span>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {errorMessage ? (
+        <div className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      <div className="grid flex-1 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+          <section className="border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <UserRound className="size-4 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">Dados da proposta</h2>
+              </div>
+            </div>
+
+            <div className="grid gap-4 p-4">
+              <div className="grid gap-2">
+                <Label>Cliente</Label>
+                <Select
+                  value={form.clientId}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      clientId: value,
+                      vehicleId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue
+                      placeholder={clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(clientsQuery.data?.items ?? []).map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {clientsQuery.isError ? (
+                  <p className="text-xs text-destructive">Não foi possível carregar clientes.</p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Veículo</Label>
+                <Select
+                  value={form.vehicleId}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, vehicleId: value }))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue
+                      placeholder={vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableVehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {getVehicleLabel(vehicle)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {vehiclesQuery.isError ? (
+                  <p className="text-xs text-destructive">Não foi possível carregar veículos.</p>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label>Status</Label>
                   <Select
@@ -337,7 +605,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                       setForm((prev) => ({ ...prev, status: value as EstimateStatus }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -349,206 +617,298 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-4">
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Veículo</Label>
-                  <Select
-                    value={form.vehicleId}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, vehicleId: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>
-                          {vehicle.plate} {vehicle.model ? `- ${vehicle.model}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="grid gap-2">
                   <Label>Tipo</Label>
-                  <Input value={form.type} onChange={onChange("type")} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Validade</Label>
-                  <Input
-                    type="date"
-                    value={form.validUntil}
-                    onChange={onChange("validUntil")}
-                  />
+                  <Input className="h-10" value={form.type} onChange={onChange("type")} />
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>Responsável</Label>
-                  <Input value={responsibleValue} onChange={onChange("responsible")} />
-                </div>
+              <div className="grid gap-2">
+                <Label>Validade</Label>
+                <Input
+                  className="h-10"
+                  type="date"
+                  value={form.validUntil}
+                  onChange={onChange("validUntil")}
+                />
               </div>
-            </section>
+            </div>
+          </section>
 
-            <section className="border bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <section className="border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <UserCog className="size-4 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">Execução</h2>
+              </div>
+            </div>
+
+            <div className="grid gap-4 p-4">
+              <div className="grid gap-2">
+                <Label>Mecânico responsável</Label>
+                <Select
+                  value={form.mechanicId}
+                  onValueChange={(value) => {
+                    setForm((prev) => ({ ...prev, mechanicId: value }));
+                    setLocalError(null);
+                  }}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue
+                      placeholder={
+                        mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+                      <SelectItem key={mechanic.id} value={mechanic.id}>
+                        {mechanic.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {mechanicsQuery.isError ? (
+                  <p className="text-xs text-destructive">Não foi possível carregar mecânicos.</p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Responsável interno</Label>
+                <Input
+                  className="h-10"
+                  value={responsibleValue}
+                  onChange={onChange("responsible")}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Setor</Label>
+                <Select
+                  value={form.sectorId || noSelection}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      sectorId: value === noSelection ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue
+                      placeholder={sectorsQuery.isLoading ? "Carregando setores..." : "Selecione"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={noSelection}>Sem escolher setor</SelectItem>
+                    {sectorsQuery.data?.items.map((sector) => (
+                      <SelectItem key={sector.id} value={sector.id}>
+                        {sector.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {sectorsQuery.isError ? (
+                  <p className="text-xs text-destructive">Não foi possível carregar setores.</p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
+          <section className="border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="size-4 text-primary" />
+                <h2 className="text-sm font-semibold text-foreground">Resumo financeiro</h2>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Itens preenchidos</span>
+                <span className="font-semibold text-foreground">
+                  {validItemsCount}/{form.items.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-mono font-semibold">{formatCurrency(totals.subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Desconto</span>
+                <span className="font-mono font-semibold text-amber-700">
+                  -{formatCurrency(totals.discountTotal)}
+                </span>
+              </div>
+              <div className="h-px bg-border" />
+              <div className="flex items-center justify-between text-base">
+                <span className="font-semibold text-foreground">Total</span>
+                <span className="font-mono font-semibold text-foreground">
+                  {formatCurrency(totals.total)}
+                </span>
+              </div>
+            </div>
+          </section>
+        </aside>
+
+        <div className="min-w-0 space-y-5">
+          <section className="border border-border bg-card">
+            <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="size-4 text-primary" />
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">Serviços e peças</h2>
+                  <h2 className="text-sm font-semibold text-foreground">Itens do orçamento</h2>
                   <p className="text-xs text-muted-foreground">
-                    Inclua mão de obra, peças e descontos por linha.
+                    Selecione produtos e serviços já cadastrados.
                   </p>
                 </div>
-                <Button type="button" variant="secondary" onClick={addItem}>
-                  Adicionar item
-                </Button>
               </div>
-              <div className="mt-4 space-y-3">
-                {form.items.map((item, index) => {
-                  const quantity = normalizeAmount(item.quantity);
-                  const unitPrice = normalizeAmount(item.unitPrice);
-                  const discount = normalizeAmount(item.discount);
-                  const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+              <Button type="button" variant="secondary" className="h-9 gap-2" onClick={addItem}>
+                <Plus className="size-4" />
+                Adicionar item
+              </Button>
+            </div>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="grid gap-3 border border-dashed bg-muted/30 p-3 md:grid-cols-[2.2fr_0.8fr_1fr_1fr_auto]"
-                    >
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Descrição</Label>
-                        <Input
-                          value={item.description}
-                          onChange={(event) =>
-                            updateItem(item.id, "description", event.target.value)
+            <div className="min-w-0 overflow-x-auto">
+              <div className="min-w-[980px]">
+                <div className="grid grid-cols-[112px_minmax(210px,1.1fr)_minmax(240px,1.3fr)_76px_116px_116px_128px_44px] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Tipo</span>
+                  <span>Catálogo</span>
+                  <span>Descrição</span>
+                  <span>Qtd</span>
+                  <span>Valor</span>
+                  <span>Desconto</span>
+                  <span className="text-right">Total</span>
+                  <span />
+                </div>
+
+                <div className="divide-y divide-border">
+                  {form.items.map((item, index) => {
+                    const quantity = normalizeAmount(item.quantity);
+                    const unitPrice = normalizeAmount(item.unitPrice);
+                    const discount = normalizeAmount(item.discount);
+                    const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+                    const availableCatalogItems = catalogItems.filter((catalogItem) =>
+                      item.type === "PRODUCT"
+                        ? catalogItem.type === "PRODUTO"
+                        : catalogItem.type === "SERVICO"
+                    );
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-[112px_minmax(210px,1.1fr)_minmax(240px,1.3fr)_76px_116px_116px_128px_44px] gap-3 px-4 py-3"
+                      >
+                        <Select
+                          value={item.type}
+                          onValueChange={(value) =>
+                            updateItemType(item.id, value as EstimateItemFormValues["type"])
                           }
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="SERVICE">Serviço</SelectItem>
+                            <SelectItem value="PRODUCT">Produto</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select
+                          value={item.catalogItemId || noSelection}
+                          onValueChange={(value) =>
+                            updateItemCatalog(item.id, value === noSelection ? "" : value)
+                          }
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue
+                              placeholder={
+                                catalogItemsQuery.isLoading ? "Carregando..." : "Selecione"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={noSelection}>
+                              {item.type === "PRODUCT" ? "Selecione produto" : "Selecione serviço"}
+                            </SelectItem>
+                            {availableCatalogItems.map((catalogItem) => (
+                              <SelectItem key={catalogItem.id} value={catalogItem.id}>
+                                #{catalogItem.code} {catalogItem.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Input
+                          className="h-10"
+                          value={item.description}
+                          onChange={(event) => updateItem(item.id, "description", event.target.value)}
                           placeholder={`Item ${index + 1}`}
                         />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Qtd</Label>
                         <Input
+                          className="h-10"
                           value={item.quantity}
-                          onChange={(event) =>
-                            updateItem(item.id, "quantity", event.target.value)
-                          }
+                          onChange={(event) => updateItem(item.id, "quantity", event.target.value)}
                         />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Valor</Label>
                         <Input
+                          className="h-10"
                           value={item.unitPrice}
-                          onChange={(event) =>
-                            updateItem(item.id, "unitPrice", event.target.value)
-                          }
+                          onChange={(event) => updateItem(item.id, "unitPrice", event.target.value)}
                         />
-                      </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-muted-foreground">Desconto</Label>
                         <Input
+                          className="h-10"
                           value={item.discount}
-                          onChange={(event) =>
-                            updateItem(item.id, "discount", event.target.value)
-                          }
+                          onChange={(event) => updateItem(item.id, "discount", event.target.value)}
                         />
-                      </div>
-                      <div className="flex flex-col items-end justify-between gap-2">
-                        <span className="text-xs font-semibold text-foreground">
+                        <div className="flex h-10 items-center justify-end font-mono text-sm font-semibold text-foreground">
                           {formatCurrency(lineTotal)}
-                        </span>
+                        </div>
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
+                          size="icon"
+                          title="Remover item"
+                          className="size-10"
                           onClick={() => removeItem(item.id)}
                         >
-                          Remover
+                          <Trash2 className="size-4" />
                         </Button>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </section>
+            </div>
 
-            <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Observações</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>Observação interna</Label>
-                  <Textarea
-                    value={form.notesInternal}
-                    onChange={onChange("notesInternal")}
-                    rows={5}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Observação para o cliente</Label>
-                  <Textarea
-                    value={form.notesClient}
-                    onChange={onChange("notesClient")}
-                    rows={5}
-                  />
-                </div>
-              </div>
-            </section>
-          </div>
+            {catalogItemsQuery.isError ? (
+              <p className="border-t border-border px-4 py-3 text-xs text-destructive">
+                Não foi possível carregar produtos e serviços.
+              </p>
+            ) : null}
+          </section>
 
-          <aside className="space-y-6">
-            <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Resumo financeiro</h2>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Total serviços</span>
-                  <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Desconto</span>
-                  <span className="font-semibold text-amber-700">
-                    -{formatCurrency(totals.discountTotal)}
-                  </span>
-                </div>
-                <div className="h-px bg-border" />
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-semibold">Total da nota</span>
-                  <span className="font-semibold text-foreground">
-                    {formatCurrency(totals.total)}
-                  </span>
-                </div>
+          <section className="grid gap-5 border border-border bg-card p-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <StickyNote className="size-4 text-primary" />
+                <Label>Observação interna</Label>
               </div>
-            </section>
-
-            <section className="border bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-foreground">Ações</h2>
-              <div className="mt-4 space-y-3">
-                {errorMessage ? (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {errorMessage}
-                  </div>
-                ) : null}
-                <Button type="submit" className="w-full" disabled={isSaving}>
-                  {isSaving ? "Salvando..." : "Salvar orçamento"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => router.push("/orcamentos")}
-                >
-                  Cancelar
-                </Button>
+              <Textarea
+                value={form.notesInternal}
+                onChange={onChange("notesInternal")}
+                rows={7}
+              />
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-primary" />
+                <Label>Observação para o cliente</Label>
               </div>
-            </section>
-          </aside>
-        </form>
+              <Textarea value={form.notesClient} onChange={onChange("notesClient")} rows={7} />
+            </div>
+          </section>
+        </div>
       </div>
-    </div>
+    </form>
   );
 }

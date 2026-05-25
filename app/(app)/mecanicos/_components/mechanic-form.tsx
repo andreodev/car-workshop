@@ -33,6 +33,7 @@ function mapMechanicToForm(mechanic?: Mechanic | null): MechanicFormValues {
   return {
     name: mechanic?.name ?? "",
     active: mechanic?.active ?? true,
+    commissionPercent: mechanic?.commissionPercent ?? "0",
     notes: mechanic?.notes ?? "",
   };
 }
@@ -139,6 +140,20 @@ export function MechanicForm({ initialData }: MechanicFormProps) {
                       <SelectItem value="INATIVO">Inativo</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mechanic-commission">Comissão sobre serviços (%)</Label>
+                  <Input
+                    id="mechanic-commission"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    type="number"
+                    value={form.commissionPercent}
+                    onChange={(event) => updateField("commissionPercent", event.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-2 md:col-span-2">

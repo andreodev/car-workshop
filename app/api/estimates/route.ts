@@ -18,6 +18,17 @@ const estimateStatuses = [
 ] as const;
 
 type EstimateStatusValue = (typeof estimateStatuses)[number];
+const estimateItemTypes = ["SERVICE", "PRODUCT"] as const;
+
+type EstimateItemTypeValue = (typeof estimateItemTypes)[number];
+
+const catalogItemSelect = {
+  id: true,
+  code: true,
+  name: true,
+  type: true,
+  stockCurrent: true,
+} as const;
 
 function coerceNumber(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -89,6 +100,8 @@ function parsePositiveInt(value: unknown, fieldLabel: string) {
 
 type ParsedItems = {
   items: Array<{
+    type: EstimateItemTypeValue;
+    catalogItemId: string;
     description: string;
     quantity: number;
     unitPrice: Prisma.Decimal;
@@ -115,6 +128,16 @@ function parseItems(payload: unknown) {
     }
 
     const item = rawItem as Record<string, unknown>;
+    const type = normalizeString(item.type) ?? "SERVICE";
+    if (!estimateItemTypes.includes(type as EstimateItemTypeValue)) {
+      return { error: "Tipo do item inválido." };
+    }
+
+    const catalogItemId = normalizeString(item.catalogItemId);
+    if (!catalogItemId) {
+      return { error: "Selecione um produto ou serviço do catálogo." };
+    }
+
     const description = normalizeString(item.description);
     if (!description) {
       return { error: "Descrição do item é obrigatória." };
@@ -131,12 +154,12 @@ function parseItems(payload: unknown) {
     }
 
     const unitPriceParsed = parseDecimal(item.unitPrice, "Valor unitario");
-    if (unitPriceParsed.error) {
+    if ("error" in unitPriceParsed) {
       return { error: unitPriceParsed.error };
     }
 
     const discountParsed = parseDecimal(item.discount, "Desconto");
-    if (discountParsed.error) {
+    if ("error" in discountParsed) {
       return { error: discountParsed.error };
     }
 
@@ -150,7 +173,15 @@ function parseItems(payload: unknown) {
 
     subtotal = subtotal.add(lineSubtotal);
     discountTotal = discountTotal.add(discount);
-    items.push({ description, quantity, unitPrice, discount, total: lineTotal });
+    items.push({
+      type: type as EstimateItemTypeValue,
+      catalogItemId,
+      description,
+      quantity,
+      unitPrice,
+      discount,
+      total: lineTotal,
+    });
   }
 
   let total = subtotal.minus(discountTotal);
@@ -159,6 +190,48 @@ function parseItems(payload: unknown) {
   }
 
   return { items, subtotal, discountTotal, total };
+}
+
+async function validateCatalogItems(items: ParsedItems["items"]) {
+  const catalogItemIds = Array.from(new Set(items.map((item) => item.catalogItemId)));
+
+  const catalogItems = await prisma.catalogItem.findMany({
+    where: { id: { in: catalogItemIds } },
+    select: { id: true, type: true, active: true },
+  });
+  const catalogItemsById = new Map(catalogItems.map((item) => [item.id, item]));
+
+  if (catalogItems.length !== catalogItemIds.length) {
+    return "Produto ou serviço do catálogo não encontrado.";
+  }
+
+  for (const item of items) {
+    const catalogItem = catalogItemsById.get(item.catalogItemId);
+    if (!catalogItem?.active) {
+      return `Item de catálogo inativo em "${item.description}".`;
+    }
+
+    if (item.type === "PRODUCT" && catalogItem.type !== "PRODUTO") {
+      return `Selecione um produto do catálogo para "${item.description}".`;
+    }
+
+    if (item.type === "SERVICE" && catalogItem.type !== "SERVICO") {
+      return `Selecione um serviço do catálogo para "${item.description}".`;
+    }
+  }
+
+  return null;
+}
+
+function toEstimateItemCreateInput(items: ParsedItems["items"]) {
+  return items.map((item) => ({
+    catalogItemId: item.catalogItemId,
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    discount: item.discount,
+    total: item.total,
+  }));
 }
 
 export async function GET(request: NextRequest) {
@@ -193,6 +266,8 @@ export async function GET(request: NextRequest) {
         { client: { name: { contains: search, mode: "insensitive" } } },
         { vehicle: { plate: { contains: search, mode: "insensitive" } } },
         { vehicle: { model: { contains: search, mode: "insensitive" } } },
+        { mechanic: { name: { contains: search, mode: "insensitive" } } },
+        { sector: { name: { contains: search, mode: "insensitive" } } },
         { responsible: { contains: search, mode: "insensitive" } },
       ];
 
@@ -211,6 +286,8 @@ export async function GET(request: NextRequest) {
         include: {
           client: { select: { id: true, name: true } },
           vehicle: { select: { id: true, plate: true, model: true } },
+          mechanic: { select: { id: true, name: true } },
+          sector: { select: { id: true, name: true } },
           convertedServiceOrder: { select: { id: true, code: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -242,6 +319,8 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json()) as Record<string, unknown>;
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
+  const mechanicId = normalizeString(payload.mechanicId);
+  const sectorId = normalizeString(payload.sectorId);
   const responsible =
     normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
 
@@ -251,6 +330,10 @@ export async function POST(request: NextRequest) {
 
   if (!vehicleId) {
     return Response.json({ error: "Veículo é obrigatório." }, { status: 400 });
+  }
+
+  if (!mechanicId) {
+    return Response.json({ error: "Mecânico é obrigatório." }, { status: 400 });
   }
 
   if (!responsible) {
@@ -270,6 +353,11 @@ export async function POST(request: NextRequest) {
   const itemsParsed = parseItems(payload.items);
   if ("error" in itemsParsed) {
     return Response.json({ error: itemsParsed.error }, { status: 400 });
+  }
+
+  const catalogItemsError = await validateCatalogItems(itemsParsed.items);
+  if (catalogItemsError) {
+    return Response.json({ error: catalogItemsError }, { status: 400 });
   }
 
   const client = await prisma.client.findUnique({
@@ -294,10 +382,43 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
   }
 
+  const mechanic = await prisma.mechanic.findUnique({
+    where: { id: mechanicId },
+    select: { id: true, active: true },
+  });
+
+  if (!mechanic) {
+    return Response.json({ error: "Mecânico não encontrado." }, { status: 400 });
+  }
+
+  if (!mechanic.active) {
+    return Response.json(
+      { error: "Mecânico inativo não pode receber orçamento." },
+      { status: 400 }
+    );
+  }
+
+  const sector = sectorId
+    ? await prisma.sector.findUnique({
+        where: { id: sectorId },
+        select: { id: true, active: true },
+      })
+    : null;
+
+  if (sectorId && !sector) {
+    return Response.json({ error: "Setor não encontrado." }, { status: 400 });
+  }
+
+  if (sector && !sector.active) {
+    return Response.json({ error: "Setor esta inativo." }, { status: 400 });
+  }
+
   const estimate = await prisma.estimate.create({
     data: {
       client: { connect: { id: clientId } },
       vehicle: { connect: { id: vehicleId } },
+      mechanic: { connect: { id: mechanicId } },
+      sector: sectorId ? { connect: { id: sectorId } } : undefined,
       responsible,
       status: status.value,
       type: normalizeString(payload.type) ?? "SIMPLES",
@@ -308,13 +429,15 @@ export async function POST(request: NextRequest) {
       discountTotal: itemsParsed.discountTotal,
       total: itemsParsed.total,
       items: {
-        create: itemsParsed.items,
+        create: toEstimateItemCreateInput(itemsParsed.items),
       },
     },
     include: {
-      items: true,
+      items: { include: { catalogItem: { select: catalogItemSelect } } },
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
+      mechanic: { select: { id: true, name: true } },
+      sector: { select: { id: true, name: true } },
       convertedServiceOrder: { select: { id: true, code: true } },
     },
   });

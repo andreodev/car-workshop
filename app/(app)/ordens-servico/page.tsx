@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { AlertTriangle } from "lucide-react";
 
 import { fetchServiceOrders, updateServiceOrderStatus } from "./service-order-api";
 import {
@@ -151,6 +152,10 @@ function getSituationLabel(status: ServiceOrderStatus) {
   }
 
   return "SUPERVISAO";
+}
+
+function needsEntryInspection(order: ServiceOrder) {
+  return !order.vehicleInspection || order.vehicleInspection.status !== "CONCLUIDA";
 }
 
 export default function ServiceOrdersPage() {
@@ -429,6 +434,7 @@ export default function ServiceOrdersPage() {
                         const isChangingThis =
                           statusMutation.isPending &&
                           statusMutation.variables?.id === order.id;
+                        const isMissingEntryInspection = needsEntryInspection(order);
 
                         return (
                           <article
@@ -490,6 +496,13 @@ export default function ServiceOrdersPage() {
                                 </dd>
                               </div>
                             </dl>
+
+                            {isMissingEntryInspection ? (
+                              <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-900">
+                                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                                <span>Verificação de entrada pendente.</span>
+                              </div>
+                            ) : null}
 
                             <div className="mt-3">
                               <Select
