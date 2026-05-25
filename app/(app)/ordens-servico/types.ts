@@ -6,8 +6,19 @@ export type ServiceOrderStatus =
   | "FINALIZADA"
   | "CANCELADA";
 
+export type ServiceOrderItemType = "SERVICE" | "PRODUCT";
+
 export type ServiceOrderItem = {
   id: string;
+  type: ServiceOrderItemType;
+  catalogItemId: string | null;
+  catalogItem?: {
+    id: string;
+    code: number;
+    name: string;
+    type: "PRODUTO" | "SERVICO";
+    stockCurrent: string | null;
+  } | null;
   description: string;
   quantity: number;
   unitPrice: string;
@@ -85,6 +96,8 @@ export type ServiceOrderListResponse = {
 
 export type ServiceOrderItemFormValues = {
   id: string;
+  type: ServiceOrderItemType;
+  catalogItemId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -92,6 +105,8 @@ export type ServiceOrderItemFormValues = {
 };
 
 export type ServiceOrderPayloadItem = {
+  type: ServiceOrderItemType;
+  catalogItemId: string | null;
   description: string;
   quantity: number;
   unitPrice: number;

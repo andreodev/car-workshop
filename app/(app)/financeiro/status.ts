@@ -1,6 +1,8 @@
 import type {
+  CashMovementType,
   FinancialAccountStatus,
   FinancialAccountType,
+  FinancialCategoryType,
   FinancialPaymentMethod,
 } from "./types";
 
@@ -28,6 +30,20 @@ export const financialPaymentMethodOptions: Array<{
   { value: "OUTRO", label: "Outro" },
 ];
 
+export const financialCategoryTypeOptions: Array<{
+  value: FinancialCategoryType;
+  label: string;
+}> = [
+  { value: "RECEITA", label: "Receita" },
+  { value: "DESPESA", label: "Despesa" },
+  { value: "AMBOS", label: "Ambos" },
+];
+
+export const cashMovementTypeOptions: Array<{ value: CashMovementType; label: string }> = [
+  { value: "ENTRADA", label: "Entrada" },
+  { value: "SAIDA", label: "Saida" },
+];
+
 export function getFinancialStatusLabel(status: FinancialAccountStatus) {
   return financialStatusOptions.find((option) => option.value === status)?.label ?? status;
 }
@@ -42,4 +58,12 @@ export function getPaymentMethodLabel(method: FinancialPaymentMethod | null) {
   }
 
   return financialPaymentMethodOptions.find((option) => option.value === method)?.label ?? method;
+}
+
+export function getFinancialCategoryTypeLabel(type: FinancialCategoryType) {
+  return financialCategoryTypeOptions.find((option) => option.value === type)?.label ?? type;
+}
+
+export function getCashMovementTypeLabel(type: CashMovementType) {
+  return cashMovementTypeOptions.find((option) => option.value === type)?.label ?? type;
 }

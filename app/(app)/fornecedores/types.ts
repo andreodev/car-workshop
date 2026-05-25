@@ -70,6 +70,7 @@ export type SupplierOrder = {
   employee: string;
   forecastAt: string;
   invoiceNumber: string | null;
+  total: string;
   observation: string | null;
   internalDescription: string | null;
   createdAt: string;
@@ -89,6 +90,7 @@ export type SupplierOrderFormValues = {
   employee: string;
   forecastAt: string;
   invoiceNumber: string;
+  total: string;
   observation: string;
   internalDescription: string;
 };

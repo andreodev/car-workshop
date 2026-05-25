@@ -1,9 +1,17 @@
 import type {
+  CashMovement,
+  CashMovementFormValues,
+  CashMovementListResponse,
+  CashMovementType,
   FinancialAccount,
   FinancialAccountFormValues,
   FinancialAccountListResponse,
   FinancialAccountStatus,
   FinancialAccountType,
+  FinancialCategory,
+  FinancialCategoryFormValues,
+  FinancialCategoryListResponse,
+  FinancialCategoryType,
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -111,6 +119,123 @@ export async function updateFinancialAccountStatus(
 
 export async function deleteFinancialAccount(id: string) {
   const response = await fetch(`/api/financial-accounts/${id}`, {
+    method: "DELETE",
+  });
+
+  return parseResponse<{ ok: boolean }>(response);
+}
+
+export async function fetchFinancialCategories(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: FinancialCategoryType | "TODOS";
+  active?: boolean;
+} = {}) {
+  const query = toQuery({
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? 50,
+    search: params.search,
+    type: params.type === "TODOS" ? undefined : params.type,
+    active: params.active === undefined ? undefined : String(params.active),
+  });
+
+  const response = await fetch(`/api/financial-categories?${query}`, {
+    method: "GET",
+  });
+
+  return parseResponse<FinancialCategoryListResponse>(response);
+}
+
+export async function createFinancialCategory(payload: FinancialCategoryFormValues) {
+  const response = await fetch("/api/financial-categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<FinancialCategory>(response);
+}
+
+export async function updateFinancialCategory(
+  id: string,
+  payload: FinancialCategoryFormValues
+) {
+  const response = await fetch(`/api/financial-categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<FinancialCategory>(response);
+}
+
+export async function updateFinancialCategoryActive(id: string, active: boolean) {
+  const response = await fetch(`/api/financial-categories/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+
+  return parseResponse<FinancialCategory>(response);
+}
+
+export async function deleteFinancialCategory(id: string) {
+  const response = await fetch(`/api/financial-categories/${id}`, {
+    method: "DELETE",
+  });
+
+  return parseResponse<{ ok: boolean }>(response);
+}
+
+export async function fetchCashMovements(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: CashMovementType | "TODOS";
+  categoryId?: string;
+  from?: string;
+  to?: string;
+}) {
+  const query = toQuery({
+    page: params.page ?? 1,
+    pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
+    search: params.search,
+    type: params.type === "TODOS" ? undefined : params.type,
+    categoryId: params.categoryId,
+    from: params.from,
+    to: params.to,
+  });
+
+  const response = await fetch(`/api/cash-movements?${query}`, {
+    method: "GET",
+  });
+
+  return parseResponse<CashMovementListResponse>(response);
+}
+
+export async function createCashMovement(payload: CashMovementFormValues) {
+  const response = await fetch("/api/cash-movements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<CashMovement>(response);
+}
+
+export async function updateCashMovement(id: string, payload: CashMovementFormValues) {
+  const response = await fetch(`/api/cash-movements/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<CashMovement>(response);
+}
+
+export async function deleteCashMovement(id: string) {
+  const response = await fetch(`/api/cash-movements/${id}`, {
     method: "DELETE",
   });
 

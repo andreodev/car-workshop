@@ -1,5 +1,7 @@
 export type FinancialAccountType = "RECEBER" | "PAGAR";
 export type FinancialAccountStatus = "ABERTA" | "PAGA" | "VENCIDA" | "CANCELADA";
+export type FinancialCategoryType = "RECEITA" | "DESPESA" | "AMBOS";
+export type CashMovementType = "ENTRADA" | "SAIDA";
 export type FinancialPaymentMethod =
   | "DINHEIRO"
   | "PIX"
@@ -16,6 +18,12 @@ export type FinancialAccount = {
   description: string;
   clientId: string | null;
   client: { id: string; name: string } | null;
+  supplierId: string | null;
+  supplier: { id: string; name: string } | null;
+  serviceOrderId: string | null;
+  serviceOrder: { id: string; code: number; status: string } | null;
+  supplierOrderId: string | null;
+  supplierOrder: { id: string; code: number; status: string } | null;
   counterparty: string | null;
   category: string | null;
   documentNumber: string | null;
@@ -62,5 +70,79 @@ export type FinancialAccountFormValues = {
   amount: string;
   paidAmount: string;
   paymentMethod: FinancialPaymentMethod | "";
+  notes: string;
+};
+
+export type FinancialCategory = {
+  id: string;
+  code: number;
+  name: string;
+  type: FinancialCategoryType;
+  active: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinancialCategoryListResponse = {
+  items: FinancialCategory[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type FinancialCategoryFormValues = {
+  name: string;
+  type: FinancialCategoryType;
+  active: boolean;
+  notes: string;
+};
+
+export type CashMovement = {
+  id: string;
+  code: number;
+  type: CashMovementType;
+  categoryId: string | null;
+  category: { id: string; name: string; type: FinancialCategoryType } | null;
+  saleId: string | null;
+  sale: { id: string; code: number; status: string } | null;
+  financialAccountId: string | null;
+  financialAccount: { id: string; code: number; type: FinancialAccountType } | null;
+  description: string;
+  movementDate: string;
+  amount: string;
+  paymentMethod: FinancialPaymentMethod | null;
+  documentNumber: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CashMovementSummary = {
+  type: CashMovementType;
+  _sum: {
+    amount: string | null;
+  };
+  _count: {
+    _all: number;
+  };
+};
+
+export type CashMovementListResponse = {
+  items: CashMovement[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: CashMovementSummary[];
+};
+
+export type CashMovementFormValues = {
+  type: CashMovementType;
+  categoryId: string;
+  description: string;
+  movementDate: string;
+  amount: string;
+  paymentMethod: FinancialPaymentMethod | "";
+  documentNumber: string;
   notes: string;
 };

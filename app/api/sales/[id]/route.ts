@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { Prisma, type SaleStatus } from "@prisma/client";
+import { Prisma, type SalePaymentMethod, type SaleStatus } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -98,6 +98,47 @@ async function createStockMovement(
       CURRENT_TIMESTAMP
     )
   `;
+}
+
+async function ensurePdvCategory(tx: Prisma.TransactionClient) {
+  return tx.financialCategory.upsert({
+    where: { name: "Vendas PDV" },
+    update: { type: "RECEITA", active: true },
+    create: { name: "Vendas PDV", type: "RECEITA" },
+    select: { id: true },
+  });
+}
+
+async function createSaleCashMovement(
+  tx: Prisma.TransactionClient,
+  sale: {
+    id: string;
+    code: number;
+    total: Prisma.Decimal;
+    paymentMethod: SalePaymentMethod;
+  },
+  type: "ENTRADA" | "SAIDA",
+  description: string
+) {
+  if (new Prisma.Decimal(sale.total).lessThanOrEqualTo(0)) {
+    return;
+  }
+
+  const category = await ensurePdvCategory(tx);
+
+  await tx.cashMovement.create({
+    data: {
+      type,
+      categoryId: category.id,
+      saleId: sale.id,
+      description,
+      movementDate: new Date(),
+      amount: sale.total,
+      paymentMethod: sale.paymentMethod,
+      documentNumber: `PDV-${sale.code}`,
+      notes: type === "SAIDA" ? `Estorno da venda #${sale.code}` : `Reativação da venda #${sale.code}`,
+    },
+  });
 }
 
 const saleInclude = {
@@ -266,6 +307,24 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
             reason: `Reativação da venda #${currentSale.code}`,
           });
         }
+      }
+
+      if (status === "CANCELADA") {
+        await createSaleCashMovement(
+          tx,
+          currentSale,
+          "SAIDA",
+          `Cancelamento da venda PDV #${currentSale.code}`
+        );
+      }
+
+      if (status === "CONCLUIDA") {
+        await createSaleCashMovement(
+          tx,
+          currentSale,
+          "ENTRADA",
+          `Reativação da venda PDV #${currentSale.code}`
+        );
       }
 
       return tx.sale.update({

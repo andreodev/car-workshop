@@ -183,6 +183,46 @@ async function createStockMovement(
   `;
 }
 
+async function ensurePdvCategory(tx: Prisma.TransactionClient) {
+  return tx.financialCategory.upsert({
+    where: { name: "Vendas PDV" },
+    update: { type: "RECEITA", active: true },
+    create: { name: "Vendas PDV", type: "RECEITA" },
+    select: { id: true },
+  });
+}
+
+async function createSaleCashEntry(
+  tx: Prisma.TransactionClient,
+  sale: {
+    id: string;
+    code: number;
+    total: Prisma.Decimal;
+    paymentMethod: SalePaymentMethod;
+    client?: { name: string } | null;
+  }
+) {
+  if (new Prisma.Decimal(sale.total).lessThanOrEqualTo(0)) {
+    return;
+  }
+
+  const category = await ensurePdvCategory(tx);
+
+  await tx.cashMovement.create({
+    data: {
+      type: "ENTRADA",
+      categoryId: category.id,
+      saleId: sale.id,
+      description: `Venda PDV #${sale.code}`,
+      movementDate: new Date(),
+      amount: sale.total,
+      paymentMethod: sale.paymentMethod,
+      documentNumber: `PDV-${sale.code}`,
+      notes: sale.client?.name ? `Cliente: ${sale.client.name}` : "Caixa livre",
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
 
@@ -502,6 +542,8 @@ export async function POST(request: NextRequest) {
           reason: `Venda #${createdSale.code}`,
         });
       }
+
+      await createSaleCashEntry(tx, createdSale);
 
       return createdSale;
     });

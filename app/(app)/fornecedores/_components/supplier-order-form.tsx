@@ -44,6 +44,7 @@ function mapOrderToForm(order?: SupplierOrder | null): SupplierOrderFormValues {
     employee: order?.employee ?? "",
     forecastAt: toDateInput(order?.forecastAt),
     invoiceNumber: order?.invoiceNumber ?? "",
+    total: order?.total ? String(order.total) : "0",
     observation: order?.observation ?? "",
     internalDescription: order?.internalDescription ?? "",
   };
@@ -186,6 +187,16 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
           <Input
             value={form.invoiceNumber}
             onChange={(event) => updateField("invoiceNumber", event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Total</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.total}
+            onChange={(event) => updateField("total", event.target.value)}
           />
         </div>
         <div className="space-y-2">

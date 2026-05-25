@@ -6,8 +6,10 @@ import { prisma } from "@/app/lib/prisma";
 import {
   supplierOrderFormSchema,
   toDateAtNoon,
+  toMoney,
   toNullableString,
 } from "@/app/(app)/fornecedores/supplier-order-form-schema";
+import { syncSupplierOrderPayable } from "../financial-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -68,18 +70,25 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const order = await prisma.supplierOrder.update({
-      where: { id },
-      data: {
-        supplier: { connect: { id: parsed.data.supplierId } },
-        status: parsed.data.status as SupplierOrderStatus,
-        employee: parsed.data.employee,
-        forecastAt: toDateAtNoon(parsed.data.forecastAt),
-        invoiceNumber: toNullableString(parsed.data.invoiceNumber),
-        observation: toNullableString(parsed.data.observation),
-        internalDescription: toNullableString(parsed.data.internalDescription),
-      },
-      include: supplierInclude,
+    const order = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.supplierOrder.update({
+        where: { id },
+        data: {
+          supplier: { connect: { id: parsed.data.supplierId } },
+          status: parsed.data.status as SupplierOrderStatus,
+          employee: parsed.data.employee,
+          forecastAt: toDateAtNoon(parsed.data.forecastAt),
+          invoiceNumber: toNullableString(parsed.data.invoiceNumber),
+          total: toMoney(parsed.data.total),
+          observation: toNullableString(parsed.data.observation),
+          internalDescription: toNullableString(parsed.data.internalDescription),
+        },
+        include: supplierInclude,
+      });
+
+      await syncSupplierOrderPayable(tx, id);
+
+      return updatedOrder;
     });
 
     return Response.json(order);

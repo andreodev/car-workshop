@@ -37,6 +37,14 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(value));
 }
 
+function formatCurrency(value: string | number) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number.isFinite(parsed) ? parsed : 0);
+}
+
 export default function SupplierOrdersPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -147,6 +155,7 @@ export default function SupplierOrdersPage() {
                 <TableHead>Funcionário</TableHead>
                 <TableHead>Previsão</TableHead>
                 <TableHead>Número NF</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -159,6 +168,9 @@ export default function SupplierOrdersPage() {
                   <TableCell>{order.employee}</TableCell>
                   <TableCell>{formatDate(order.forecastAt)}</TableCell>
                   <TableCell>{order.invoiceNumber || "-"}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(order.total)}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={order.status === "CANCELADO" ? "secondary" : "default"}>
                       {statusLabels[order.status]}

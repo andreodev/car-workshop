@@ -134,6 +134,17 @@ enum FinancialAccountStatus {
   CANCELADA
 }
 
+enum FinancialCategoryType {
+  RECEITA
+  DESPESA
+  AMBOS
+}
+
+enum CashMovementType {
+  ENTRADA
+  SAIDA
+}
+
 enum SupplierPersonType {
   FISICA
   JURIDICA
@@ -155,6 +166,11 @@ enum StockMovementType {
   SAIDA
   ESTORNO
   AJUSTE
+}
+
+enum ServiceOrderItemType {
+  SERVICE
+  PRODUCT
 }
 
 model Client {
@@ -262,6 +278,8 @@ model ServiceOrder {
   items              ServiceOrderItem[]
   vehicleInspection  ServiceOrderVehicleInspection?
   estimateConversion Estimate?                      @relation("EstimateConversion")
+  financialAccount   FinancialAccount?
+  stockMovements     StockMovement[]
   createdAt          DateTime                       @default(now())
   updatedAt          DateTime                       @updatedAt
 
@@ -276,7 +294,7 @@ model ServiceOrder {
 model ServiceOrderVehicleInspection {
   id             String                               @id @default(cuid())
   serviceOrderId String                               @unique
-  serviceOrder   ServiceOrder                         @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  serviceOrder   ServiceOrder                         @relation(fields: [serviceOrderId], references: [id], onDelete: Restrict)
   token          String                               @unique
   status         VehicleInspectionStatus              @default(PENDENTE)
   notes          String?                              @db.Text
@@ -304,18 +322,24 @@ model ServiceOrderVehicleInspectionPhoto {
 }
 
 model ServiceOrderItem {
-  id             String       @id @default(cuid())
+  id             String               @id @default(cuid())
   serviceOrderId String
-  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  serviceOrder   ServiceOrder         @relation(fields: [serviceOrderId], references: [id], onDelete: Restrict)
+  type           ServiceOrderItemType @default(SERVICE)
+  catalogItemId  String?
+  catalogItem    CatalogItem?         @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
   description    String
   quantity       Int
-  unitPrice      Decimal      @db.Decimal(10, 2)
-  discount       Decimal      @default(0) @db.Decimal(10, 2)
-  total          Decimal      @db.Decimal(10, 2)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  unitPrice      Decimal              @db.Decimal(10, 2)
+  discount       Decimal              @default(0) @db.Decimal(10, 2)
+  total          Decimal              @db.Decimal(10, 2)
+  stockMovements StockMovement[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@index([serviceOrderId])
+  @@index([catalogItemId])
+  @@index([type])
 }
 
 model Estimate {
@@ -335,7 +359,7 @@ model Estimate {
   discountTotal           Decimal        @default(0) @db.Decimal(10, 2)
   total                   Decimal        @db.Decimal(10, 2)
   convertedServiceOrderId String?        @unique
-  convertedServiceOrder   ServiceOrder?  @relation("EstimateConversion", fields: [convertedServiceOrderId], references: [id], onDelete: SetNull)
+  convertedServiceOrder   ServiceOrder?  @relation("EstimateConversion", fields: [convertedServiceOrderId], references: [id], onDelete: Restrict)
   items                   EstimateItem[]
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
@@ -467,6 +491,7 @@ model CatalogItem {
   ibsCbsNotes             String?         @db.Text
   active                  Boolean         @default(true)
   notes                   String?         @db.Text
+  serviceOrderItems       ServiceOrderItem[]
   saleItems               SaleItem[]
   stockMovements          StockMovement[]
   createdAt               DateTime        @default(now())
@@ -538,6 +563,7 @@ model Supplier {
   agency       String?
   notes        String?            @db.Text
   orders       SupplierOrder[]
+  financialAccounts FinancialAccount[]
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
@@ -557,8 +583,10 @@ model SupplierOrder {
   employee            String
   forecastAt          DateTime
   invoiceNumber       String?
+  total               Decimal             @default(0) @db.Decimal(10, 2)
   observation         String?             @db.Text
   internalDescription String?             @db.Text
+  financialAccount    FinancialAccount?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
@@ -586,6 +614,7 @@ model Sale {
   total         Decimal           @db.Decimal(10, 2)
   items         SaleItem[]
   stockMovements StockMovement[]
+  cashMovements  CashMovement[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -625,6 +654,10 @@ model StockMovement {
   sale          Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
   saleItemId    String?
   saleItem      SaleItem?         @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  serviceOrderId String?
+  serviceOrder   ServiceOrder?    @relation(fields: [serviceOrderId], references: [id], onDelete: SetNull)
+  serviceOrderItemId String?
+  serviceOrderItem   ServiceOrderItem? @relation(fields: [serviceOrderItemId], references: [id], onDelete: SetNull)
   quantity      Decimal           @db.Decimal(10, 3)
   stockBefore   Decimal?          @db.Decimal(10, 3)
   stockAfter    Decimal?          @db.Decimal(10, 3)
@@ -635,6 +668,8 @@ model StockMovement {
   @@index([catalogItemId])
   @@index([saleId])
   @@index([saleItemId])
+  @@index([serviceOrderId])
+  @@index([serviceOrderItemId])
   @@index([type])
   @@index([createdAt])
 }
@@ -647,6 +682,12 @@ model FinancialAccount {
   description    String
   clientId       String?
   client         Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  supplierId     String?
+  supplier       Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  serviceOrderId String?                @unique
+  serviceOrder   ServiceOrder?          @relation(fields: [serviceOrderId], references: [id], onDelete: Restrict)
+  supplierOrderId String?               @unique
+  supplierOrder   SupplierOrder?        @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
   counterparty   String?
   category       String?
   documentNumber String?
@@ -656,6 +697,7 @@ model FinancialAccount {
   paidAmount     Decimal?               @db.Decimal(10, 2)
   paymentMethod  SalePaymentMethod?
   notes          String?                @db.Text
+  cashMovements  CashMovement[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
@@ -664,5 +706,53 @@ model FinancialAccount {
   @@index([status])
   @@index([dueDate])
   @@index([clientId])
+  @@index([supplierId])
+  @@index([serviceOrderId])
+  @@index([supplierOrderId])
+  @@index([description])
+}
+
+model FinancialCategory {
+  id            String                @id @default(cuid())
+  code          Int                   @unique @default(autoincrement())
+  name          String                @unique
+  type          FinancialCategoryType @default(AMBOS)
+  active        Boolean               @default(true)
+  notes         String?               @db.Text
+  cashMovements CashMovement[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([code])
+  @@index([name])
+  @@index([type])
+  @@index([active])
+}
+
+model CashMovement {
+  id             String              @id @default(cuid())
+  code           Int                 @unique @default(autoincrement())
+  type           CashMovementType
+  categoryId     String?
+  category       FinancialCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  saleId         String?
+  sale           Sale?               @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  financialAccountId String?
+  financialAccount   FinancialAccount? @relation(fields: [financialAccountId], references: [id], onDelete: SetNull)
+  description        String
+  movementDate       DateTime
+  amount             Decimal           @db.Decimal(10, 2)
+  paymentMethod      SalePaymentMethod?
+  documentNumber     String?
+  notes              String?           @db.Text
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([code])
+  @@index([type])
+  @@index([categoryId])
+  @@index([saleId])
+  @@index([financialAccountId])
+  @@index([movementDate])
   @@index([description])
 }

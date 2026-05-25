@@ -2,7 +2,9 @@ import {
   Car,
   FileText,
   Grid2X2,
+  Landmark,
   LayoutDashboard,
+  LineChart,
   Package,
   ClipboardList,
   Settings,
@@ -25,5 +27,7 @@ export const menuItems = [
   { title: "Pedidos", href: "/pedidos", icon: ClipboardList },
   { title: "Setores", href: "/setores", icon: Grid2X2 },
   { title: "PDV", href: "/pdv", icon: ShoppingCart },
+  { title: "Financeiro", href: "/financeiro", icon: Landmark },
+  { title: "Relatórios", href: "/relatorios", icon: LineChart },
   { title: "Configuracoes", href: "/configuracoes", icon: Settings },
 ];

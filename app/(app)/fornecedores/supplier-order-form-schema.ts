@@ -23,6 +23,14 @@ const dateField = z
     message: "Informe uma previsão válida.",
   });
 
+const moneyField = z
+  .string({ error: "Total inválido." })
+  .transform((value) => value.trim().replace(",", "."))
+  .refine((value) => value.length > 0, { message: "Total é obrigatório." })
+  .refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, {
+    message: "Informe um total válido.",
+  });
+
 export const supplierOrderFormSchema = z.object({
   supplierId: textField("Fornecedor", 80).refine((value) => value.length > 0, {
     message: "Fornecedor é obrigatório.",
@@ -33,6 +41,7 @@ export const supplierOrderFormSchema = z.object({
   }),
   forecastAt: dateField,
   invoiceNumber: textField("Número NF", 60),
+  total: moneyField,
   observation: textField("Observação", 1000),
   internalDescription: textField("Descrição interna", 1000),
 });
@@ -46,4 +55,8 @@ export function toNullableString(value: string) {
 
 export function toDateAtNoon(value: string) {
   return new Date(`${value}T12:00:00`);
+}
+
+export function toMoney(value: string) {
+  return Math.round(Number(value.replace(",", ".")) * 100) / 100;
 }

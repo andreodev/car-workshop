@@ -289,6 +289,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Qtd</TableHead>
                   <TableHead>Valor</TableHead>
@@ -299,7 +300,19 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               <TableBody>
                 {(data.items ?? []).map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.type === "PRODUCT" ? "secondary" : "outline"}>
+                        {item.type === "PRODUCT" ? "Produto" : "Serviço"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {item.description}
+                      {item.catalogItem ? (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          #{item.catalogItem.code}
+                        </span>
+                      ) : null}
+                    </TableCell>
                     <TableCell>{item.quantity}</TableCell>
                     <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                     <TableCell>{formatCurrency(item.discount)}</TableCell>

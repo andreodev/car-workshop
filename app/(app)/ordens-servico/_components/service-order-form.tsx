@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { fetchClients } from "../../clientes/client-api";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
+import { fetchCatalogItems } from "../../pdv/pdv-api";
 import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
@@ -42,6 +43,8 @@ import { Textarea } from "@/components/ui/textarea";
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`,
+    type: "SERVICE",
+    catalogItemId: "",
     description: "",
     quantity: "1",
     unitPrice: "",
@@ -113,6 +116,8 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
       items.length > 0
         ? items.map((item) => ({
             id: item.id,
+            type: item.type,
+            catalogItemId: item.catalogItemId ?? "",
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: String(item.unitPrice ?? ""),
@@ -181,6 +186,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     staleTime: 60_000,
   });
 
+  const catalogItemsQuery = useQuery({
+    queryKey: ["service-order-catalog-items"],
+    queryFn: () => fetchCatalogItems({ page: 1, pageSize: 100 }),
+    staleTime: 60_000,
+  });
+
+  const catalogItems = catalogItemsQuery.data?.items ?? [];
+
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
     if (!form.clientId) {
@@ -242,6 +255,39 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     setLocalError(null);
   }
 
+  function updateItemType(itemId: string, type: ServiceOrderItemFormValues["type"]) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId ? { ...item, type, catalogItemId: "" } : item
+      ),
+    }));
+    setLocalError(null);
+  }
+
+  function updateItemCatalog(itemId: string, catalogItemId: string) {
+    const catalogItem = catalogItems.find((item) => item.id === catalogItemId);
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              catalogItemId,
+              description: catalogItem?.name ?? item.description,
+              unitPrice: catalogItem ? String(catalogItem.unitPrice) : item.unitPrice,
+              type: catalogItem
+                ? catalogItem.type === "PRODUTO"
+                  ? "PRODUCT"
+                  : "SERVICE"
+                : item.type,
+            }
+          : item
+      ),
+    }));
+    setLocalError(null);
+  }
+
   function addItem() {
     setForm((prev) => ({ ...prev, items: [...prev.items, createEmptyItem()] }));
   }
@@ -290,11 +336,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
-      return !item.description.trim() || quantity <= 0 || unitPrice <= 0;
+      return (
+        !item.description.trim() ||
+        (item.type === "PRODUCT" && !item.catalogItemId) ||
+        quantity <= 0 ||
+        unitPrice <= 0
+      );
     });
 
     if (invalidItem) {
-      setLocalError("Preencha descricao, quantidade e valor unitario dos itens.");
+      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade e valor unitário dos itens.");
       setActiveTab("itens");
       return;
     }
@@ -312,6 +363,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       notesInternal: form.notesInternal.trim() || null,
       notesClient: form.notesClient.trim() || null,
       items: form.items.map((item) => ({
+        type: item.type,
+        catalogItemId: item.catalogItemId || null,
         description: item.description.trim(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -573,12 +626,66 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           const unitPrice = normalizeAmount(item.unitPrice);
                           const discount = normalizeAmount(item.discount);
                           const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+                          const availableCatalogItems = catalogItems.filter((catalogItem) =>
+                            item.type === "PRODUCT"
+                              ? catalogItem.type === "PRODUTO"
+                              : catalogItem.type === "SERVICO"
+                          );
 
                           return (
                             <div
                               key={item.id}
-                              className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3 md:grid-cols-[2.2fr_0.8fr_1fr_1fr_auto]"
+                              className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3 md:grid-cols-[0.8fr_1.4fr_1.8fr_0.7fr_0.9fr_0.9fr_auto]"
                             >
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">Tipo</Label>
+                                <Select
+                                  value={item.type}
+                                  onValueChange={(value) =>
+                                    updateItemType(
+                                      item.id,
+                                      value as ServiceOrderItemFormValues["type"]
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="SERVICE">Serviço</SelectItem>
+                                    <SelectItem value="PRODUCT">Produto</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="grid gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Catálogo
+                                </Label>
+                                <Select
+                                  value={item.catalogItemId || "MANUAL"}
+                                  onValueChange={(value) =>
+                                    updateItemCatalog(item.id, value === "MANUAL" ? "" : value)
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue
+                                      placeholder={
+                                        catalogItemsQuery.isLoading ? "Carregando..." : "Manual"
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="MANUAL">
+                                      {item.type === "PRODUCT" ? "Selecione produto" : "Manual"}
+                                    </SelectItem>
+                                    {availableCatalogItems.map((catalogItem) => (
+                                      <SelectItem key={catalogItem.id} value={catalogItem.id}>
+                                        #{catalogItem.code} {catalogItem.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                               <div className="grid gap-1">
                                 <Label className="text-[11px] text-muted-foreground">
                                   Descrição

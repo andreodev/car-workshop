@@ -7,6 +7,7 @@ import {
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
+import { syncFinancialAccountCashMovement } from "../cash-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   const account = await prisma.financialAccount.findUnique({
     where: { id },
-    include: { client: { select: { id: true, name: true } } },
+    include: {
+      client: { select: { id: true, name: true } },
+      supplier: { select: { id: true, name: true } },
+      serviceOrder: { select: { id: true, code: true, status: true } },
+      supplierOrder: { select: { id: true, code: true, status: true } },
+    },
   });
 
   if (!account) {
@@ -174,24 +180,35 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const account = await prisma.financialAccount.update({
-    where: { id },
-    data: {
-      type,
-      status,
-      description,
-      clientId,
-      counterparty: normalizeString(payload.counterparty),
-      category: normalizeString(payload.category),
-      documentNumber: normalizeString(payload.documentNumber),
-      dueDate,
-      paymentDate,
-      amount,
-      paidAmount: paidAmount ?? null,
-      paymentMethod,
-      notes: normalizeString(payload.notes),
-    },
-    include: { client: { select: { id: true, name: true } } },
+  const account = await prisma.$transaction(async (tx) => {
+    const updatedAccount = await tx.financialAccount.update({
+      where: { id },
+      data: {
+        type,
+        status,
+        description,
+        clientId,
+        counterparty: normalizeString(payload.counterparty),
+        category: normalizeString(payload.category),
+        documentNumber: normalizeString(payload.documentNumber),
+        dueDate,
+        paymentDate,
+        amount,
+        paidAmount: paidAmount ?? null,
+        paymentMethod,
+        notes: normalizeString(payload.notes),
+      },
+      include: {
+        client: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+        serviceOrder: { select: { id: true, code: true, status: true } },
+        supplierOrder: { select: { id: true, code: true, status: true } },
+      },
+    });
+
+    await syncFinancialAccountCashMovement(tx, id);
+
+    return updatedAccount;
   });
 
   return Response.json(account);
@@ -214,21 +231,41 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const existing = await prisma.financialAccount.findUnique({
     where: { id },
-    select: { amount: true },
+    select: {
+      id: true,
+      code: true,
+      type: true,
+      amount: true,
+      description: true,
+      category: true,
+      documentNumber: true,
+      paymentMethod: true,
+    },
   });
 
   if (!existing) {
     return Response.json({ error: "Conta financeira não encontrada." }, { status: 404 });
   }
 
-  const account = await prisma.financialAccount.update({
-    where: { id },
-    data: {
-      status,
-      paymentDate: status === "PAGA" ? new Date() : null,
-      paidAmount: status === "PAGA" ? existing.amount : null,
-    },
-    include: { client: { select: { id: true, name: true } } },
+  const account = await prisma.$transaction(async (tx) => {
+    const updatedAccount = await tx.financialAccount.update({
+      where: { id },
+      data: {
+        status,
+        paymentDate: status === "PAGA" ? new Date() : null,
+        paidAmount: status === "PAGA" ? existing.amount : null,
+      },
+      include: {
+        client: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+        serviceOrder: { select: { id: true, code: true, status: true } },
+        supplierOrder: { select: { id: true, code: true, status: true } },
+      },
+    });
+
+    await syncFinancialAccountCashMovement(tx, id);
+
+    return updatedAccount;
   });
 
   return Response.json(account);
@@ -242,7 +279,27 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  await prisma.financialAccount.delete({ where: { id } });
+  const existingAccount = await prisma.financialAccount.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!existingAccount) {
+    return Response.json({ error: "Conta financeira não encontrada." }, { status: 404 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.financialAccount.update({
+      where: { id },
+      data: {
+        status: "CANCELADA",
+        paymentDate: null,
+        paidAmount: null,
+      },
+    });
+
+    await syncFinancialAccountCashMovement(tx, id);
+  });
 
   return Response.json({ ok: true });
 }

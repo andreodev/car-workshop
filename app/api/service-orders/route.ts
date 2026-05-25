@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
+import { syncServiceOrderReceivable } from "./financial-sync";
+import { ServiceOrderStockError, syncServiceOrderStockMovements } from "./stock-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +18,10 @@ const serviceOrderStatuses = [
   "FINALIZADA",
   "CANCELADA",
 ] as const;
+const serviceOrderItemTypes = ["SERVICE", "PRODUCT"] as const;
 
 type ServiceOrderStatusValue = (typeof serviceOrderStatuses)[number];
+type ServiceOrderItemTypeValue = (typeof serviceOrderItemTypes)[number];
 
 const vehicleInspectionInclude = {
   select: {
@@ -112,6 +116,8 @@ function parseDateTime(value: unknown, fieldLabel: string) {
 
 type ParsedItems = {
   items: Array<{
+    type: ServiceOrderItemTypeValue;
+    catalogItemId: string | null;
     description: string;
     quantity: number;
     unitPrice: Prisma.Decimal;
@@ -138,9 +144,19 @@ function parseItems(payload: unknown) {
     }
 
     const item = rawItem as Record<string, unknown>;
+    const type = normalizeString(item.type) ?? "SERVICE";
+    if (!serviceOrderItemTypes.includes(type as ServiceOrderItemTypeValue)) {
+      return { error: "Tipo do item inválido." };
+    }
+
+    const catalogItemId = normalizeString(item.catalogItemId);
     const description = normalizeString(item.description);
     if (!description) {
       return { error: "Descrição do item é obrigatória." };
+    }
+
+    if (type === "PRODUCT" && !catalogItemId) {
+      return { error: "Selecione um produto do catálogo para itens do tipo produto." };
     }
 
     const quantityParsed = parsePositiveInt(item.quantity, "Quantidade");
@@ -163,8 +179,8 @@ function parseItems(payload: unknown) {
       return { error: discountParsed.error };
     }
 
-    const unitPrice = unitPriceParsed.value;
-    const discount = discountParsed.value;
+    const unitPrice = unitPriceParsed.value ?? new Prisma.Decimal(0);
+    const discount = discountParsed.value ?? new Prisma.Decimal(0);
     const quantityDecimal = new Prisma.Decimal(quantity);
     const lineSubtotal = unitPrice.mul(quantityDecimal);
     let lineTotal = lineSubtotal.minus(discount);
@@ -176,6 +192,8 @@ function parseItems(payload: unknown) {
     discountTotal = discountTotal.add(discount);
 
     items.push({
+      type: type as ServiceOrderItemTypeValue,
+      catalogItemId,
       description,
       quantity,
       unitPrice,
@@ -190,6 +208,47 @@ function parseItems(payload: unknown) {
   }
 
   return { items, subtotal, discountTotal, total };
+}
+
+async function validateCatalogItems(items: ParsedItems["items"]) {
+  const catalogItemIds = Array.from(
+    new Set(items.map((item) => item.catalogItemId).filter((id): id is string => Boolean(id)))
+  );
+
+  if (catalogItemIds.length === 0) {
+    return null;
+  }
+
+  const catalogItems = await prisma.catalogItem.findMany({
+    where: { id: { in: catalogItemIds } },
+    select: { id: true, type: true, active: true },
+  });
+  const catalogItemsById = new Map(catalogItems.map((item) => [item.id, item]));
+
+  if (catalogItems.length !== catalogItemIds.length) {
+    return "Produto ou serviço do catálogo não encontrado.";
+  }
+
+  for (const item of items) {
+    if (!item.catalogItemId) {
+      continue;
+    }
+
+    const catalogItem = catalogItemsById.get(item.catalogItemId);
+    if (!catalogItem?.active) {
+      return `Item de catálogo inativo em "${item.description}".`;
+    }
+
+    if (item.type === "PRODUCT" && catalogItem.type !== "PRODUTO") {
+      return `Selecione um produto do catálogo para "${item.description}".`;
+    }
+
+    if (item.type === "SERVICE" && catalogItem.type !== "SERVICO") {
+      return `Selecione um serviço do catálogo para "${item.description}".`;
+    }
+  }
+
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -254,6 +313,13 @@ export async function GET(request: NextRequest) {
           mechanic: { select: { id: true, name: true } },
           estimateConversion: { select: { id: true, code: true, status: true } },
           vehicleInspection: vehicleInspectionInclude,
+          items: {
+            include: {
+              catalogItem: {
+                select: { id: true, code: true, name: true, type: true, stockCurrent: true },
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
@@ -328,6 +394,11 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: itemsParsed.error }, { status: 400 });
   }
 
+  const catalogItemsError = await validateCatalogItems(itemsParsed.items);
+  if (catalogItemsError) {
+    return Response.json({ error: catalogItemsError }, { status: 400 });
+  }
+
   const status = parseServiceOrderStatus(payload.status);
   if (status.error) {
     return Response.json({ error: status.error }, { status: 400 });
@@ -370,35 +441,56 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Mecânico inativo." }, { status: 400 });
   }
 
-  const order = await prisma.serviceOrder.create({
-    data: {
-      client: { connect: { id: clientId } },
-      vehicle: { connect: { id: vehicleId } },
-      mechanic: { connect: { id: mechanicId } },
-      responsible,
-      status: status.value,
-      location,
-      km: kmParsed?.value ?? null,
-      entryAt: entryAt.value,
-      estimatedAt: estimatedAt?.value ?? null,
-      notesInternal: normalizeString(payload.notesInternal),
-      notesClient: normalizeString(payload.notesClient),
-      subtotal: itemsParsed.subtotal,
-      discountTotal: itemsParsed.discountTotal,
-      total: itemsParsed.total,
-      items: {
-        create: itemsParsed.items,
-      },
-    },
-    include: {
-      items: true,
-      client: { select: { id: true, name: true } },
-      vehicle: { select: { id: true, plate: true, model: true } },
-      mechanic: { select: { id: true, name: true } },
-      estimateConversion: { select: { id: true, code: true, status: true } },
-      vehicleInspection: vehicleInspectionInclude,
-    },
-  });
+  try {
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.serviceOrder.create({
+        data: {
+          client: { connect: { id: clientId } },
+          vehicle: { connect: { id: vehicleId } },
+          mechanic: { connect: { id: mechanicId } },
+          responsible,
+          status: status.value,
+          location,
+          km: kmParsed?.value ?? null,
+          entryAt: entryAt.value as Date,
+          estimatedAt: estimatedAt?.value ?? null,
+          notesInternal: normalizeString(payload.notesInternal),
+          notesClient: normalizeString(payload.notesClient),
+          subtotal: itemsParsed.subtotal,
+          discountTotal: itemsParsed.discountTotal,
+          total: itemsParsed.total,
+          items: {
+            create: itemsParsed.items,
+          },
+        },
+        include: {
+          items: {
+            include: {
+              catalogItem: {
+                select: { id: true, code: true, name: true, type: true, stockCurrent: true },
+              },
+            },
+          },
+          client: { select: { id: true, name: true } },
+          vehicle: { select: { id: true, plate: true, model: true } },
+          mechanic: { select: { id: true, name: true } },
+          estimateConversion: { select: { id: true, code: true, status: true } },
+          vehicleInspection: vehicleInspectionInclude,
+        },
+      });
 
-  return Response.json(order, { status: 201 });
+      await syncServiceOrderReceivable(tx, createdOrder.id);
+      await syncServiceOrderStockMovements(tx, createdOrder.id);
+
+      return createdOrder;
+    });
+
+    return Response.json(order, { status: 201 });
+  } catch (error) {
+    if (error instanceof ServiceOrderStockError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+
+    throw error;
+  }
 }

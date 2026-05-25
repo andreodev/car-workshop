@@ -1,21 +1,18 @@
 import type { NextRequest } from "next/server";
 import {
   Prisma,
-  type FinancialAccountStatus,
-  type FinancialAccountType,
+  type CashMovementType,
   type SalePaymentMethod,
 } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
-import { syncFinancialAccountCashMovement } from "./cash-sync";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
-const accountTypes = ["RECEBER", "PAGAR"] as const;
-const accountStatuses = ["ABERTA", "PAGA", "VENCIDA", "CANCELADA"] as const;
+const movementTypes = ["ENTRADA", "SAIDA"] as const;
 const paymentMethods = [
   "DINHEIRO",
   "PIX",
@@ -25,8 +22,7 @@ const paymentMethods = [
   "OUTRO",
 ] as const;
 
-type AccountTypeValue = (typeof accountTypes)[number];
-type AccountStatusValue = (typeof accountStatuses)[number];
+type MovementTypeValue = (typeof movementTypes)[number];
 type PaymentMethodValue = (typeof paymentMethods)[number];
 
 function coerceNumber(value: string | null, fallback: number) {
@@ -76,7 +72,6 @@ function normalizeDate(value: unknown) {
 
 function normalizeDateStart(value: string | null) {
   const normalized = normalizeString(value);
-
   if (!normalized) {
     return null;
   }
@@ -87,7 +82,6 @@ function normalizeDateStart(value: string | null) {
 
 function normalizeDateEnd(value: string | null) {
   const normalized = normalizeString(value);
-
   if (!normalized) {
     return null;
   }
@@ -103,25 +97,11 @@ function normalizeType(value: unknown) {
     return null;
   }
 
-  if (!accountTypes.includes(normalized as AccountTypeValue)) {
+  if (!movementTypes.includes(normalized as MovementTypeValue)) {
     return null;
   }
 
-  return normalized as FinancialAccountType;
-}
-
-function normalizeStatus(value: unknown) {
-  const normalized = normalizeString(value);
-
-  if (!normalized || normalized === "TODOS") {
-    return null;
-  }
-
-  if (!accountStatuses.includes(normalized as AccountStatusValue)) {
-    return null;
-  }
-
-  return normalized as FinancialAccountStatus;
+  return normalized as CashMovementType;
 }
 
 function normalizePaymentMethod(value: unknown) {
@@ -153,22 +133,22 @@ export async function GET(request: NextRequest) {
   );
   const search = normalizeString(searchParams.get("search")) ?? "";
   const type = normalizeType(searchParams.get("type"));
-  const status = normalizeStatus(searchParams.get("status"));
+  const categoryId = normalizeString(searchParams.get("categoryId"));
   const from = normalizeDateStart(searchParams.get("from"));
   const to = normalizeDateEnd(searchParams.get("to"));
 
-  const where: Prisma.FinancialAccountWhereInput = {};
+  const where: Prisma.CashMovementWhereInput = {};
 
   if (type) {
     where.type = type;
   }
 
-  if (status) {
-    where.status = status;
+  if (categoryId) {
+    where.categoryId = categoryId;
   }
 
   if (from || to) {
-    where.dueDate = {
+    where.movementDate = {
       ...(from ? { gte: from } : {}),
       ...(to ? { lte: to } : {}),
     };
@@ -178,33 +158,33 @@ export async function GET(request: NextRequest) {
     const code = Number(search);
     where.OR = [
       { description: { contains: search, mode: "insensitive" } },
-      { counterparty: { contains: search, mode: "insensitive" } },
-      { category: { contains: search, mode: "insensitive" } },
       { documentNumber: { contains: search, mode: "insensitive" } },
-      { client: { name: { contains: search, mode: "insensitive" } } },
+      { notes: { contains: search, mode: "insensitive" } },
+      { category: { name: { contains: search, mode: "insensitive" } } },
+      ...(Number.isInteger(code) && code > 0 ? [{ sale: { code } }] : []),
+      ...(Number.isInteger(code) && code > 0 ? [{ financialAccount: { code } }] : []),
       ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
     ];
   }
 
   const [total, items, summary] = await prisma.$transaction([
-    prisma.financialAccount.count({ where }),
-    prisma.financialAccount.findMany({
+    prisma.cashMovement.count({ where }),
+    prisma.cashMovement.findMany({
       where,
       include: {
-        client: { select: { id: true, name: true } },
-        supplier: { select: { id: true, name: true } },
-        serviceOrder: { select: { id: true, code: true, status: true } },
-        supplierOrder: { select: { id: true, code: true, status: true } },
+        category: { select: { id: true, name: true, type: true } },
+        sale: { select: { id: true, code: true, status: true } },
+        financialAccount: { select: { id: true, code: true, type: true } },
       },
-      orderBy: [{ dueDate: "asc" }, { code: "desc" }],
+      orderBy: [{ movementDate: "desc" }, { code: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.financialAccount.groupBy({
-      by: ["type", "status"],
+    prisma.cashMovement.groupBy({
+      by: ["type"],
       where,
-      orderBy: [{ type: "asc" }, { status: "asc" }],
-      _sum: { amount: true, paidAmount: true },
+      orderBy: { type: "asc" },
+      _sum: { amount: true },
       _count: { _all: true },
     }),
   ]);
@@ -221,25 +201,22 @@ export async function POST(request: NextRequest) {
 
   const payload = (await request.json()) as Record<string, unknown>;
   const type = normalizeType(payload.type);
-  const status = normalizeStatus(payload.status) ?? "ABERTA";
   const description = normalizeString(payload.description);
-  const dueDate = normalizeDate(payload.dueDate);
-  const paymentDate = normalizeDate(payload.paymentDate);
+  const movementDate = normalizeDate(payload.movementDate);
   const amount = normalizeMoney(payload.amount);
-  const paidAmount = normalizeMoney(payload.paidAmount);
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-  const clientId = normalizeString(payload.clientId);
+  const categoryId = normalizeString(payload.categoryId);
 
   if (!type) {
-    return Response.json({ error: "Tipo de conta inválido." }, { status: 400 });
+    return Response.json({ error: "Tipo de movimento inválido." }, { status: 400 });
   }
 
   if (!description) {
     return Response.json({ error: "Descrição é obrigatória." }, { status: 400 });
   }
 
-  if (!dueDate) {
-    return Response.json({ error: "Vencimento inválido." }, { status: 400 });
+  if (!movementDate) {
+    return Response.json({ error: "Data inválida." }, { status: 400 });
   }
 
   if (amount === null || amount <= 0) {
@@ -247,49 +224,37 @@ export async function POST(request: NextRequest) {
   }
 
   if (paymentMethod === undefined) {
-    return Response.json({ error: "Forma de pagamento invalida." }, { status: 400 });
+    return Response.json({ error: "Forma de pagamento inválida." }, { status: 400 });
   }
 
-  if (clientId) {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+  if (categoryId) {
+    const category = await prisma.financialCategory.findUnique({
+      where: { id: categoryId },
       select: { id: true },
     });
 
-    if (!client) {
-      return Response.json({ error: "Cliente não encontrado." }, { status: 404 });
+    if (!category) {
+      return Response.json({ error: "Categoria não encontrada." }, { status: 404 });
     }
   }
 
-  const account = await prisma.$transaction(async (tx) => {
-    const createdAccount = await tx.financialAccount.create({
-      data: {
-        type,
-        status,
-        description,
-        clientId,
-        counterparty: normalizeString(payload.counterparty),
-        category: normalizeString(payload.category),
-        documentNumber: normalizeString(payload.documentNumber),
-        dueDate,
-        paymentDate,
-        amount,
-        paidAmount: paidAmount ?? null,
-        paymentMethod,
-        notes: normalizeString(payload.notes),
-      },
-      include: {
-        client: { select: { id: true, name: true } },
-        supplier: { select: { id: true, name: true } },
-        serviceOrder: { select: { id: true, code: true, status: true } },
-        supplierOrder: { select: { id: true, code: true, status: true } },
-      },
-    });
-
-    await syncFinancialAccountCashMovement(tx, createdAccount.id);
-
-    return createdAccount;
+  const movement = await prisma.cashMovement.create({
+    data: {
+      type,
+      categoryId,
+      description,
+      movementDate,
+      amount,
+      paymentMethod,
+      documentNumber: normalizeString(payload.documentNumber),
+      notes: normalizeString(payload.notes),
+    },
+    include: {
+      category: { select: { id: true, name: true, type: true } },
+      sale: { select: { id: true, code: true, status: true } },
+      financialAccount: { select: { id: true, code: true, type: true } },
+    },
   });
 
-  return Response.json(account, { status: 201 });
+  return Response.json(movement, { status: 201 });
 }
