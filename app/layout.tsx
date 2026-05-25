@@ -30,7 +30,9 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <div id="app-root" className="min-h-full flex flex-col">
+          <Providers>{children}</Providers>
+        </div>
       </body>
     </html>
   );

@@ -15,7 +15,10 @@ import type {
   CatalogItemType,
   SupplierQuoteFormValues,
 } from "../../pdv/types";
+import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
@@ -487,22 +491,26 @@ export function ProductForm({ initialData }: ProductFormProps) {
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
-      <header>
-        <h1 className="text-2xl font-semibold">
-          {mode === "edit" ? "Editar produto/serviço" : "Cadastrar produto/serviço"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Cadastro completo para estoque, PDV e dados fiscais de emissão.
-        </p>
-      </header>
+  const isSaving = mutation.isPending;
+  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
 
-      {localError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {localError}
-        </div>
-      ) : null}
+  return (
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <div className="flex flex-1 flex-col gap-8">
+          <Header
+            title={mode === "edit" ? "Editar produto/serviço" : "Cadastro de produto/serviço"}
+            description="Cadastro completo para estoque, PDV e dados fiscais de emissão."
+          />
+
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-6 pt-6">
+              {errorMessage ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Erro ao salvar item</AlertTitle>
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
 
       <Tabs defaultValue="basicos" className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start">
@@ -790,14 +798,31 @@ export function ProductForm({ initialData }: ProductFormProps) {
         </TabsContent>
       </Tabs>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => router.push("/produtos")}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={mutation.isPending}>
-          Salvar
-        </Button>
-      </div>
-    </form>
+            </CardContent>
+          </Card>
+
+          <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
+            <p className="text-xs text-muted-foreground">
+              Revise os dados antes de salvar. O item ficará disponível no estoque e no PDV.
+            </p>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                onClick={() => router.push("/produtos")}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                {isSaving ? <Spinner size="sm" /> : null}
+                {isSaving ? "Salvando..." : "Salvar item"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
   );
 }

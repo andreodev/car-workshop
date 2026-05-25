@@ -8,7 +8,10 @@ import type { ZodError } from "zod";
 import { createMechanic, updateMechanic } from "../mechanic-api";
 import { mechanicFormSchema } from "../mechanic-form-schema";
 import type { Mechanic, MechanicFormValues } from "../types";
+import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 
@@ -69,10 +73,11 @@ export function MechanicForm({ initialData }: MechanicFormProps) {
         variant: "success",
       });
       router.push("/mecanicos");
+      router.refresh();
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "Nao foi possivel salvar o mecanico.";
+        error instanceof Error ? error.message : "Não foi possível salvar o mecânico.";
       setLocalError(message);
       toast({
         title: "Erro ao salvar mecanico",
@@ -96,60 +101,88 @@ export function MechanicForm({ initialData }: MechanicFormProps) {
     mutation.mutate();
   }
 
+  const isSaving = mutation.isPending;
+  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
-      <header>
-        <h1 className="text-2xl font-semibold">
-          {mode === "edit" ? "Editar mecânico" : "Cadastrar mecânico"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Mecânicos ativos ficam disponíveis nas ordens de serviço e orçamentos.
-        </p>
-      </header>
-
-      {localError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {localError}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Nome</Label>
-          <Input value={form.name} onChange={(event) => updateField("name", event.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label>Situação</Label>
-          <Select
-            value={form.active ? "ATIVO" : "INATIVO"}
-            onValueChange={(value) => updateField("active", value === "ATIVO")}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ATIVO">Ativo</SelectItem>
-              <SelectItem value="INATIVO">Inativo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>Observações</Label>
-          <Textarea
-            value={form.notes}
-            onChange={(event) => updateField("notes", event.target.value)}
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <div className="flex flex-1 flex-col gap-8">
+          <Header
+            title={mode === "edit" ? "Editar mecânico" : "Cadastro de mecânico"}
+            description="Mecânicos ativos ficam disponíveis nas ordens de serviço e orçamentos."
           />
-        </div>
-      </div>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => router.push("/mecanicos")}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={mutation.isPending}>
-          Salvar
-        </Button>
-      </div>
-    </form>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-6 pt-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="mechanic-name">Nome</Label>
+                  <Input
+                    id="mechanic-name"
+                    value={form.name}
+                    onChange={(event) => updateField("name", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mechanic-status">Situação</Label>
+                  <Select
+                    value={form.active ? "ATIVO" : "INATIVO"}
+                    onValueChange={(value) => updateField("active", value === "ATIVO")}
+                  >
+                    <SelectTrigger id="mechanic-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ATIVO">Ativo</SelectItem>
+                      <SelectItem value="INATIVO">Inativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="mechanic-notes">Observações</Label>
+                  <Textarea
+                    id="mechanic-notes"
+                    value={form.notes}
+                    onChange={(event) => updateField("notes", event.target.value)}
+                  />
+                </div>
+              </div>
+
+              {errorMessage ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Erro ao salvar mecânico</AlertTitle>
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
+            <p className="text-xs text-muted-foreground">
+              Revise os dados antes de salvar. O mecânico ficará disponível para os demais
+              módulos do sistema.
+            </p>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                onClick={() => router.push("/mecanicos")}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                {isSaving ? <Spinner size="sm" /> : null}
+                {isSaving ? "Salvando..." : "Salvar mecânico"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
   );
 }

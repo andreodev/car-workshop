@@ -1,26 +1,29 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  CashierIcon,
-  CancelCircleIcon,
-  Invoice01Icon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  CircleX,
+  Plus,
+  Search,
+} from "lucide-react";
 
 import { fetchSales, updateSaleStatus } from "../../pdv-api";
 import type { Sale, SaleStatus } from "../../types";
 import { PdvSaleDialog } from "../../_components/pdv-sale-dialog";
+import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -29,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -73,8 +77,8 @@ function paymentLabel(value: string) {
   const labels: Record<string, string> = {
     DINHEIRO: "Dinheiro",
     PIX: "PIX",
-    CARTAO_CREDITO: "Cartao credito",
-    CARTAO_DEBITO: "Cartao debito",
+    CARTAO_CREDITO: "Cartão crédito",
+    CARTAO_DEBITO: "Cartão débito",
     BOLETO: "Boleto",
     OUTRO: "Outro",
   };
@@ -124,6 +128,10 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
     );
   }, [data]);
 
+  const canceledCount = useMemo(() => {
+    return data?.items.filter((sale) => sale.status === "CANCELADA").length ?? 0;
+  }, [data]);
+
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
@@ -131,48 +139,33 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
   }
 
   return (
-    <div className="space-y-6 rounded-md border bg-white p-6 shadow-sm">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            PDV
-          </p>
-          <h1 className="text-2xl font-semibold">Listar vendas</h1>
-          <p className="text-sm text-muted-foreground">
-            Consulte o movimento de venda balcão e cancele registros quando necessário.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={() => setPdvOpen(true)}>
-            <HugeiconsIcon icon={CashierIcon} strokeWidth={2.5} />
-            Nova venda
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/pdv">
-              <HugeiconsIcon icon={Invoice01Icon} strokeWidth={2.5} />
-              PDV
-            </Link>
-          </Button>
-        </div>
-      </header>
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <Header
+          title="PDV"
+          description="Consulte vendas de balcão, abra uma nova venda e acompanhe o movimento."
+        />
+
+        <Button type="button" onClick={() => setPdvOpen(true)} className="shrink-0 gap-2 font-medium">
+          <Plus className="size-3.5" />
+          Nova venda
+        </Button>
+      </div>
 
       <form
         onSubmit={handleSearch}
-        className="grid gap-3 rounded-md border bg-muted/20 p-4 md:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto]"
+        className="grid gap-2 rounded-lg border border-border bg-card p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto]"
       >
         <div className="relative">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            strokeWidth={2}
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="pl-9"
-            placeholder="Buscar por venda, cliente, item, setor ou funcionario"
+            className="h-9 pl-9 text-sm"
+            placeholder="Buscar por venda, cliente, item, setor ou funcionário..."
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
         </div>
+
         <Select
           value={status}
           onValueChange={(value) => {
@@ -180,183 +173,279 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
             setPage(1);
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="h-9 w-full text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="TODOS">Todos</SelectItem>
-            <SelectItem value="CONCLUIDA">Concluidas</SelectItem>
+            <SelectItem value="CONCLUIDA">Concluídas</SelectItem>
             <SelectItem value="CANCELADA">Canceladas</SelectItem>
           </SelectContent>
         </Select>
-        <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        <Button type="submit">Buscar</Button>
+
+        <Input
+          type="date"
+          value={from}
+          onChange={(event) => {
+            setFrom(event.target.value);
+            setPage(1);
+          }}
+          className="h-9 text-sm"
+        />
+        <Input
+          type="date"
+          value={to}
+          onChange={(event) => {
+            setTo(event.target.value);
+            setPage(1);
+          }}
+          className="h-9 text-sm"
+        />
+        <Button type="submit" variant="secondary" size="sm" className="h-9 px-5 font-medium">
+          Buscar
+        </Button>
       </form>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-md border p-4">
-          <p className="text-sm text-muted-foreground">Vendas encontradas</p>
-          <p className="text-xl font-semibold">{data?.total ?? 0}</p>
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Vendas encontradas</p>
+          <p className="mt-1 text-2xl font-semibold text-foreground">{data?.total ?? 0}</p>
         </div>
-        <div className="rounded-md border p-4">
-          <p className="text-sm text-muted-foreground">Total desta pagina</p>
-          <p className="text-xl font-semibold text-emerald-700">
-            {formatCurrency(pageTotal)}
-          </p>
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Total da página</p>
+          <p className="mt-1 text-2xl font-semibold text-primary">{formatCurrency(pageTotal)}</p>
         </div>
-        <div className="rounded-md border p-4">
-          <p className="text-sm text-muted-foreground">Página</p>
-          <p className="text-xl font-semibold">
-            {page} de {totalPages}
-          </p>
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Canceladas na página</p>
+          <p className="mt-1 text-2xl font-semibold text-foreground">{canceledCount}</p>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          Carregando vendas...
-        </div>
+      {cancelMutation.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Erro ao cancelar venda</AlertTitle>
+          <AlertDescription>
+            {cancelMutation.error instanceof Error
+              ? cancelMutation.error.message
+              : "Não foi possível cancelar a venda."}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
-      {isError ? (
-        <div className="py-8 text-center text-sm text-destructive">
-          {error instanceof Error ? error.message : "Erro ao carregar vendas."}
-        </div>
-      ) : null}
+      <div className="flex min-h-[560px] flex-col gap-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Spinner size="sm" className="text-primary" />
+            Carregando vendas...
+          </div>
+        ) : null}
 
-      {data && data.items.length === 0 && !isLoading ? (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          Nenhuma venda encontrada.
-        </div>
-      ) : null}
+        {isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Erro ao carregar vendas</AlertTitle>
+            <AlertDescription>
+              {error instanceof Error ? error.message : "Erro ao carregar vendas."}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {data && data.items.length > 0 ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table className="min-w-[980px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Venda</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Setor</TableHead>
-                <TableHead>Funcionario</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="w-44 text-right">Opcoes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((sale) => (
-                <Fragment key={sale.id}>
-                  <TableRow>
-                    <TableCell className="font-semibold">#{sale.code}</TableCell>
-                    <TableCell>{sale.client?.name ?? "Caixa livre"}</TableCell>
-                    <TableCell>{sale.sector?.name ?? sale.sectorName ?? "-"}</TableCell>
-                    <TableCell>{sale.responsible}</TableCell>
-                    <TableCell>{paymentLabel(sale.paymentMethod)}</TableCell>
-                    <TableCell>{formatDateTime(sale.createdAt)}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(sale.total)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={sale.status === "CONCLUIDA" ? "secondary" : "destructive"}>
-                        {sale.status === "CONCLUIDA" ? "Concluida" : "Cancelada"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setExpandedId((current) => (current === sale.id ? null : sale.id))
-                          }
-                        >
-                          Itens
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={sale.status === "CANCELADA" || cancelMutation.isPending}
-                          onClick={() => cancelMutation.mutate(sale)}
-                        >
-                          <HugeiconsIcon icon={CancelCircleIcon} strokeWidth={2.5} />
-                          Cancelar
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  {expandedId === sale.id ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="bg-muted/30 p-0">
-                        <div className="p-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Item</TableHead>
-                                <TableHead className="text-right">Qtde.</TableHead>
-                                <TableHead className="text-right">Unit.</TableHead>
-                                <TableHead className="text-right">Desc.</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {sale.items.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.description}</TableCell>
-                                  <TableCell className="text-right">
-                                    {Number(item.quantity)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {formatCurrency(item.unitPrice)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {formatCurrency(item.discount)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold">
-                                    {formatCurrency(item.total)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+        {data && data.items.length === 0 && !isLoading ? (
+          <Empty className="min-h-[220px]">
+            <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
+              <Search className="size-4" />
+            </span>
+            <EmptyTitle className="text-sm font-medium">Nenhuma venda encontrada</EmptyTitle>
+            <EmptyDescription>
+              Nenhuma venda encontrada para os filtros aplicados.
+            </EmptyDescription>
+          </Empty>
+        ) : null}
+
+        {data && data.items.length > 0 ? (
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <Table className="min-w-[980px]">
+              <TableHeader>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableHead className="w-24 font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Venda
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Cliente
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Setor
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Funcionário
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Pagamento
+                  </TableHead>
+                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Data
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Total
+                  </TableHead>
+                  <TableHead className="text-center font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="w-44 text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Ações
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((sale) => (
+                  <Fragment key={sale.id}>
+                    <TableRow className="group transition-colors hover:bg-accent/40">
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        #{sale.code}
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        {sale.client?.name ?? "Caixa livre"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {sale.sector?.name ?? sale.sectorName ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{sale.responsible}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {paymentLabel(sale.paymentMethod)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        {formatDateTime(sale.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(sale.total)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {sale.status === "CONCLUIDA" ? (
+                          <Badge
+                            variant="default"
+                            className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                          >
+                            <span className="status-dot-active" />
+                            Concluída
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1.5 text-muted-foreground">
+                            <span className="status-dot-inactive" />
+                            Cancelada
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 gap-1.5 px-3 text-xs font-medium opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            onClick={() =>
+                              setExpandedId((current) => (current === sale.id ? null : sale.id))
+                            }
+                          >
+                            <ChevronsUpDown className="size-3" />
+                            Itens
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 gap-1.5 px-3 text-xs font-medium opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            disabled={sale.status === "CANCELADA" || cancelMutation.isPending}
+                            onClick={() => cancelMutation.mutate(sale)}
+                          >
+                            <CircleX className="size-3" />
+                            Cancelar
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ) : null}
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
+                    {expandedId === sale.id ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="bg-muted/30 p-0">
+                          <div className="p-4">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                  <TableHead>Item</TableHead>
+                                  <TableHead className="text-right">Qtde.</TableHead>
+                                  <TableHead className="text-right">Unit.</TableHead>
+                                  <TableHead className="text-right">Desc.</TableHead>
+                                  <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {sale.items.map((item) => (
+                                  <TableRow key={item.id}>
+                                    <TableCell>{item.description}</TableCell>
+                                    <TableCell className="text-right">
+                                      {Number(item.quantity)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {formatCurrency(item.unitPrice)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {formatCurrency(item.discount)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                      {formatCurrency(item.total)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+      </div>
+
+      {data && totalPages > 1 ? (
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
+          <p className="text-xs text-muted-foreground">
+            Página <span className="font-medium text-foreground">{data.page ?? page}</span> de{" "}
+            <span className="font-medium text-foreground">{totalPages}</span>
+            {data.total ? ` - ${data.total} vendas` : ""}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="h-8 gap-1 px-3 text-xs"
+            >
+              <ChevronLeft className="size-3" />
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              className="h-8 gap-1 px-3 text-xs"
+            >
+              Próxima
+              <ChevronRight className="size-3" />
+            </Button>
+          </div>
         </div>
       ) : null}
-
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={page <= 1}
-          onClick={() => setPage((current) => Math.max(1, current - 1))}
-        >
-          Anterior
-        </Button>
-        <Button
-          variant="outline"
-          disabled={page >= totalPages}
-          onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-        >
-          Próxima
-        </Button>
-      </div>
 
       <PdvSaleDialog
         open={pdvOpen}
         defaultResponsible={defaultResponsible}
         onClose={() => setPdvOpen(false)}
       />
-    </div>
+    </section>
   );
 }

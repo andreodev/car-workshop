@@ -1,8 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
-import { PdvSaleDialog } from "./pdv-sale-dialog";
+const PdvSaleDialog = dynamic(
+  () => import("./pdv-sale-dialog").then((mod) => mod.PdvSaleDialog),
+  { ssr: false }
+);
 
 type PdvLauncherProps = {
   defaultResponsible: string;
@@ -30,10 +34,14 @@ export function PdvLauncher({ defaultResponsible }: PdvLauncherProps) {
   }, []);
 
   return (
-    <PdvSaleDialog
-      open={open}
-      defaultResponsible={defaultResponsible}
-      onClose={() => setOpen(false)}
-    />
+    <>
+      {open ? (
+        <PdvSaleDialog
+          open={open}
+          defaultResponsible={defaultResponsible}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }

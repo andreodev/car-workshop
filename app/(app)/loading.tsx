@@ -1,5 +1,5 @@
 import { LoadingState } from "@/components/ui/loading-state";
 
 export default function Loading() {
-  return <LoadingState label="Carregando configurações..." />;
+  return <LoadingState label="Carregando pagina..." />;
 }

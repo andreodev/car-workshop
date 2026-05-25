@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchMechanic } from "../mechanic-api";
 import { MechanicForm } from "../_components/mechanic-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 type EditMechanicPageProps = {
   params: Promise<{
@@ -22,7 +24,8 @@ export default function EditMechanicPage({ params }: EditMechanicPageProps) {
 
   if (isLoading) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+        <Spinner size="sm" className="text-primary" />
         Carregando mecânico...
       </div>
     );
@@ -30,8 +33,13 @@ export default function EditMechanicPage({ params }: EditMechanicPageProps) {
 
   if (isError || !data) {
     return (
-      <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Não foi possível carregar o mecânico."}
+      <div className="py-10">
+        <Alert variant="destructive" className="mx-auto max-w-lg">
+          <AlertTitle>Erro ao carregar mecânico</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error ? error.message : "Não foi possível carregar o mecânico."}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

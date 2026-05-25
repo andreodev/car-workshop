@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { SupplierOrderForm } from "../../fornecedores/_components/supplier-order-form";
 import { fetchSupplierOrder } from "../../fornecedores/supplier-api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 type EditSupplierOrderPageProps = {
   params: Promise<{
@@ -22,7 +24,8 @@ export default function EditSupplierOrderPage({ params }: EditSupplierOrderPageP
 
   if (isLoading) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+        <Spinner size="sm" className="text-primary" />
         Carregando pedido...
       </div>
     );
@@ -30,8 +33,13 @@ export default function EditSupplierOrderPage({ params }: EditSupplierOrderPageP
 
   if (isError || !data) {
     return (
-      <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Não foi possível carregar o pedido."}
+      <div className="py-10">
+        <Alert variant="destructive" className="mx-auto max-w-lg">
+          <AlertTitle>Erro ao carregar pedido</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error ? error.message : "Não foi possível carregar o pedido."}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

@@ -50,6 +50,9 @@ export const menuGroups = [
   },
   {
     title: "Configurações",
-    items: [{ title: "Configuracoes", href: "/configuracoes", icon: Settings }],
+    items: [
+      { title: "Configurações", href: "/configuracoes", icon: Settings },
+      { title: "Dados da empresa", href: "/configuracoes/dados-empresa", icon: Settings },
+    ],
   },
 ];

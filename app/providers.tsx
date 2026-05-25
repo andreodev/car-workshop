@@ -1,23 +1,45 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 import { ToastProvider } from "@/components/ui/toast";
+
+const ReactQueryDevtools = dynamic(
+  () =>
+    import("@tanstack/react-query-devtools").then(
+      (mod) => mod.ReactQueryDevtools
+    ),
+  { ssr: false }
+);
 
 type ProvidersProps = {
   children: React.ReactNode;
 };
 
 export default function Providers({ children }: ProvidersProps) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            gcTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+        },
+      })
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         {children}
       </ToastProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {process.env.NODE_ENV === "development" ? (
+        <ReactQueryDevtools initialIsOpen={false} />
+      ) : null}
     </QueryClientProvider>
   );
 }

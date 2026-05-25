@@ -1,12 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CashierIcon, Invoice01Icon } from "@hugeicons/core-free-icons";
 
-import { PdvSaleDialog } from "./pdv-sale-dialog";
 import { Button } from "@/components/ui/button";
+
+const PdvSaleDialog = dynamic(
+  () => import("./pdv-sale-dialog").then((mod) => mod.PdvSaleDialog),
+  { ssr: false }
+);
 
 type PdvHomeProps = {
   defaultResponsible: string;
@@ -56,11 +61,13 @@ export function PdvHome({ defaultResponsible }: PdvHomeProps) {
         </div>
       </div>
 
-      <PdvSaleDialog
-        open={open}
-        defaultResponsible={defaultResponsible}
-        onClose={() => setOpen(false)}
-      />
+      {open ? (
+        <PdvSaleDialog
+          open={open}
+          defaultResponsible={defaultResponsible}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -756,3 +756,34 @@ model CashMovement {
   @@index([movementDate])
   @@index([description])
 }
+
+model CompanySettings {
+  id                    String   @id @default(cuid())
+  singletonKey          String   @unique @default("company")
+  legalName             String
+  tradeName             String?
+  document              String?
+  stateRegistration     String?
+  municipalRegistration String?
+  email                 String?
+  phone                 String?
+  whatsapp              String?
+  website               String?
+  cep                   String?
+  address               String?
+  number                String?
+  complement            String?
+  neighborhood          String?
+  city                  String?
+  state                 String?
+  ibgeCode              String?
+  logoUrl               String?
+  documentFooter        String?  @db.Text
+  commercialNotes       String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([legalName])
+  @@index([tradeName])
+  @@index([document])
+}

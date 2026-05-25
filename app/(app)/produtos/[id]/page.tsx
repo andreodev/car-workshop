@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchCatalogItem } from "../../pdv/pdv-api";
 import { ProductForm } from "../_components/product-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 type EditProductPageProps = {
   params: Promise<{
@@ -21,13 +23,23 @@ export default function EditProductPage({ params }: EditProductPageProps) {
   });
 
   if (isLoading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Carregando item...</div>;
+    return (
+      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+        <Spinner size="sm" className="text-primary" />
+        Carregando item...
+      </div>
+    );
   }
 
   if (isError || !data) {
     return (
-      <div className="py-8 text-center text-sm text-destructive">
-        {error instanceof Error ? error.message : "Não foi possível carregar o item."}
+      <div className="py-10">
+        <Alert variant="destructive" className="mx-auto max-w-lg">
+          <AlertTitle>Erro ao carregar item</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error ? error.message : "Não foi possível carregar o item."}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

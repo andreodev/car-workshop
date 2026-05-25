@@ -13,7 +13,10 @@ import {
 } from "../supplier-api";
 import { supplierOrderFormSchema } from "../supplier-order-form-schema";
 import type { SupplierOrder, SupplierOrderFormValues } from "../types";
+import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 
@@ -98,10 +102,11 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
         variant: "success",
       });
       router.push("/pedidos");
+      router.refresh();
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "Nao foi possivel salvar o pedido.";
+        error instanceof Error ? error.message : "Não foi possível salvar o pedido.";
       setLocalError(message);
       toast({
         title: "Erro ao salvar pedido",
@@ -125,116 +130,148 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
     mutation.mutate();
   }
 
+  const isSaving = mutation.isPending;
+  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-md border bg-white p-6 shadow-sm">
-      <header>
-        <h1 className="text-2xl font-semibold">
-          {mode === "edit" ? "Editar pedido para fornecedor" : "Cadastrar Pedido Para Fornecedor"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Registre previsão, nota fiscal e observações internas do pedido.
-        </p>
-      </header>
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <div className="flex flex-1 flex-col gap-8">
+          <Header
+            title={mode === "edit" ? "Editar pedido" : "Cadastro de pedido"}
+            description="Registre previsão, nota fiscal e observações internas do pedido."
+          />
 
-      {localError ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {localError}
-        </div>
-      ) : null}
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-6 pt-6">
+              {errorMessage ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Erro ao salvar pedido</AlertTitle>
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label>Fornecedor</Label>
-          <Select
-            value={form.supplierId || undefined}
-            onValueChange={(value) => updateField("supplierId", value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecione um fornecedor" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliersQuery.data?.items.map((supplier) => (
-                <SelectItem key={supplier.id} value={supplier.id}>
-                  #{supplier.code} - {supplier.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {suppliersQuery.data?.items.length === 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Fornecedor</Label>
+                  <Select
+                    value={form.supplierId || undefined}
+                    onValueChange={(value) => updateField("supplierId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione um fornecedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliersQuery.data?.items.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          #{supplier.code} - {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {suppliersQuery.data?.items.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cadastre um fornecedor antes de lançar pedidos.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Funcionário</Label>
+                  <Input
+                    value={employeeValue}
+                    onChange={(event) => updateField("employee", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Situação</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(value) =>
+                      updateField("status", value as SupplierOrderFormValues["status"])
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ABERTO">Aberto</SelectItem>
+                      <SelectItem value="RECEBIDO">Recebido</SelectItem>
+                      <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Previsão</Label>
+                  <Input
+                    type="date"
+                    value={form.forecastAt}
+                    onChange={(event) => updateField("forecastAt", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Número NF</Label>
+                  <Input
+                    value={form.invoiceNumber}
+                    onChange={(event) => updateField("invoiceNumber", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Total</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.total}
+                    onChange={(event) => updateField("total", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Observação</Label>
+                  <Textarea
+                    value={form.observation}
+                    onChange={(event) => updateField("observation", event.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição interna</Label>
+                  <Textarea
+                    value={form.internalDescription}
+                    onChange={(event) => updateField("internalDescription", event.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
             <p className="text-xs text-muted-foreground">
-              Cadastre um fornecedor antes de lançar pedidos.
+              Revise os dados antes de salvar. O pedido ficará disponível no controle de compras.
             </p>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          <Label>Funcionário</Label>
-          <Input value={employeeValue} onChange={(event) => updateField("employee", event.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label>Situação</Label>
-          <Select
-            value={form.status}
-            onValueChange={(value) => updateField("status", value as SupplierOrderFormValues["status"])}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ABERTO">Aberto</SelectItem>
-              <SelectItem value="RECEBIDO">Recebido</SelectItem>
-              <SelectItem value="CANCELADO">Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Previsão</Label>
-          <Input
-            type="date"
-            value={form.forecastAt}
-            onChange={(event) => updateField("forecastAt", event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Número NF</Label>
-          <Input
-            value={form.invoiceNumber}
-            onChange={(event) => updateField("invoiceNumber", event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Total</Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.total}
-            onChange={(event) => updateField("total", event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Observação</Label>
-          <Textarea
-            value={form.observation}
-            onChange={(event) => updateField("observation", event.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Descrição interna</Label>
-          <Textarea
-            value={form.internalDescription}
-            onChange={(event) => updateField("internalDescription", event.target.value)}
-          />
-        </div>
-      </div>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={() => router.push("/pedidos")}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={mutation.isPending}>
-          Salvar
-        </Button>
-      </div>
-    </form>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                onClick={() => router.push("/pedidos")}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                {isSaving ? <Spinner size="sm" /> : null}
+                {isSaving ? "Salvando..." : "Salvar pedido"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
   );
 }
