@@ -78,6 +78,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/toast";
 import {
   Table,
   TableBody,
@@ -216,6 +217,7 @@ function statusBadge(status: FinancialAccountStatus) {
 
 export default function FinancialPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [accountPage, setAccountPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
   const [accountSearchInput, setAccountSearchInput] = useState("");
@@ -333,6 +335,11 @@ export default function FinancialPage() {
       setEditingAccount(null);
       setAccountForm(emptyAccountForm);
       invalidateFinancialQueries(queryClient);
+      toast({
+        title: editingAccount ? "Conta atualizada" : "Conta criada",
+        description: "Registro salvo com sucesso.",
+        variant: "success",
+      });
     },
     onError: showMutationError,
   });
@@ -347,6 +354,11 @@ export default function FinancialPage() {
       setEditingMovement(null);
       setMovementForm(emptyMovementForm);
       invalidateFinancialQueries(queryClient);
+      toast({
+        title: editingMovement ? "Movimento atualizado" : "Movimento criado",
+        description: "Registro salvo com sucesso.",
+        variant: "success",
+      });
     },
     onError: showMutationError,
   });
@@ -361,6 +373,11 @@ export default function FinancialPage() {
       setEditingCategory(null);
       setCategoryForm(emptyCategoryForm);
       invalidateFinancialQueries(queryClient);
+      toast({
+        title: editingCategory ? "Categoria atualizada" : "Categoria criada",
+        description: "Registro salvo com sucesso.",
+        variant: "success",
+      });
     },
     onError: showMutationError,
   });
@@ -368,37 +385,79 @@ export default function FinancialPage() {
   const accountStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: FinancialAccountStatus }) =>
       updateFinancialAccountStatus(id, status),
-    onSuccess: () => invalidateFinancialQueries(queryClient),
+    onSuccess: () => {
+      invalidateFinancialQueries(queryClient);
+      toast({
+        title: "Status atualizado",
+        description: "A conta foi atualizada.",
+        variant: "success",
+      });
+    },
     onError: showMutationError,
   });
 
   const categoryActiveMutation = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       updateFinancialCategoryActive(id, active),
-    onSuccess: () => invalidateFinancialQueries(queryClient),
+    onSuccess: () => {
+      invalidateFinancialQueries(queryClient);
+      toast({
+        title: "Categoria atualizada",
+        description: "A categoria foi atualizada.",
+        variant: "success",
+      });
+    },
     onError: showMutationError,
   });
 
   const deleteAccountMutation = useMutation({
     mutationFn: deleteFinancialAccount,
-    onSuccess: () => invalidateFinancialQueries(queryClient),
+    onSuccess: () => {
+      invalidateFinancialQueries(queryClient);
+      toast({
+        title: "Conta removida",
+        description: "O registro foi excluido.",
+        variant: "success",
+      });
+    },
     onError: showMutationError,
   });
 
   const deleteMovementMutation = useMutation({
     mutationFn: deleteCashMovement,
-    onSuccess: () => invalidateFinancialQueries(queryClient),
+    onSuccess: () => {
+      invalidateFinancialQueries(queryClient);
+      toast({
+        title: "Movimento removido",
+        description: "O registro foi excluido.",
+        variant: "success",
+      });
+    },
     onError: showMutationError,
   });
 
   const deleteCategoryMutation = useMutation({
     mutationFn: deleteFinancialCategory,
-    onSuccess: () => invalidateFinancialQueries(queryClient),
+    onSuccess: () => {
+      invalidateFinancialQueries(queryClient);
+      toast({
+        title: "Categoria removida",
+        description: "O registro foi excluido.",
+        variant: "success",
+      });
+    },
     onError: showMutationError,
   });
 
   function showMutationError(error: unknown) {
-    setErrorMessage(error instanceof Error ? error.message : "Não foi possível concluir a operação.");
+    const message =
+      error instanceof Error ? error.message : "Nao foi possivel concluir a operacao.";
+    setErrorMessage(message);
+    toast({
+      title: "Erro na operacao",
+      description: message,
+      variant: "destructive",
+    });
   }
 
   function openNewAccount(type: FinancialAccountType = "RECEBER") {

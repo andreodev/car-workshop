@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Header from "@/components/ui/header";
+import { useToast } from "@/components/ui/toast";
 
 const PAGE_SIZE = 10;
 
@@ -68,6 +69,7 @@ export default function EstimatesPage() {
   const [status, setStatus] = useState<StatusFilter>("TODOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const { toast } = useToast();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["estimates", { page, status, search }],
@@ -82,6 +84,20 @@ export default function EstimatesPage() {
       queryClient.invalidateQueries({ queryKey: ["estimates"] });
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
       queryClient.setQueryData(["estimate", result.estimate.id], result.estimate);
+      toast({
+        title: "Orcamento convertido",
+        description: "A ordem de servico foi criada com sucesso.",
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel converter o orcamento.";
+      toast({
+        title: "Erro ao converter orcamento",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

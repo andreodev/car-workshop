@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 type SupplierOrderFormProps = {
   initialData?: SupplierOrder | null;
@@ -61,6 +62,7 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
   const [form, setForm] = useState<SupplierOrderFormValues>(() => mapOrderToForm(initialData));
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
+  const { toast } = useToast();
 
   const sessionName = useMemo(() => {
     return session?.user?.name || session?.user?.email?.split("@")[0] || "";
@@ -90,12 +92,22 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-orders"] });
+      toast({
+        title: mode === "edit" ? "Pedido atualizado" : "Pedido cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/pedidos");
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível salvar o pedido."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o pedido.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar pedido",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

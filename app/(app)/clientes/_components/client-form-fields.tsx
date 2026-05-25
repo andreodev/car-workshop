@@ -15,6 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Field,
+  FieldControl,
+  FieldDescription,
+  FieldError as UiFieldError,
+} from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
 type InputState = {
@@ -40,7 +46,7 @@ export function FieldError({ error }: FieldErrorProps) {
     return null;
   }
 
-  return <p className="text-xs text-destructive">{error}</p>;
+  return <UiFieldError>{error}</UiFieldError>;
 }
 
 type ClientInputFieldProps = Omit<ComponentProps<typeof Input>, "form" | "onChange" | "value"> & {
@@ -65,28 +71,29 @@ export function ClientInputField({
   ...inputProps
 }: ClientInputFieldProps) {
   return (
-    <div className={wrapperClassName}>
+    <Field className={wrapperClassName}>
       <Label htmlFor={field}>{label}</Label>
-      <Input
-        id={field}
-        value={form[field]}
-        onChange={onChange(field)}
-        className={className}
-        {...getInputState(field)}
-        {...inputProps}
-      />
+      <FieldControl>
+        <Input
+          id={field}
+          value={form[field]}
+          onChange={onChange(field)}
+          className={className}
+          {...getInputState(field)}
+          {...inputProps}
+        />
+      </FieldControl>
       <FieldError error={fieldErrors[field]} />
       {helperText ? (
-        <p
+        <FieldDescription
           className={cn(
-            "text-xs",
             helperTone === "error" ? "text-destructive" : "text-muted-foreground"
           )}
         >
           {helperText}
-        </p>
+        </FieldDescription>
       ) : null}
-    </div>
+    </Field>
   );
 }
 
@@ -109,18 +116,20 @@ export function ClientTextareaField({
   ...textareaProps
 }: ClientTextareaFieldProps) {
   return (
-    <div className="grid gap-2">
+    <Field>
       <Label htmlFor={field}>{label}</Label>
-      <Textarea
-        id={field}
-        value={form[field]}
-        onChange={onChange(field)}
-        className={className}
-        {...getInputState(field)}
-        {...textareaProps}
-      />
+      <FieldControl>
+        <Textarea
+          id={field}
+          value={form[field]}
+          onChange={onChange(field)}
+          className={className}
+          {...getInputState(field)}
+          {...textareaProps}
+        />
+      </FieldControl>
       <FieldError error={fieldErrors[field]} />
-    </div>
+    </Field>
   );
 }
 
@@ -140,12 +149,14 @@ export function ClientSelectField({
   onSelectChange,
 }: ClientSelectFieldProps) {
   return (
-    <div className="grid gap-2">
+    <Field>
       <Label>{label}</Label>
       <Select value={form[field]} onValueChange={(value) => onSelectChange(field, value)}>
-        <SelectTrigger className={inputClassName} {...getInputState(field)}>
-          <SelectValue placeholder="Selecione" />
-        </SelectTrigger>
+        <FieldControl>
+          <SelectTrigger className={inputClassName} {...getInputState(field)}>
+            <SelectValue placeholder="Selecione" />
+          </SelectTrigger>
+        </FieldControl>
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -155,6 +166,6 @@ export function ClientSelectField({
         </SelectContent>
       </Select>
       <FieldError error={fieldErrors[field]} />
-    </div>
+    </Field>
   );
 }

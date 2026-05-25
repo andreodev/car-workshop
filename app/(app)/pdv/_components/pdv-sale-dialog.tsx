@@ -36,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 
 type PdvSaleDialogProps = {
   open: boolean;
@@ -160,6 +161,7 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [clientListOpen, setClientListOpen] = useState(false);
   const [productListOpen, setProductListOpen] = useState(false);
+  const { toast } = useToast();
 
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", clientSearch],
@@ -205,11 +207,21 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
       setProductSearch(item.name);
       setUnitPrice(String(item.unitPrice));
       setLocalError(null);
+      toast({
+        title: "Produto cadastrado",
+        description: "O item foi adicionado ao catalogo.",
+        variant: "success",
+      });
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível cadastrar o produto."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel cadastrar o produto.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao cadastrar produto",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -226,10 +238,21 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
       setDiscountPercent("0");
       setLocalError(null);
       setSuccessMessage(`Venda ${sale.code} guardada com sucesso.`);
+      toast({
+        title: "Venda registrada",
+        description: `Venda ${sale.code} guardada com sucesso.`,
+        variant: "success",
+      });
       requestAnimationFrame(() => productInputRef.current?.focus());
     },
     onError: (error) => {
-      setLocalError(error instanceof Error ? error.message : "Erro ao guardar venda.");
+      const message = error instanceof Error ? error.message : "Erro ao guardar venda.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao guardar venda",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

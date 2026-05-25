@@ -18,11 +18,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState("");
   const { data: session, isLoading } = useAuthSession();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isLoading && session?.user) {
@@ -45,7 +47,13 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("E-mail ou senha inválidos.");
+      const message = "E-mail ou senha inválidos.";
+      setError(message);
+      toast({
+        title: "Falha ao entrar",
+        description: message,
+        variant: "destructive",
+      });
       return;
     }
 

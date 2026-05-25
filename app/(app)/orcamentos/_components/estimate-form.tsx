@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 const titleFont = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const bodyFont = Sora({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -120,6 +121,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   const sessionQuery = useAuthSession();
   const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
   const responsibleValue = form.responsible || (!initialData ? sessionName : "");
+  const { toast } = useToast();
 
   const clientsQuery = useQuery({
     queryKey: ["estimate-clients"],
@@ -151,8 +153,23 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     onSuccess: (estimate) => {
       queryClient.invalidateQueries({ queryKey: ["estimates"] });
       queryClient.setQueryData(["estimate", estimate.id], estimate);
+      toast({
+        title: mode === "edit" ? "Orcamento atualizado" : "Orcamento criado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/orcamentos");
       router.refresh();
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o orcamento.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar orcamento",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

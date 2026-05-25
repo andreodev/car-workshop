@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 
 const initialState: SignupState = { error: undefined };
 
@@ -25,12 +26,23 @@ export default function SignupPage() {
   const router = useRouter();
   const [state, action, pending] = useActionState(signup, initialState);
   const { data: session, isLoading } = useAuthSession();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isLoading && session?.user) {
       router.replace("/");
     }
   }, [isLoading, router, session?.user]);
+
+  useEffect(() => {
+    if (state.error) {
+      toast({
+        title: "Erro ao criar conta",
+        description: state.error,
+        variant: "destructive",
+      });
+    }
+  }, [state.error, toast]);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">

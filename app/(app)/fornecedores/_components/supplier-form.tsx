@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 type SupplierFormProps = {
   initialData?: Supplier | null;
@@ -61,6 +62,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
   const [form, setForm] = useState<SupplierFormValues>(() => mapSupplierToForm(initialData));
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
+  const { toast } = useToast();
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -79,12 +81,22 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-options"] });
+      toast({
+        title: mode === "edit" ? "Fornecedor atualizado" : "Fornecedor cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/fornecedores");
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível salvar o fornecedor."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o fornecedor.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar fornecedor",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

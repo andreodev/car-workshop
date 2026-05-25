@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 type SectorFormProps = {
   initialData?: Sector | null;
@@ -36,6 +37,7 @@ export function SectorForm({ initialData }: SectorFormProps) {
   const [form, setForm] = useState<SectorFormValues>(() => mapSectorToForm(initialData));
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
+  const { toast } = useToast();
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -48,12 +50,22 @@ export function SectorForm({ initialData }: SectorFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sectors"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-sectors"] });
+      toast({
+        title: mode === "edit" ? "Setor atualizado" : "Setor cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/setores");
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível salvar o setor."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o setor.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar setor",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

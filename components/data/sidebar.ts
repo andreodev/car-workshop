@@ -15,19 +15,41 @@ import {
   Wrench,
 } from "lucide-react";
 
-export const menuItems = [
-  { title: "Dashboard", href: "/", icon: LayoutDashboard },
-  { title: "Clientes", href: "/clientes", icon: Users },
-  { title: "Veículos", href: "/veiculos", icon: Car },
-  { title: "Mecânicos", href: "/mecanicos", icon: UserCog },
-  { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
-  { title: "Orçamentos", href: "/orcamentos", icon: FileText },
-  { title: "Produtos", href: "/produtos", icon: Package },
-  { title: "Fornecedores", href: "/fornecedores", icon: Truck },
-  { title: "Pedidos", href: "/pedidos", icon: ClipboardList },
-  { title: "Setores", href: "/setores", icon: Grid2X2 },
-  { title: "PDV", href: "/pdv", icon: ShoppingCart },
-  { title: "Financeiro", href: "/financeiro", icon: Landmark },
-  { title: "Relatórios", href: "/relatorios", icon: LineChart },
-  { title: "Configuracoes", href: "/configuracoes", icon: Settings },
+export const menuGroups = [
+  {
+    title: "Geral",
+    items: [{ title: "Dashboard", href: "/", icon: LayoutDashboard }],
+  },
+  {
+    title: "Cadastros",
+    items: [
+      { title: "Clientes", href: "/clientes", icon: Users },
+      { title: "Veículos", href: "/veiculos", icon: Car },
+      { title: "Mecânicos", href: "/mecanicos", icon: UserCog },
+      { title: "Fornecedores", href: "/fornecedores", icon: Truck },
+      { title: "Produtos", href: "/produtos", icon: Package },
+      { title: "Setores", href: "/setores", icon: Grid2X2 },
+    ],
+  },
+  {
+    title: "Operações",
+    items: [
+      { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
+      { title: "Orçamentos", href: "/orcamentos", icon: FileText },
+      { title: "Pedidos", href: "/pedidos", icon: ClipboardList },
+      { title: "PDV", href: "/pdv", icon: ShoppingCart },
+    ],
+  },
+  {
+    title: "Financeiro",
+    items: [{ title: "Financeiro", href: "/financeiro", icon: Landmark }],
+  },
+  {
+    title: "Relatórios",
+    items: [{ title: "Relatórios", href: "/relatorios", icon: LineChart }],
+  },
+  {
+    title: "Configurações",
+    items: [{ title: "Configuracoes", href: "/configuracoes", icon: Settings }],
+  },
 ];

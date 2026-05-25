@@ -9,7 +9,15 @@ import { fetchClients } from "../../clientes/client-api";
 import { createVehicle, updateVehicle } from "../vehicle-api";
 import type { Vehicle, VehicleFormValues } from "../types";
 import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Field,
+  FieldControl,
+  FieldDescription,
+  FieldError,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,10 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
-const inputClassName = "h-11 bg-background text-sm";
-const textareaClassName = "min-h-28 bg-background text-sm";
+const inputClassName = "h-9 bg-background text-sm";
+const textareaClassName = "min-h-28 resize-y bg-background text-sm";
 
 const emptyForm: VehicleFormValues = {
   clientId: "",
@@ -109,18 +119,20 @@ function InputField({
   type,
 }: InputFieldProps) {
   return (
-    <div className="grid gap-2">
+    <Field>
       <Label htmlFor={field}>{label}</Label>
-      <Input
-        id={field}
-        type={type}
-        value={value}
-        onChange={onChange(field)}
-        placeholder={placeholder}
-        required={required}
-        className={inputClassName}
-      />
-    </div>
+      <FieldControl>
+        <Input
+          id={field}
+          type={type}
+          value={value}
+          onChange={onChange(field)}
+          placeholder={placeholder}
+          required={required}
+          className={inputClassName}
+        />
+      </FieldControl>
+    </Field>
   );
 }
 
@@ -131,6 +143,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     initialData ? mapVehicleToForm(initialData) : emptyForm
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const clientsQuery = useQuery({
     queryKey: ["vehicle-clients"],
@@ -147,8 +160,23 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast({
+        title: mode === "edit" ? "Veiculo atualizado" : "Veiculo cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/veiculos");
       router.refresh();
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o veiculo.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar veiculo",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -216,27 +244,30 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
             description="Preencha os dados do veículo para salvar no sistema."
           />
 
-          <div className="space-y-8 bg-white/60 rounded-3xl border-2 border-gray-700 p-6">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-8 pt-6">
             <FormSection
               title="Vínculo e situação"
               description="Associe o veículo ao cliente e defina se ele segue ativo nos atendimentos."
             >
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="grid gap-2 md:col-span-2">
+                <Field className="md:col-span-2">
                   <Label>Cliente</Label>
                   <Select
                     value={form.clientId}
                     onValueChange={(value) => updateField("clientId", value)}
                   >
-                    <SelectTrigger className={inputClassName}>
-                      <SelectValue
-                        placeholder={
-                          clientsQuery.isLoading
-                            ? "Carregando clientes..."
-                            : "Selecione"
-                        }
-                      />
-                    </SelectTrigger>
+                    <FieldControl>
+                      <SelectTrigger className={inputClassName}>
+                        <SelectValue
+                          placeholder={
+                            clientsQuery.isLoading
+                              ? "Carregando clientes..."
+                              : "Selecione"
+                          }
+                        />
+                      </SelectTrigger>
+                    </FieldControl>
                     <SelectContent>
                       {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id}>
@@ -246,13 +277,11 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                     </SelectContent>
                   </Select>
                   {clientsQuery.isError ? (
-                    <p className="text-xs text-destructive">
-                      Não foi possível carregar clientes.
-                    </p>
+                    <FieldError>Não foi possível carregar clientes.</FieldError>
                   ) : null}
-                </div>
+                </Field>
 
-                <div className="grid gap-2">
+                <Field>
                   <Label>Situação</Label>
                   <Select
                     value={form.status}
@@ -260,9 +289,11 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                       updateField("status", value as VehicleFormValues["status"])
                     }
                   >
-                    <SelectTrigger className={inputClassName}>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
+                    <FieldControl>
+                      <SelectTrigger className={inputClassName}>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FieldControl>
                     <SelectContent>
                       {statusOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
@@ -271,7 +302,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               </div>
             </FormSection>
 
@@ -308,7 +339,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                   onChange={onChange}
                   type="number"
                 />
-                <div className="grid gap-2">
+                <Field>
                   <Label>Combustível</Label>
                   <Select
                     value={form.fuel}
@@ -316,9 +347,11 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                       updateField("fuel", value as VehicleFormValues["fuel"])
                     }
                   >
-                    <SelectTrigger className={inputClassName}>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
+                    <FieldControl>
+                      <SelectTrigger className={inputClassName}>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                    </FieldControl>
                     <SelectContent>
                       {fuelOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
@@ -327,7 +360,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
                 <InputField field="color" label="Cor" value={form.color} onChange={onChange} />
               </div>
             </FormSection>
@@ -347,23 +380,28 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
                 <InputField field="city" label="Cidade" value={form.city} onChange={onChange} />
               </div>
 
-              <div className="grid gap-2">
+              <Field>
                 <Label htmlFor="notes">Observações</Label>
-                <Textarea
-                  id="notes"
-                  value={form.notes}
-                  onChange={onChange("notes")}
-                  className={textareaClassName}
-                />
-              </div>
+                <FieldControl>
+                  <Textarea
+                    id="notes"
+                    value={form.notes}
+                    onChange={onChange("notes")}
+                    className={textareaClassName}
+                  />
+                </FieldControl>
+                <FieldDescription>Informações adicionais para o atendimento.</FieldDescription>
+              </Field>
             </FormSection>
 
             {errorMessage ? (
-              <p className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                {errorMessage}
-              </p>
+              <Alert variant="destructive">
+                <AlertTitle>Erro ao salvar veiculo</AlertTitle>
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
             ) : null}
-          </div>
+            </CardContent>
+          </Card>
 
           <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
             <p className="text-xs text-muted-foreground">
@@ -379,7 +417,8 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
               >
                 Cancelar
               </Button>
-              <Button type="submit" size="lg" disabled={isSaving}>
+              <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                {isSaving ? <Spinner size="sm" /> : null}
                 {isSaving ? "Salvando..." : "Salvar veículo"}
               </Button>
             </div>

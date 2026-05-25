@@ -35,6 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Empty, EmptyTitle } from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -723,10 +724,14 @@ function EmptyState({
   label: string;
 }) {
   return (
-    <div className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted-foreground">
-      <Icon className="size-7 opacity-45" strokeWidth={1.5} />
-      {label}
-    </div>
+    <Empty className="min-h-28 bg-background">
+      <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
+        <Icon className="size-5" strokeWidth={1.5} />
+      </span>
+      <EmptyTitle className="text-sm font-medium text-muted-foreground">
+        {label}
+      </EmptyTitle>
+    </Empty>
   );
 }
 

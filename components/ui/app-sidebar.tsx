@@ -4,25 +4,49 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { signOut } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
 import {
     Sidebar,
     SidebarContent,
+    SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarTrigger,
+    SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { menuItems } from "../data/sidebar";
+import { Button } from "@/components/ui/button";
+import { useAuthSession } from "@/app/hooks/useAuthSession";
+import { menuGroups } from "../data/sidebar";
 
 const MotionLink = motion.create(Link);
 
+function getInitials(name?: string | null, email?: string | null) {
+    const source = (name || email || "").trim();
+
+    if (!source) {
+        return "??";
+    }
+
+    const parts = source.split(/\s+/).filter(Boolean);
+    const initials = parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
+
+    return initials || source.slice(0, 2).toUpperCase();
+}
+
 export function AppSidebar() {
     const pathname = usePathname();
+    const { data: session } = useAuthSession();
+    const user = session?.user;
+    const displayName = user?.name ?? "Usuario";
+    const displayEmail = user?.email ?? "sem-email";
+    const initials = getInitials(user?.name, user?.email);
 
     return (
         <>
@@ -62,36 +86,74 @@ export function AppSidebar() {
                 </SidebarHeader>
 
                 <SidebarContent className="px-3 pb-6">
-                    <SidebarGroup>
-                        <SidebarGroupContent>
-                            <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
-                                {menuItems.map((item) => (
-                                    <SidebarMenuItem key={item.href}>
-                                        <SidebarMenuButton
-                                            asChild
-                                            size="lg"
-                                            isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                                            className="rounded-2xl border border-transparent bg-transparent px-3 text-sm font-medium text-white/90 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)] transition-colors duration-300 data-[active=true]:border-white/40 data-[active=true]:bg-white/12 data-[active=true]:text-white"
-                                        >
-                                            <MotionLink
-                                                href={item.href}
-                                                whileHover={{
-                                                    backgroundColor: "rgba(255, 255, 255, 0.08)",
-                                                    borderColor: "rgba(255, 255, 255, 0.25)",
-                                                }}
-                                                transition={{ type: "spring", stiffness: 320, damping: 26 }}
-                                                className="flex items-center gap-2"
+                    {menuGroups.map((group) => (
+                        <SidebarGroup key={group.title}>
+                            <SidebarGroupLabel className="px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 group-data-[collapsible=icon]:hidden">
+                                {group.title}
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
+                                    {group.items.map((item) => (
+                                        <SidebarMenuItem key={item.href}>
+                                            <SidebarMenuButton
+                                                asChild
+                                                size="lg"
+                                                isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+                                                className="rounded-2xl border border-transparent bg-transparent px-3 text-sm font-medium text-white/90 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)] transition-colors duration-300 data-[active=true]:border-white/40 data-[active=true]:bg-white/12 data-[active=true]:text-white"
                                             >
-                                                <item.icon />
-                                                <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
-                                            </MotionLink>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
-                            </SidebarMenu>
-                        </SidebarGroupContent>
-                    </SidebarGroup>
+                                                <MotionLink
+                                                    href={item.href}
+                                                    whileHover={{
+                                                        backgroundColor: "rgba(255, 255, 255, 0.08)",
+                                                        borderColor: "rgba(255, 255, 255, 0.25)",
+                                                    }}
+                                                    transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    <item.icon />
+                                                    <span className="group-data-[collapsible=icon]:hidden">
+                                                        {item.title}
+                                                    </span>
+                                                </MotionLink>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    ))}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    ))}
                 </SidebarContent>
+                <SidebarSeparator className="mx-4 bg-white/10" />
+                <SidebarFooter className="px-4 pb-4 pt-3">
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/10 text-xs font-semibold text-white">
+                            {user?.image ? (
+                                <Image
+                                    src={user.image}
+                                    alt={displayName}
+                                    width={44}
+                                    height={44}
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                initials
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                            <p className="truncate text-xs text-white/60">{displayEmail}</p>
+                        </div>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        onClick={() => signOut({ callbackUrl: "/login" })}
+                        className="mt-3 w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                    >
+                        Sair
+                    </Button>
+                </SidebarFooter>
             </Sidebar>
         </>
     );

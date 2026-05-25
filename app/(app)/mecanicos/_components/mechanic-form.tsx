@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 type MechanicFormProps = {
   initialData?: Mechanic | null;
@@ -42,6 +43,7 @@ export function MechanicForm({ initialData }: MechanicFormProps) {
   const [form, setForm] = useState<MechanicFormValues>(() => mapMechanicToForm(initialData));
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
+  const { toast } = useToast();
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -61,12 +63,22 @@ export function MechanicForm({ initialData }: MechanicFormProps) {
       queryClient.invalidateQueries({ queryKey: ["mechanics"] });
       queryClient.invalidateQueries({ queryKey: ["service-order-mechanics"] });
       queryClient.invalidateQueries({ queryKey: ["estimate-mechanics"] });
+      toast({
+        title: mode === "edit" ? "Mecanico atualizado" : "Mecanico cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/mecanicos");
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível salvar o mecânico."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o mecanico.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar mecanico",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
@@ -163,6 +164,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const [activeTab, setActiveTab] =
     useState<ServiceOrderFormStepValue>("cabecalho");
   const [localError, setLocalError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const sessionQuery = useAuthSession();
   const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
@@ -214,8 +216,23 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       if (mode === "edit" && initialData?.id) {
         queryClient.invalidateQueries({ queryKey: ["service-order", initialData.id] });
       }
+      toast({
+        title: mode === "edit" ? "OS atualizada" : "OS criada",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/ordens-servico");
       router.refresh();
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar a OS.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar OS",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

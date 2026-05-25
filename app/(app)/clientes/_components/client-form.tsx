@@ -28,8 +28,12 @@ import {
   type ClientFormStepValue,
 } from "./client-form-stepper";
 import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/toast";
 
 type ClientFormProps = {
   mode: "create" | "edit";
@@ -46,6 +50,7 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
   const [fieldErrors, setFieldErrors] = useState<ClientFormErrors>({});
   const [hasEditedCep, setHasEditedCep] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const mutation = useMutation({
     mutationFn: async (values: ClientFormValues) => {
@@ -56,8 +61,23 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast({
+        title: mode === "edit" ? "Cliente atualizado" : "Cliente cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/clientes");
       router.refresh();
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Não foi possível salvar o cliente.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar cliente",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -201,36 +221,39 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
               <ClientFormStepper activeStep={activeTab} />
             </div>
 
-            <div className="space-y-8 bg-white/60 rounded-3xl border-2 border-gray-700 p-6">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="space-y-6"
-                >
-                  {activeTab === "dados" ? <ClientFormDadosStep {...stepProps} /> : null}
-                  {activeTab === "contato" ? <ClientFormContatoStep {...stepProps} /> : null}
-                  {activeTab === "endereco" ? (
-                    <ClientFormEnderecoStep
-                      cepError={
-                        cepQuery.error instanceof Error ? cepQuery.error.message : null
-                      }
-                      isCepLoading={cepQuery.isFetching}
-                      {...stepProps}
-                    />
-                  ) : null}
-                </motion.div>
-              </AnimatePresence>
+            <Card className="border-border/70 shadow-sm">
+              <CardContent className="space-y-6 pt-6">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="space-y-6"
+                  >
+                    {activeTab === "dados" ? <ClientFormDadosStep {...stepProps} /> : null}
+                    {activeTab === "contato" ? <ClientFormContatoStep {...stepProps} /> : null}
+                    {activeTab === "endereco" ? (
+                      <ClientFormEnderecoStep
+                        cepError={
+                          cepQuery.error instanceof Error ? cepQuery.error.message : null
+                        }
+                        isCepLoading={cepQuery.isFetching}
+                        {...stepProps}
+                      />
+                    ) : null}
+                  </motion.div>
+                </AnimatePresence>
 
-              {errorMessage ? (
-                <p className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                  {errorMessage}
-                </p>
-              ) : null}
-            </div>
+                {errorMessage ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Erro ao salvar cliente</AlertTitle>
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                ) : null}
+              </CardContent>
+            </Card>
 
             <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
               <p className="text-xs text-muted-foreground">
@@ -247,7 +270,8 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" size="lg" disabled={isSaving}>
+                <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                  {isSaving ? <Spinner size="sm" /> : null}
                   {isSaving ? "Salvando..." : "Salvar cliente"}
                 </Button>
               </div>

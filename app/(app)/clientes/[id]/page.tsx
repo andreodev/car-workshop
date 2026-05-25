@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchClient } from "../client-api";
 import { ClientForm } from "../_components/client-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 type ClientEditPageProps = {
   params: Promise<{
@@ -21,7 +23,8 @@ export default function ClientEditPage({ params }: ClientEditPageProps) {
 
   if (isLoading) {
     return (
-      <div className="py-10 text-center text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+        <Spinner size="sm" className="text-primary" />
         Carregando cliente...
       </div>
     );
@@ -29,8 +32,11 @@ export default function ClientEditPage({ params }: ClientEditPageProps) {
 
   if (isError || !data) {
     return (
-      <div className="py-10 text-center text-sm text-destructive">
-        Não foi possível carregar o cliente.
+      <div className="py-10">
+        <Alert variant="destructive" className="mx-auto max-w-lg">
+          <AlertTitle>Erro ao carregar cliente</AlertTitle>
+          <AlertDescription>Não foi possível carregar o cliente.</AlertDescription>
+        </Alert>
       </div>
     );
   }

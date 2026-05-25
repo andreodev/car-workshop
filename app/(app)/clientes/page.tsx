@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 
 import { fetchClients } from "./client-api";
 import type { ClientStatus } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -67,20 +70,7 @@ export default function ClientsPage() {
 
         <Button asChild className="shrink-0 gap-2 font-medium">
           <Link href="/clientes/novo">
-            {/* Ícone "+" inline leve */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M12 5v14" />
-            </svg>
+            <Plus className="size-3.5" />
             Cadastrar cliente
           </Link>
         </Button>
@@ -124,7 +114,7 @@ export default function ClientsPage() {
         {/* Estado: carregando */}
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Spinner size="sm" className="text-primary" />
             Carregando clientes...
           </div>
         )}
@@ -138,24 +128,15 @@ export default function ClientsPage() {
 
         {/* Estado: lista vazia */}
         {data && data.items.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="opacity-40"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
-            </svg>
-            Nenhum cliente encontrado para os filtros aplicados.
-          </div>
+          <Empty className="min-h-[220px]">
+            <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
+              <Search className="size-4" />
+            </span>
+            <EmptyTitle className="text-sm font-medium">Nenhum cliente encontrado</EmptyTitle>
+            <EmptyDescription>
+              Nenhum cliente encontrado para os filtros aplicados.
+            </EmptyDescription>
+          </Empty>
         )}
 
         {/* Estado: tabela com dados */}
@@ -259,7 +240,7 @@ export default function ClientsPage() {
               disabled={page <= 1}
               className="h-8 gap-1 px-3 text-xs"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              <ChevronLeft className="size-3" />
               Anterior
             </Button>
             <Button
@@ -270,7 +251,7 @@ export default function ClientsPage() {
               className="h-8 gap-1 px-3 text-xs"
             >
               Próxima
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <ChevronRight className="size-3" />
             </Button>
           </div>
         </div>

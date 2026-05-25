@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Car, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 
 import { fetchVehicles } from "./vehicle-api";
 import type { VehicleSearchBy } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -25,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Header from "@/components/ui/header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const PAGE_SIZE = 10;
 
@@ -67,19 +71,7 @@ export default function VehiclesPage() {
 
         <Button asChild className="shrink-0 gap-2 font-medium">
           <Link href="/veiculos/novo">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M12 5v14" />
-            </svg>
+            <Plus className="size-3.5" />
             Cadastrar veículo
           </Link>
         </Button>
@@ -87,7 +79,7 @@ export default function VehiclesPage() {
 
       <form
         onSubmit={handleSearch}
-        className="flex flex-col gap-2 border-b border-border pb-4 sm:flex-row sm:items-center"
+        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
       >
         <div className="w-full sm:w-44">
           <Select value={searchBy} onValueChange={handleSearchBy}>
@@ -121,42 +113,34 @@ export default function VehiclesPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Spinner size="sm" className="text-primary" />
             Carregando veículos...
           </div>
         )}
 
         {isError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error instanceof Error ? error.message : "Erro ao carregar veículos."}
-          </div>
+          <Alert variant="destructive">
+            <AlertTitle>Erro ao carregar veículos</AlertTitle>
+            <AlertDescription>
+              {error instanceof Error ? error.message : "Erro ao carregar veículos."}
+            </AlertDescription>
+          </Alert>
         )}
 
         {data && data.items.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="opacity-40"
-            >
-              <path d="M19 17h2l-1.5-4.5A3 3 0 0 0 16.65 10h-9.3a3 3 0 0 0-2.85 2.5L3 17h2" />
-              <circle cx="7" cy="17" r="2" />
-              <circle cx="17" cy="17" r="2" />
-              <path d="M9 10V7h6v3" />
-            </svg>
-            Nenhum veículo encontrado para os filtros aplicados.
-          </div>
+          <Empty className="min-h-[220px]">
+            <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
+              <Car className="size-4" />
+            </span>
+            <EmptyTitle className="text-sm font-medium">Nenhum veículo encontrado</EmptyTitle>
+            <EmptyDescription>
+              Nenhum veículo encontrado para os filtros aplicados.
+            </EmptyDescription>
+          </Empty>
         )}
 
         {data && data.items.length > 0 && (
-          <div className="w-full overflow-x-auto border-y border-border">
+          <div className="w-full overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60 hover:bg-muted/60">
@@ -255,7 +239,7 @@ export default function VehiclesPage() {
               disabled={page <= 1}
               className="h-8 gap-1 px-3 text-xs"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              <ChevronLeft className="size-3" />
               Anterior
             </Button>
             <Button
@@ -266,7 +250,7 @@ export default function VehiclesPage() {
               className="h-8 gap-1 px-3 text-xs"
             >
               Próxima
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <ChevronRight className="size-3" />
             </Button>
           </div>
         </div>

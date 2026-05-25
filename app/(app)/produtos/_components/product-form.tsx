@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 
 type ProductFormProps = {
   initialData?: CatalogItem | null;
@@ -319,6 +320,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
   const [form, setForm] = useState<CatalogItemFormValues>(() => mapItemToForm(initialData));
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
+  const { toast } = useToast();
 
   const sectorsQuery = useQuery({
     queryKey: ["product-form-sectors"],
@@ -341,12 +343,22 @@ export function ProductForm({ initialData }: ProductFormProps) {
       queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
       queryClient.invalidateQueries({ queryKey: ["catalog-item"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      toast({
+        title: mode === "edit" ? "Produto atualizado" : "Produto cadastrado",
+        description: "Os dados foram salvos com sucesso.",
+        variant: "success",
+      });
       router.push("/produtos");
     },
     onError: (error) => {
-      setLocalError(
-        error instanceof Error ? error.message : "Não foi possível salvar o cadastro."
-      );
+      const message =
+        error instanceof Error ? error.message : "Nao foi possivel salvar o cadastro.";
+      setLocalError(message);
+      toast({
+        title: "Erro ao salvar produto",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 

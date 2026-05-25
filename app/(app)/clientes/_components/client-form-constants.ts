@@ -38,8 +38,8 @@ export const emptyClientForm: ClientFormValues = {
   notesAddress: "",
 };
 
-export const inputClassName = "h-11 bg-background/80";
-export const textareaClassName = "min-h-32 resize-y bg-background/80";
+export const inputClassName = "h-9 bg-background";
+export const textareaClassName = "min-h-32 resize-y bg-background";
 
 export const fieldToStepMap: Record<keyof ClientFormValues, ClientFormStepValue> = {
   personType: "dados",
