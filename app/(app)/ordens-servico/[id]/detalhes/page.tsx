@@ -136,30 +136,6 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={statusOption.variant} className={statusOption.className}>
-            {statusOption.label}
-          </Badge>
-          <Button
-            variant="default"
-            disabled={isChangingStatus || data.status === "FINALIZADA"}
-            onClick={() => statusMutation.mutate("FINALIZADA")}
-          >
-            Aprovar conclusão
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={isChangingStatus || data.status === "AGUARDANDO_PECAS"}
-            onClick={() => statusMutation.mutate("AGUARDANDO_PECAS")}
-          >
-            Aguardando peças
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={isChangingStatus || data.status === "IMPEDIDA"}
-            onClick={() => statusMutation.mutate("IMPEDIDA")}
-          >
-            Impedimento
-          </Button>
           <Button variant="outline" asChild>
             <Link href={`/ordens-servico/${data.id}`}>Editar</Link>
           </Button>

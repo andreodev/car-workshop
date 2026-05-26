@@ -20,23 +20,17 @@ export const runtime = "nodejs";
 const COMPANY_SETTINGS_KEY = "company";
 
 const colors = {
-  page: "#F5F7FA",
-  surface: "#FFFFFF",
-  primary: "#0F172A",
-  secondary: "#64748B",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  softBorder: "#EEF2F7",
-  accent: "#2563EB",
-  accentSoft: "#EFF6FF",
-  warning: "#D97706",
-  warningSoft: "#FFFBEB",
-  dark: "#020617",
+  page: "#FFFFFF",
+  primary: "#000000",
+  secondary: "#333333",
+  muted: "#555555",
+  border: "#000000",
+  softBorder: "#999999",
 };
 
 const styles = StyleSheet.create({
   page: {
-    padding: 18,
+    padding: 14,
     fontSize: 9,
     fontFamily: "Helvetica",
     backgroundColor: colors.page,
@@ -44,80 +38,79 @@ const styles = StyleSheet.create({
   },
 
   topBar: {
-    backgroundColor: colors.dark,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 8,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
   },
 
   brandArea: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     flex: 1,
     paddingRight: 10,
   },
 
   logoBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    width: 70,
+    height: 70,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    padding: 5,
+    padding: 4,
   },
 
   logo: {
-    width: 32,
-    height: 32,
+    width: 62,
+    height: 62,
     objectFit: "contain",
   },
 
   labelLight: {
     fontSize: 7,
-    letterSpacing: 1.6,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: "#CBD5E1",
-    marginBottom: 3,
+    color: colors.secondary,
+    marginBottom: 4,
     fontWeight: 700,
   },
 
   companyName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: colors.primary,
     marginBottom: 2,
   },
 
   companyInfo: {
     fontSize: 7.5,
-    color: "#CBD5E1",
+    color: colors.secondary,
     lineHeight: 1.25,
   },
 
   docBox: {
-    width: 155,
-    borderRadius: 12,
+    width: 150,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: colors.border,
     padding: 10,
-    backgroundColor: "#0F172A",
   },
 
   docNumber: {
     fontSize: 12,
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: colors.primary,
     marginBottom: 5,
   },
 
   badge: {
     alignSelf: "flex-start",
-    backgroundColor: colors.warning,
-    color: "#FFFFFF",
-    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.primary,
     paddingVertical: 3,
     paddingHorizontal: 8,
     fontSize: 6.5,
@@ -129,17 +122,15 @@ const styles = StyleSheet.create({
 
   docMeta: {
     fontSize: 7,
-    color: "#CBD5E1",
+    color: colors.secondary,
     lineHeight: 1.35,
   },
 
   highlight: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
-    marginBottom: 10,
+    borderColor: colors.border,
+    padding: 10,
+    marginBottom: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -147,55 +138,54 @@ const styles = StyleSheet.create({
 
   totalLabel: {
     fontSize: 7,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: colors.muted,
+    color: colors.secondary,
     marginBottom: 4,
     fontWeight: 700,
   },
 
   totalValue: {
     fontSize: 18,
-    color: colors.warning,
+    color: colors.primary,
     fontWeight: 700,
   },
 
   pill: {
-    backgroundColor: colors.warningSoft,
-    color: colors.warning,
-    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.primary,
     paddingVertical: 4,
     paddingHorizontal: 8,
     fontSize: 7,
     fontWeight: 700,
+    textTransform: "uppercase",
   },
 
   gridTwo: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   gridThree: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   card: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
+    borderColor: colors.border,
+    padding: 10,
   },
 
   sectionTitle: {
     fontSize: 7,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: colors.muted,
+    color: colors.secondary,
     marginBottom: 7,
     fontWeight: 700,
   },
@@ -210,35 +200,32 @@ const styles = StyleSheet.create({
   strong: {
     color: colors.primary,
     fontWeight: 700,
+    fontSize: 8.5,
   },
 
   tableWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    overflow: "hidden",
-    marginBottom: 10,
+    borderColor: colors.border,
+    marginBottom: 8,
   },
 
   tableTitle: {
-    padding: 10,
+    padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.softBorder,
+    borderBottomColor: colors.border,
   },
 
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#F8FAFC",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 
   tableHeaderText: {
     fontSize: 7,
-    color: colors.secondary,
+    color: colors.primary,
     fontWeight: 700,
     textTransform: "uppercase",
   },
@@ -247,14 +234,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.softBorder,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
 
   tableRowLast: {
     flexDirection: "row",
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
 
   itemName: {
@@ -265,7 +252,7 @@ const styles = StyleSheet.create({
   },
 
   itemSub: {
-    color: colors.muted,
+    color: colors.secondary,
     fontSize: 7,
   },
 
@@ -282,16 +269,14 @@ const styles = StyleSheet.create({
   totalsWrapper: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   totalsSummary: {
     width: 220,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
+    borderColor: colors.border,
+    padding: 10,
   },
 
   totalRow: {
@@ -328,20 +313,17 @@ const styles = StyleSheet.create({
 
   totalRowFinalValue: {
     fontSize: 12,
-    color: colors.warning,
+    color: colors.primary,
     fontWeight: 700,
   },
 
   legalBox: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 10,
+    borderColor: colors.border,
+    padding: 9,
     fontSize: 7.5,
     color: colors.secondary,
     lineHeight: 1.3,
-    marginBottom: 10,
   },
 
   signatureArea: {
@@ -441,6 +423,12 @@ function buildAddress(settings: {
   return [line1, line2, line3].filter(Boolean).join(" | ");
 }
 
+function safeText(value: string | null | undefined) {
+  const text = value?.trim();
+
+  return text && text.length > 0 ? text : "-";
+}
+
 type RouteContext = {
   params: Promise<{
     id: string;
@@ -484,11 +472,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
       },
       mechanic: {
         select: {
+          id: true,
           name: true,
         },
       },
       sector: {
         select: {
+          id: true,
           name: true,
         },
       },
@@ -548,6 +538,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .filter(Boolean)
       .join(" - ") || "-";
 
+  const mechanicName = safeText(estimate.mechanic?.name);
+  const sectorName = safeText(estimate.sector?.name);
+  const responsibleName = safeText(estimate.responsible);
+
   const items = estimate.items ?? [];
   const h = React.createElement;
 
@@ -575,16 +569,30 @@ export async function GET(_request: Request, { params }: RouteContext) {
           h(
             View,
             { style: { flex: 1 } },
-            h(Text, { style: styles.labelLight }, "Orçamento / proposta comercial"),
+            h(
+              Text,
+              { style: styles.labelLight },
+              "Orçamento / proposta comercial"
+            ),
             h(Text, { style: styles.companyName }, companyName),
             companyDocument
-              ? h(Text, { style: styles.companyInfo }, `CNPJ/CPF: ${companyDocument}`)
+              ? h(
+                  Text,
+                  { style: styles.companyInfo },
+                  `CNPJ/CPF: ${companyDocument}`
+                )
               : null,
             companySettings?.stateRegistration
-              ? h(Text, { style: styles.companyInfo }, `Inscrição Estadual: ${companySettings.stateRegistration}`)
+              ? h(
+                  Text,
+                  { style: styles.companyInfo },
+                  `Inscrição Estadual: ${companySettings.stateRegistration}`
+                )
               : null,
             address ? h(Text, { style: styles.companyInfo }, address) : null,
-            phone ? h(Text, { style: styles.companyInfo }, `Contato: ${phone}`) : null,
+            phone
+              ? h(Text, { style: styles.companyInfo }, `Contato: ${phone}`)
+              : null,
             companySettings?.email
               ? h(Text, { style: styles.companyInfo }, companySettings.email)
               : null
@@ -597,8 +605,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
           h(Text, { style: styles.labelLight }, "Documento"),
           h(Text, { style: styles.docNumber }, `#${estimate.code}`),
           h(Text, { style: styles.badge }, "Orçamento"),
-          h(Text, { style: styles.docMeta }, `Emissão: ${formatDate(estimate.createdAt)}`),
-          h(Text, { style: styles.docMeta }, `Validade: ${formatDate(estimate.validUntil)}`)
+          h(
+            Text,
+            { style: styles.docMeta },
+            `Emissão: ${formatDate(estimate.createdAt)}`
+          ),
+          h(
+            Text,
+            { style: styles.docMeta },
+            `Validade: ${formatDate(estimate.validUntil)}`
+          )
         )
       ),
 
@@ -614,12 +630,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
         h(
           View,
           { style: { alignItems: "flex-end" } },
-          h(Text, { style: styles.pill }, "Proposta sem valor fiscal"),
-          h(
-            Text,
-            { style: { marginTop: 5, color: colors.secondary, fontSize: 7 } },
-            `Responsável: ${estimate.responsible || "-"}`
-          )
+          h(Text, { style: styles.pill }, "Proposta sem valor fiscal")
         )
       ),
 
@@ -660,21 +671,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
           View,
           { style: styles.card },
           h(Text, { style: styles.sectionTitle }, "Mecânico"),
-          h(Text, { style: styles.strong }, estimate.mechanic?.name ?? "-")
+          h(Text, { style: styles.strong }, mechanicName)
         ),
 
         h(
           View,
           { style: styles.card },
           h(Text, { style: styles.sectionTitle }, "Setor"),
-          h(Text, { style: styles.strong }, estimate.sector?.name ?? "-")
+          h(Text, { style: styles.strong }, sectorName)
         ),
 
         h(
           View,
           { style: styles.card },
           h(Text, { style: styles.sectionTitle }, "Responsável"),
-          h(Text, { style: styles.strong }, estimate.responsible || "-")
+          h(Text, { style: styles.strong }, responsibleName)
         )
       ),
 
@@ -691,25 +702,48 @@ export async function GET(_request: Request, { params }: RouteContext) {
         h(
           View,
           { style: styles.tableHeader },
-          h(Text, { style: [styles.cellItem, styles.tableHeaderText] }, "Descrição"),
+          h(
+            Text,
+            { style: [styles.cellItem, styles.tableHeaderText] },
+            "Descrição"
+          ),
           h(Text, { style: [styles.cellQty, styles.tableHeaderText] }, "Qtd."),
-          h(Text, { style: [styles.cellUnit, styles.tableHeaderText] }, "Unitário"),
-          h(Text, { style: [styles.cellDiscount, styles.tableHeaderText] }, "Desc."),
-          h(Text, { style: [styles.cellTotal, styles.tableHeaderText] }, "Total")
+          h(
+            Text,
+            { style: [styles.cellUnit, styles.tableHeaderText] },
+            "Unitário"
+          ),
+          h(
+            Text,
+            { style: [styles.cellDiscount, styles.tableHeaderText] },
+            "Desc."
+          ),
+          h(
+            Text,
+            { style: [styles.cellTotal, styles.tableHeaderText] },
+            "Total"
+          )
         ),
 
         items.length === 0
           ? h(
               View,
               { style: styles.tableRowLast },
-              h(Text, { style: [styles.cellItem, { color: colors.muted }] }, "Nenhum item informado.")
+              h(
+                Text,
+                { style: [styles.cellItem, { color: colors.muted }] },
+                "Nenhum item informado."
+              )
             )
           : items.map((item, index) =>
               h(
                 View,
                 {
                   key: item.id,
-                  style: index === items.length - 1 ? styles.tableRowLast : styles.tableRow,
+                  style:
+                    index === items.length - 1
+                      ? styles.tableRowLast
+                      : styles.tableRow,
                 },
                 h(
                   View,
@@ -722,8 +756,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
                   )
                 ),
                 h(Text, { style: styles.cellQty }, String(item.quantity)),
-                h(Text, { style: styles.cellUnit }, formatCurrency(item.unitPrice)),
-                h(Text, { style: styles.cellDiscount }, formatCurrency(item.discount)),
+                h(
+                  Text,
+                  { style: styles.cellUnit },
+                  formatCurrency(item.unitPrice)
+                ),
+                h(
+                  Text,
+                  { style: styles.cellDiscount },
+                  formatCurrency(item.discount)
+                ),
                 h(Text, { style: styles.cellTotal }, formatCurrency(item.total))
               )
             )
@@ -741,21 +783,33 @@ export async function GET(_request: Request, { params }: RouteContext) {
             View,
             { style: styles.totalRow },
             h(Text, { style: styles.totalRowLabel }, "Subtotal"),
-            h(Text, { style: styles.totalRowValue }, formatCurrency(estimate.subtotal))
+            h(
+              Text,
+              { style: styles.totalRowValue },
+              formatCurrency(estimate.subtotal)
+            )
           ),
 
           h(
             View,
             { style: styles.totalRow },
             h(Text, { style: styles.totalRowLabel }, "Desconto"),
-            h(Text, { style: styles.totalRowValue }, formatCurrency(estimate.discountTotal))
+            h(
+              Text,
+              { style: styles.totalRowValue },
+              formatCurrency(estimate.discountTotal)
+            )
           ),
 
           h(
             View,
             { style: styles.totalRowFinal },
             h(Text, { style: styles.totalRowFinalLabel }, "Total estimado"),
-            h(Text, { style: styles.totalRowFinalValue }, formatCurrency(estimate.total))
+            h(
+              Text,
+              { style: styles.totalRowFinalValue },
+              formatCurrency(estimate.total)
+            )
           )
         )
       ),

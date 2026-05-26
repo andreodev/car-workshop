@@ -8,13 +8,10 @@ import {
   CheckCircle2,
   Circle,
   ClipboardList,
-  FileText,
   Plus,
-  StickyNote,
   Trash2,
   UserCog,
   UserRound,
-  Wallet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Modal from "react-modal";
@@ -507,7 +504,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           </Button>
           <Button
   type="button"
-  className="h-12 w-full text-base font-semibold"
+  className="h-12  text-base font-semibold"
   disabled={isSaving}
   onClick={() => setIsObservationModalOpen(true)}
 >

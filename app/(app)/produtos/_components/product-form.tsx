@@ -318,6 +318,7 @@ function mapItemToForm(item?: CatalogItem | null): CatalogItemFormValues {
   };
 }
 
+
 export function ProductForm({ initialData }: ProductFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -325,6 +326,10 @@ export function ProductForm({ initialData }: ProductFormProps) {
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
   const { toast } = useToast();
+
+  const isService = form.type === "SERVICO";
+  const itemLabel = isService ? "Serviço" : "Produto";
+  const itemLabelLower = isService ? "serviço" : "produto";
 
   const sectorsQuery = useQuery({
     queryKey: ["product-form-sectors"],
@@ -335,7 +340,14 @@ export function ProductForm({ initialData }: ProductFormProps) {
   const mutation = useMutation({
     mutationFn: () => {
       const salePrice = String(parseMoney(form.salePrice || form.unitPrice));
-      const payload = { ...form, salePrice, unitPrice: salePrice };
+      const payload: CatalogItemFormValues = {
+        ...form,
+        salePrice,
+        unitPrice: salePrice,
+        stockCurrent: isService ? "0" : form.stockCurrent,
+        stockMinimum: isService ? "0" : form.stockMinimum,
+        stockMaximum: isService ? "0" : form.stockMaximum,
+      };
 
       if (mode === "edit" && initialData) {
         return updateCatalogItem(initialData.id, payload);
@@ -348,7 +360,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
       queryClient.invalidateQueries({ queryKey: ["catalog-item"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
       toast({
-        title: mode === "edit" ? "Produto atualizado" : "Produto cadastrado",
+        title: mode === "edit" ? `${itemLabel} atualizado` : `${itemLabel} cadastrado`,
         description: "Os dados foram salvos com sucesso.",
         variant: "success",
       });
@@ -359,7 +371,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
         error instanceof Error ? error.message : "Nao foi possivel salvar o cadastro.";
       setLocalError(message);
       toast({
-        title: "Erro ao salvar produto",
+        title: `Erro ao salvar ${itemLabelLower}`,
         description: message,
         variant: "destructive",
       });
@@ -371,6 +383,22 @@ export function ProductForm({ initialData }: ProductFormProps) {
     value: CatalogItemFormValues[Key]
   ) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleTypeChange(type: CatalogItemType) {
+    setForm((current) => ({
+      ...current,
+      type,
+      unit: type === "SERVICO" ? "UN" : current.unit || "UN",
+      stockCurrent: type === "SERVICO" ? "0" : current.stockCurrent,
+      stockMinimum: type === "SERVICO" ? "0" : current.stockMinimum,
+      stockMaximum: type === "SERVICO" ? "0" : current.stockMaximum,
+      supplierQuotes:
+        type === "SERVICO"
+          ? [{ ...emptyQuote }, { ...emptyQuote }, { ...emptyQuote }]
+          : current.supplierQuotes,
+      substituteCodes: type === "SERVICO" ? ["", ""] : current.substituteCodes,
+    }));
   }
 
   function updateQuote(
@@ -400,7 +428,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
     setLocalError(null);
 
     if (!form.name.trim()) {
-      setLocalError("Produto é obrigatório.");
+      setLocalError(`${itemLabel} é obrigatório.`);
       return;
     }
 
@@ -436,9 +464,9 @@ export function ProductForm({ initialData }: ProductFormProps) {
     );
   }
 
-  function renderTextarea(name: TextFieldName, label: string) {
+  function renderTextarea(name: TextFieldName, label: string, className = "md:col-span-2") {
     return (
-      <div className="space-y-2 md:col-span-2">
+      <div className={`space-y-2 ${className}`}>
         <Label>{label}</Label>
         <Textarea
           value={String(form[name] ?? "")}
@@ -491,27 +519,120 @@ export function ProductForm({ initialData }: ProductFormProps) {
     );
   }
 
-  const isSaving = mutation.isPending;
-  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+  function renderSectorSelect() {
+    return (
+      <div className="space-y-2">
+        <Label>Setor</Label>
+        <Select
+          value={form.sectorId || noSelection}
+          onValueChange={(value) =>
+            updateField("sectorId", value === noSelection ? "" : value)
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={sectorsQuery.isLoading ? "Carregando setores..." : "Selecione"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={noSelection}>Sem escolher setor</SelectItem>
+            {sectorsQuery.data?.items.map((sector) => (
+              <SelectItem key={sector.id} value={sector.id}>
+                {sector.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {sectorsQuery.isError ? (
+          <p className="text-xs text-destructive">Não foi possível carregar setores.</p>
+        ) : null}
+      </div>
+    );
+  }
 
-  return (
-    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
-      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
-        <div className="flex flex-1 flex-col gap-8">
-          <Header
-            title={mode === "edit" ? "Editar produto/serviço" : "Cadastro de produto/serviço"}
-            description="Cadastro completo para estoque, PDV e dados fiscais de emissão."
-          />
+  function renderUnitSelect(label = "Unidade") {
+    return (
+      <div className="space-y-2">
+        <Label>{label}</Label>
+        <Select value={form.unit || "UN"} onValueChange={(value) => updateField("unit", value)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {units.map((unit) => (
+              <SelectItem key={unit} value={unit}>
+                {unit}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
 
-          <Card className="border-border/70 shadow-sm">
-            <CardContent className="space-y-6 pt-6">
-              {errorMessage ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Erro ao salvar item</AlertTitle>
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              ) : null}
+  function renderStatusSelect() {
+    return (
+      <div className="space-y-2">
+        <Label>Situação</Label>
+        <Select
+          value={form.active ? "ATIVO" : "INATIVO"}
+          onValueChange={(value) => updateField("active", value === "ATIVO")}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ATIVO">Ativo</SelectItem>
+            <SelectItem value="INATIVO">Inativo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
 
+  function renderTypeSelector() {
+    return (
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 pt-6">
+          <div>
+            <h2 className="text-base font-semibold">Tipo de cadastro</h2>
+            <p className="text-sm text-muted-foreground">
+              Escolha primeiro se o item será um produto de estoque ou um serviço da oficina.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => handleTypeChange("PRODUTO")}
+              className={`rounded-lg border p-4 text-left transition hover:border-primary/60 ${
+                form.type === "PRODUTO" ? "border-primary bg-primary/5" : "border-border"
+              }`}
+            >
+              <span className="text-sm font-semibold">Produto</span>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Peças, itens de estoque, códigos, fornecedores, cotações e controle de quantidade.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTypeChange("SERVICO")}
+              className={`rounded-lg border p-4 text-left transition hover:border-primary/60 ${
+                form.type === "SERVICO" ? "border-primary bg-primary/5" : "border-border"
+              }`}
+            >
+              <span className="text-sm font-semibold">Serviço</span>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Mão de obra, diagnóstico, instalação, revisão e serviços sem movimentação de estoque.
+              </p>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function renderProductTabs() {
+    return (
       <Tabs defaultValue="basicos" className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start">
           <TabsTrigger value="basicos">Dados básicos</TabsTrigger>
@@ -526,80 +647,17 @@ export function ProductForm({ initialData }: ProductFormProps) {
               placeholder: "Ex: Amortecedor de suspensão",
             })}
             {renderInput("category", "Categoria", { placeholder: "ABRAÇADEIRAS" })}
-            <div className="space-y-2">
-              <Label>Unidade</Label>
-              <Select value={form.unit || "UN"} onValueChange={(value) => updateField("unit", value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {units.map((unit) => (
-                    <SelectItem key={unit} value={unit}>
-                      {unit}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {renderUnitSelect()}
             {renderInput("manufacturerBrand", "Fabricante / Marca")}
             {renderInput("location", "Endereço", {
               placeholder: "Ex: Localização do produto",
             })}
             {renderInput("originalCode", "Código Original")}
             {renderInput("manufacturerCode", "Código Fabricante / Fornecedor")}
-            <div className="space-y-2">
-              <Label>Setor</Label>
-              <Select
-                value={form.sectorId || noSelection}
-                onValueChange={(value) =>
-                  updateField("sectorId", value === noSelection ? "" : value)
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={noSelection}>Sem escolher setor</SelectItem>
-                  {sectorsQuery.data?.items.map((sector) => (
-                    <SelectItem key={sector.id} value={sector.id}>
-                      {sector.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {renderSectorSelect()}
             {renderInput("expirationDate", "Data Vencimento", { type: "date" })}
             {renderInput("sku", "Código interno/SKU")}
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select
-                value={form.type}
-                onValueChange={(value) => updateField("type", value as CatalogItemType)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PRODUTO">Produto</SelectItem>
-                  <SelectItem value="SERVICO">Serviço</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Situação</Label>
-              <Select
-                value={form.active ? "ATIVO" : "INATIVO"}
-                onValueChange={(value) => updateField("active", value === "ATIVO")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ATIVO">Ativo</SelectItem>
-                  <SelectItem value="INATIVO">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {renderStatusSelect()}
             {renderTextarea("applicationDescription", "Descrição Aplicação")}
             {renderTextarea("notes", "Observações")}
           </div>
@@ -680,130 +738,223 @@ export function ProductForm({ initialData }: ProductFormProps) {
         </TabsContent>
 
         <TabsContent value="fiscais" className="space-y-4 text-sm">
-          <Tabs defaultValue="fiscal-basico" className="space-y-4">
-            <TabsList className="flex h-auto w-full flex-wrap justify-start">
-              <TabsTrigger value="fiscal-basico">Dados básicos</TabsTrigger>
-              <TabsTrigger value="ipi">IPI</TabsTrigger>
-              <TabsTrigger value="icms">ICMS</TabsTrigger>
-              <TabsTrigger value="pis">PIS</TabsTrigger>
-              <TabsTrigger value="cofins">COFINS</TabsTrigger>
-              <TabsTrigger value="importadas">Importadas</TabsTrigger>
-              <TabsTrigger value="combustiveis">Combustíveis</TabsTrigger>
-              <TabsTrigger value="ibs-cbs">IBS e CBS</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="fiscal-basico" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                {renderInput("taxCeanTrib", "cEAN Trib")}
-                {renderInput("taxNcm", "NCM:*")}
-                {renderInput("taxCest", "CEST:")}
-                {renderInput("taxCfop", "CFOP:*")}
-                {renderInput("taxCommercialUnit", "Un Comercial:*")}
-                {renderInput("taxCommercialQuantity", "Qtd Comercial:*")}
-                {renderInput("taxCommercialUnitValue", "Valor Unit Comercial:*")}
-                {renderInput("taxTribUnit", "Un Trib:*")}
-                {renderInput("taxTribQuantity", "Qtd Trib:*")}
-                {renderInput("taxTribUnitValue", "Valor Unit Tributável:*")}
-                {renderInput("taxInsuranceTotal", "Total Seguro:")}
-                {renderInput("taxDiscount", "Desconto")}
-                {renderInput("taxFreightTotal", "Total Frete:")}
-                {renderInput("taxOtherExpenses", "Outras Despesas:")}
-                {renderInput("taxGrossTotal", "Valor Total Bruto:*")}
-                {renderInput("taxExTipi", "EX TIPI:")}
-                <div className="space-y-2">
-                  <Label>Indicador de Escala Relevante</Label>
-                  <Select
-                    value={form.taxScaleIndicator || noSelection}
-                    onValueChange={(value) =>
-                      updateField("taxScaleIndicator", value === noSelection ? "" : value)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={noSelection}>- Não usar -</SelectItem>
-                      <SelectItem value="S">Sim</SelectItem>
-                      <SelectItem value="N">Não</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {renderInput("taxManufacturerCnpj", "CNPJ Fabricante")}
-                {renderInput("taxBenefitCode", "Código Benefício Fiscal:")}
-                {renderInput("taxPurchaseOrder", "Pedido de Compra:*")}
-                {renderInput("taxPurchaseOrderItem", "Número do Item do Pedido de Compra:*")}
-                {renderInput("taxFciControlNumber", "Número de Controle da FCI:*")}
-                {renderInput("taxFederalApproxPercent", "Imposto Federal Aprox. (%)")}
-                {renderInput("taxStateApproxPercent", "Imposto Estadual Aprox. (%)")}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="ipi">
-              <div className="grid gap-4 md:grid-cols-3">
-                {renderInput("ipiTaxSituation", "Situação Tributária")}
-                {renderInput("ipiClass", "Classe enquadramento")}
-                {renderInput("ipiLegalCode", "Código enquadramento legal IPI*")}
-                {renderInput("ipiProducerCnpj", "CNPJ produtor")}
-                {renderInput("ipiSealCode", "Cód Selo de Controle IPI")}
-                {renderInput("ipiSealQuantity", "Quantidade de selo de Controle IPI")}
-                {renderCalculationSelect("ipiCalculationType", "Tipo de cálculo")}
-                {renderInput("ipiBase", "Base Calc IPI")}
-                {renderInput("ipiRate", "Alíquota IPI")}
-                {renderInput("ipiUnitValue", "Valor por unid trib.")}
-                {renderInput("ipiValue", "Valor do IPI")}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="icms">{renderCommonTaxFields("icms")}</TabsContent>
-            <TabsContent value="pis">{renderCommonTaxFields("pis")}</TabsContent>
-            <TabsContent value="cofins">{renderCommonTaxFields("cofins")}</TabsContent>
-
-            <TabsContent value="importadas">
-              <div className="grid gap-4 md:grid-cols-2">
-                {renderInput("importBase", "Base de cálculo")}
-                {renderInput("importExpenses", "Despesas aduaneiras")}
-                {renderInput("importIof", "Valor IOF")}
-                {renderInput("importValue", "Valor Imposto Importação")}
-                {renderTextarea("importNotes", "Observações")}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="combustiveis">
-              <div className="grid gap-4 md:grid-cols-2">
-                {renderInput("fuelAnpCode", "Código ANP")}
-                {renderInput("fuelDescription", "Descrição ANP")}
-                {renderInput("fuelGlpPercent", "% GLP")}
-                {renderInput("fuelNationalGasPercent", "% Gás Natural Nacional")}
-                {renderInput("fuelImportedGasPercent", "% Gás Natural Importado")}
-                {renderInput("fuelCideBase", "Base CIDE")}
-                {renderInput("fuelCideRate", "Alíquota CIDE")}
-                {renderInput("fuelCideValue", "Valor CIDE")}
-                {renderTextarea("fuelNotes", "Observações")}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="ibs-cbs">
-              <div className="grid gap-4 md:grid-cols-2">
-                {renderInput("ibsCbsCst", "CST IBS/CBS")}
-                {renderInput("ibsCbsClassification", "Classificação Tributária")}
-                {renderInput("ibsUfRate", "Alíquota IBS UF")}
-                {renderInput("ibsMunicipalRate", "Alíquota IBS Municipal")}
-                {renderInput("cbsRate", "Alíquota CBS")}
-                {renderInput("ibsValue", "Valor IBS")}
-                {renderInput("cbsValue", "Valor CBS")}
-                {renderTextarea("ibsCbsNotes", "Observações")}
-              </div>
-            </TabsContent>
-          </Tabs>
+          {renderFiscalTabs("produto")}
         </TabsContent>
       </Tabs>
+    );
+  }
 
+  function renderServiceTabs() {
+    return (
+      <Tabs defaultValue="basicos" className="space-y-4">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start">
+          <TabsTrigger value="basicos">Dados do serviço</TabsTrigger>
+          <TabsTrigger value="valores">Valores</TabsTrigger>
+          <TabsTrigger value="fiscais">Dados fiscais</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="basicos" className="space-y-5 text-sm">
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderInput("name", "Serviço", {
+              placeholder: "Ex: Troca de óleo, alinhamento, diagnóstico",
+            })}
+            {renderInput("category", "Categoria", {
+              placeholder: "Ex: Mecânica, elétrica, revisão",
+            })}
+            {renderInput("sku", "Código interno")}
+            {renderSectorSelect()}
+            {renderUnitSelect("Unidade de cobrança")}
+            {renderStatusSelect()}
+            {renderTextarea("applicationDescription", "Descrição do serviço", "md:col-span-2")}
+            {renderTextarea("notes", "Observações internas", "md:col-span-2")}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="valores" className="space-y-6 text-sm">
+          <section className="space-y-3">
+            <h2 className="text-base font-semibold">Precificação do serviço</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              {renderInput("salePrice", "Preço de venda")}
+              {renderInput("unitPrice", "Valor unitário")}
+              {renderInput("profitPercent", "% Margem/Lucro")}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Serviço não movimenta estoque. Para peças usadas na OS, cadastre como produto.
+            </p>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="fiscais" className="space-y-4 text-sm">
+          {renderFiscalTabs("serviço")}
+        </TabsContent>
+      </Tabs>
+    );
+  }
+
+  function renderFiscalTabs(kind: "produto" | "serviço") {
+    const basicTitle = kind === "serviço" ? "Fiscal do serviço" : "Dados básicos";
+
+    return (
+      <Tabs defaultValue="fiscal-basico" className="space-y-4">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start">
+          <TabsTrigger value="fiscal-basico">{basicTitle}</TabsTrigger>
+          {kind === "produto" ? <TabsTrigger value="ipi">IPI</TabsTrigger> : null}
+          <TabsTrigger value="icms">ICMS</TabsTrigger>
+          <TabsTrigger value="pis">PIS</TabsTrigger>
+          <TabsTrigger value="cofins">COFINS</TabsTrigger>
+          {kind === "produto" ? <TabsTrigger value="importadas">Importadas</TabsTrigger> : null}
+          {kind === "produto" ? <TabsTrigger value="combustiveis">Combustíveis</TabsTrigger> : null}
+          <TabsTrigger value="ibs-cbs">IBS e CBS</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fiscal-basico" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            {kind === "produto" ? renderInput("taxCeanTrib", "cEAN Trib") : null}
+            {renderInput("taxNcm", kind === "serviço" ? "Código fiscal/NBS" : "NCM:*")}
+            {kind === "produto" ? renderInput("taxCest", "CEST:") : null}
+            {renderInput("taxCfop", "CFOP:*")}
+            {renderInput("taxCommercialUnit", kind === "serviço" ? "Unidade do serviço:*" : "Un Comercial:*")}
+            {renderInput("taxCommercialQuantity", "Qtd Comercial:*")}
+            {renderInput("taxCommercialUnitValue", "Valor Unit Comercial:*")}
+            {kind === "produto" ? renderInput("taxTribUnit", "Un Trib:*") : null}
+            {kind === "produto" ? renderInput("taxTribQuantity", "Qtd Trib:*") : null}
+            {kind === "produto" ? renderInput("taxTribUnitValue", "Valor Unit Tributável:*") : null}
+            {kind === "produto" ? renderInput("taxInsuranceTotal", "Total Seguro:") : null}
+            {renderInput("taxDiscount", "Desconto")}
+            {kind === "produto" ? renderInput("taxFreightTotal", "Total Frete:") : null}
+            {renderInput("taxOtherExpenses", "Outras Despesas:")}
+            {renderInput("taxGrossTotal", "Valor Total Bruto:*")}
+            {kind === "produto" ? renderInput("taxExTipi", "EX TIPI:") : null}
+            {kind === "produto" ? (
+              <div className="space-y-2">
+                <Label>Indicador de Escala Relevante</Label>
+                <Select
+                  value={form.taxScaleIndicator || noSelection}
+                  onValueChange={(value) =>
+                    updateField("taxScaleIndicator", value === noSelection ? "" : value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={noSelection}>- Não usar -</SelectItem>
+                    <SelectItem value="S">Sim</SelectItem>
+                    <SelectItem value="N">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            {kind === "produto" ? renderInput("taxManufacturerCnpj", "CNPJ Fabricante") : null}
+            {renderInput("taxBenefitCode", "Código Benefício Fiscal:")}
+            {kind === "produto" ? renderInput("taxPurchaseOrder", "Pedido de Compra:*") : null}
+            {kind === "produto" ? renderInput("taxPurchaseOrderItem", "Número do Item do Pedido de Compra:*") : null}
+            {kind === "produto" ? renderInput("taxFciControlNumber", "Número de Controle da FCI:*") : null}
+            {renderInput("taxFederalApproxPercent", "Imposto Federal Aprox. (%)")}
+            {renderInput("taxStateApproxPercent", "Imposto Estadual Aprox. (%)")}
+          </div>
+        </TabsContent>
+
+        {kind === "produto" ? (
+          <TabsContent value="ipi">
+            <div className="grid gap-4 md:grid-cols-3">
+              {renderInput("ipiTaxSituation", "Situação Tributária")}
+              {renderInput("ipiClass", "Classe enquadramento")}
+              {renderInput("ipiLegalCode", "Código enquadramento legal IPI*")}
+              {renderInput("ipiProducerCnpj", "CNPJ produtor")}
+              {renderInput("ipiSealCode", "Cód Selo de Controle IPI")}
+              {renderInput("ipiSealQuantity", "Quantidade de selo de Controle IPI")}
+              {renderCalculationSelect("ipiCalculationType", "Tipo de cálculo")}
+              {renderInput("ipiBase", "Base Calc IPI")}
+              {renderInput("ipiRate", "Alíquota IPI")}
+              {renderInput("ipiUnitValue", "Valor por unid trib.")}
+              {renderInput("ipiValue", "Valor do IPI")}
+            </div>
+          </TabsContent>
+        ) : null}
+
+        <TabsContent value="icms">{renderCommonTaxFields("icms")}</TabsContent>
+        <TabsContent value="pis">{renderCommonTaxFields("pis")}</TabsContent>
+        <TabsContent value="cofins">{renderCommonTaxFields("cofins")}</TabsContent>
+
+        {kind === "produto" ? (
+          <TabsContent value="importadas">
+            <div className="grid gap-4 md:grid-cols-2">
+              {renderInput("importBase", "Base de cálculo")}
+              {renderInput("importExpenses", "Despesas aduaneiras")}
+              {renderInput("importIof", "Valor IOF")}
+              {renderInput("importValue", "Valor Imposto Importação")}
+              {renderTextarea("importNotes", "Observações")}
+            </div>
+          </TabsContent>
+        ) : null}
+
+        {kind === "produto" ? (
+          <TabsContent value="combustiveis">
+            <div className="grid gap-4 md:grid-cols-2">
+              {renderInput("fuelAnpCode", "Código ANP")}
+              {renderInput("fuelDescription", "Descrição ANP")}
+              {renderInput("fuelGlpPercent", "% GLP")}
+              {renderInput("fuelNationalGasPercent", "% Gás Natural Nacional")}
+              {renderInput("fuelImportedGasPercent", "% Gás Natural Importado")}
+              {renderInput("fuelCideBase", "Base CIDE")}
+              {renderInput("fuelCideRate", "Alíquota CIDE")}
+              {renderInput("fuelCideValue", "Valor CIDE")}
+              {renderTextarea("fuelNotes", "Observações")}
+            </div>
+          </TabsContent>
+        ) : null}
+
+        <TabsContent value="ibs-cbs">
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderInput("ibsCbsCst", "CST IBS/CBS")}
+            {renderInput("ibsCbsClassification", "Classificação Tributária")}
+            {renderInput("ibsUfRate", "Alíquota IBS UF")}
+            {renderInput("ibsMunicipalRate", "Alíquota IBS Municipal")}
+            {renderInput("cbsRate", "Alíquota CBS")}
+            {renderInput("ibsValue", "Valor IBS")}
+            {renderInput("cbsValue", "Valor CBS")}
+            {renderTextarea("ibsCbsNotes", "Observações")}
+          </div>
+        </TabsContent>
+      </Tabs>
+    );
+  }
+
+  const isSaving = mutation.isPending;
+  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+
+  return (
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+      <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
+        <div className="flex flex-1 flex-col gap-8">
+          <Header
+            title={mode === "edit" ? `Editar ${itemLabelLower}` : `Cadastro de ${itemLabelLower}`}
+            description={
+              isService
+                ? "Cadastro focado em mão de obra, precificação e dados fiscais de serviço."
+                : "Cadastro completo para estoque, PDV e dados fiscais de emissão."
+            }
+          />
+
+          {renderTypeSelector()}
+
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-6 pt-6">
+              {errorMessage ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Erro ao salvar item</AlertTitle>
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              {isService ? renderServiceTabs() : renderProductTabs()}
             </CardContent>
           </Card>
 
           <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
             <p className="text-xs text-muted-foreground">
-              Revise os dados antes de salvar. O item ficará disponível no estoque e no PDV.
+              Revise os dados antes de salvar. O item ficará disponível no cadastro e no PDV.
             </p>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
@@ -817,7 +968,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
               </Button>
               <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
                 {isSaving ? <Spinner size="sm" /> : null}
-                {isSaving ? "Salvando..." : "Salvar item"}
+                {isSaving ? "Salvando..." : `Salvar ${itemLabelLower}`}
               </Button>
             </div>
           </div>

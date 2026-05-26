@@ -27,7 +27,7 @@ export const menuGroups = [
       { title: "Veículos", href: "/veiculos", icon: Car },
       { title: "Mecânicos", href: "/mecanicos", icon: UserCog },
       { title: "Fornecedores", href: "/fornecedores", icon: Truck },
-      { title: "Produtos", href: "/produtos", icon: Package },
+      { title: "Produtos e Serviços", href: "/produtos", icon: Package },
       { title: "Setores", href: "/setores", icon: Grid2X2 },
     ],
   },
@@ -36,7 +36,7 @@ export const menuGroups = [
     items: [
       { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
       { title: "Orçamentos", href: "/orcamentos", icon: FileText },
-      { title: "Pedidos", href: "/pedidos", icon: ClipboardList },
+      { title: "Pedidos e Serviços", href: "/pedidos", icon: ClipboardList },
       { title: "PDV", href: "/pdv", icon: ShoppingCart },
     ],
   },

@@ -20,23 +20,21 @@ export const runtime = "nodejs";
 const COMPANY_SETTINGS_KEY = "company";
 
 const colors = {
-  page: "#F5F7FA",
+  page: "#FFFFFF",
   surface: "#FFFFFF",
-  primary: "#0F172A",
-  secondary: "#64748B",
-  muted: "#94A3B8",
-  border: "#E2E8F0",
-  softBorder: "#EEF2F7",
-  accent: "#2563EB",
-  accentSoft: "#EFF6FF",
-  success: "#16A34A",
-  successSoft: "#ECFDF5",
-  dark: "#020617",
+  primary: "#000000",
+  secondary: "#333333",
+  muted: "#555555",
+  border: "#000000",
+  softBorder: "#999999",
 };
 
 const styles = StyleSheet.create({
   page: {
-    padding: 18,
+    paddingTop: 12,
+    paddingRight: 12,
+    paddingBottom: 12,
+    paddingLeft: 12,
     fontSize: 9,
     fontFamily: "Helvetica",
     backgroundColor: colors.page,
@@ -44,10 +42,10 @@ const styles = StyleSheet.create({
   },
 
   topBar: {
-    backgroundColor: colors.dark,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    marginBottom: 7,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -61,63 +59,61 @@ const styles = StyleSheet.create({
   },
 
   logoBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    width: 68,
+    height: 68,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    padding: 5,
+    padding: 4,
   },
 
   logo: {
-    width: 32,
-    height: 32,
+    width: 58,
+    height: 58,
     objectFit: "contain",
   },
 
   receiptLabel: {
     fontSize: 7,
-    letterSpacing: 1.6,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: "#CBD5E1",
+    color: colors.secondary,
     marginBottom: 3,
   },
 
   companyName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: colors.primary,
     marginBottom: 2,
   },
 
   companyInfo: {
     fontSize: 7.5,
-    color: "#CBD5E1",
+    color: colors.secondary,
     lineHeight: 1.25,
   },
 
   receiptBox: {
     width: 150,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#334155",
-    padding: 10,
-    backgroundColor: "#0F172A",
+    borderColor: colors.border,
+    padding: 9,
   },
 
   receiptNumber: {
     fontSize: 12,
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: colors.primary,
     marginBottom: 5,
   },
 
   badgePaid: {
     alignSelf: "flex-start",
-    backgroundColor: colors.success,
-    color: "#FFFFFF",
-    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.primary,
     paddingVertical: 3,
     paddingHorizontal: 8,
     fontSize: 6.5,
@@ -129,17 +125,15 @@ const styles = StyleSheet.create({
 
   receiptMeta: {
     fontSize: 7,
-    color: "#CBD5E1",
+    color: colors.secondary,
     lineHeight: 1.35,
   },
 
   paymentHighlight: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
-    marginBottom: 10,
+    borderColor: colors.border,
+    padding: 9,
+    marginBottom: 7,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -147,23 +141,23 @@ const styles = StyleSheet.create({
 
   totalLabel: {
     fontSize: 7,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: colors.muted,
+    color: colors.secondary,
     marginBottom: 4,
     fontWeight: 700,
   },
 
   totalValue: {
     fontSize: 18,
-    color: colors.success,
+    color: colors.primary,
     fontWeight: 700,
   },
 
   paymentPill: {
-    backgroundColor: colors.accentSoft,
-    color: colors.accent,
-    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.primary,
     paddingVertical: 4,
     paddingHorizontal: 8,
     fontSize: 7,
@@ -172,25 +166,23 @@ const styles = StyleSheet.create({
 
   gridTwo: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
+    gap: 7,
+    marginBottom: 7,
   },
 
   card: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
+    borderColor: colors.border,
+    padding: 9,
   },
 
   sectionTitle: {
     fontSize: 7,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: colors.muted,
-    marginBottom: 7,
+    color: colors.secondary,
+    marginBottom: 6,
     fontWeight: 700,
   },
 
@@ -207,32 +199,28 @@ const styles = StyleSheet.create({
   },
 
   tableWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    overflow: "hidden",
-    marginBottom: 10,
+    borderColor: colors.border,
+    marginBottom: 7,
   },
 
   tableTitle: {
-    padding: 10,
+    padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.softBorder,
+    borderBottomColor: colors.border,
   },
 
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#F8FAFC",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 
   tableHeaderText: {
     fontSize: 7,
-    color: colors.secondary,
+    color: colors.primary,
     fontWeight: 700,
     textTransform: "uppercase",
   },
@@ -241,14 +229,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.softBorder,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
 
   tableRowLast: {
     flexDirection: "row",
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
 
   itemName: {
@@ -259,7 +247,7 @@ const styles = StyleSheet.create({
   },
 
   itemSub: {
-    color: colors.muted,
+    color: colors.secondary,
     fontSize: 7,
   },
 
@@ -276,16 +264,14 @@ const styles = StyleSheet.create({
   totalsWrapper: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginBottom: 10,
+    marginBottom: 7,
   },
 
   totalsSummary: {
     width: 220,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 12,
+    borderColor: colors.border,
+    padding: 9,
   },
 
   totalRow: {
@@ -322,35 +308,17 @@ const styles = StyleSheet.create({
 
   totalRowFinalValue: {
     fontSize: 12,
-    color: colors.success,
+    color: colors.primary,
     fontWeight: 700,
   },
 
   footer: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.softBorder,
-    padding: 10,
+    borderColor: colors.border,
+    padding: 8,
     fontSize: 7.5,
     color: colors.secondary,
     lineHeight: 1.3,
-  },
-
-  signatureArea: {
-    marginTop: 12,
-    flexDirection: "row",
-    gap: 16,
-  },
-
-  signatureBox: {
-    flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 5,
-    textAlign: "center",
-    fontSize: 7,
-    color: colors.secondary,
   },
 });
 
@@ -633,11 +601,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
             Text,
             { style: styles.infoLine },
             "Nome: ",
-            h(
-              Text,
-              { style: styles.strong },
-              sale.client?.name || "-"
-            )
+            h(Text, { style: styles.strong }, sale.client?.name || "-")
           ),
 
           sale.client?.cpf
@@ -671,11 +635,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
                 Text,
                 { style: styles.infoLine },
                 "Email: ",
-                h(
-                  Text,
-                  { style: styles.strong },
-                  sale.client.email
-                )
+                h(Text, { style: styles.strong }, sale.client.email)
               )
             : null
         ),
@@ -697,33 +657,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
             Text,
             { style: styles.infoLine },
             "Data: ",
-            h(
-              Text,
-              { style: styles.strong },
-              formatDateTime(sale.createdAt)
-            )
+            h(Text, { style: styles.strong }, formatDateTime(sale.createdAt))
           ),
 
           h(
             Text,
             { style: styles.infoLine },
             "Setor: ",
-            h(
-              Text,
-              { style: styles.strong },
-              sale.sector?.name || "-"
-            )
+            h(Text, { style: styles.strong }, sale.sector?.name || "-")
           ),
 
           h(
             Text,
             { style: styles.infoLine },
             "Responsável: ",
-            h(
-              Text,
-              { style: styles.strong },
-              sale.responsible || "-"
-            )
+            h(Text, { style: styles.strong }, sale.responsible || "-")
           )
         )
       ),
@@ -788,11 +736,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
               View,
               { style: styles.cellItem },
 
-              h(
-                Text,
-                { style: styles.itemName },
-                item.description
-              ),
+              h(Text, { style: styles.itemName }, item.description),
 
               h(
                 Text,
@@ -801,17 +745,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
               )
             ),
 
-            h(
-              Text,
-              { style: styles.cellQty },
-              String(item.quantity)
-            ),
+            h(Text, { style: styles.cellQty }, String(item.quantity)),
 
-            h(
-              Text,
-              { style: styles.cellUnit },
-              formatCurrency(item.unitPrice)
-            ),
+            h(Text, { style: styles.cellUnit }, formatCurrency(item.unitPrice)),
 
             h(
               Text,
@@ -819,11 +755,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
               formatCurrency(item.discount)
             ),
 
-            h(
-              Text,
-              { style: styles.cellTotal },
-              formatCurrency(item.total)
-            )
+            h(Text, { style: styles.cellTotal }, formatCurrency(item.total))
           )
         )
       ),
@@ -886,23 +818,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
           null,
           companySettings?.documentFooter ||
             "Este recibo foi emitido digitalmente e comprova os valores descritos neste documento."
-        ),
-
-        h(
-          View,
-          { style: styles.signatureArea },
-
-          h(
-            Text,
-            { style: styles.signatureBox },
-            "Assinatura do cliente"
-          ),
-
-          h(
-            Text,
-            { style: styles.signatureBox },
-            "Assinatura do responsável"
-          )
         )
       )
     )

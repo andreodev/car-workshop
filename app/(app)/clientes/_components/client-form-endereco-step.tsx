@@ -32,7 +32,7 @@ export function ClientFormEnderecoStep({
             maxLength={9}
             placeholder="00000-000"
             helperText={
-              isCepLoading ? "Consultando ViaCEP..." : cepError ?? undefined
+              isCepLoading ? "Buscando endereço..." : cepError ?? undefined
             }
             helperTone={cepError ? "error" : "muted"}
             {...props}
