@@ -2,13 +2,13 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import React from "react";
 import {
-  pdf,
   Document,
   Image,
   Page,
   StyleSheet,
   Text,
   View,
+  pdf,
 } from "@react-pdf/renderer";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
@@ -21,6 +21,7 @@ const COMPANY_SETTINGS_KEY = "company";
 
 const colors = {
   page: "#FFFFFF",
+  surface: "#FFFFFF",
   primary: "#000000",
   secondary: "#333333",
   muted: "#555555",
@@ -30,7 +31,10 @@ const colors = {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 14,
+    paddingTop: 12,
+    paddingRight: 12,
+    paddingBottom: 12,
+    paddingLeft: 12,
     fontSize: 9,
     fontFamily: "Helvetica",
     backgroundColor: colors.page,
@@ -40,8 +44,8 @@ const styles = StyleSheet.create({
   topBar: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
-    marginBottom: 8,
+    padding: 10,
+    marginBottom: 7,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -49,14 +53,14 @@ const styles = StyleSheet.create({
 
   brandArea: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     flex: 1,
     paddingRight: 10,
   },
 
   logoBox: {
-    width: 70,
-    height: 70,
+    width: 68,
+    height: 68,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -65,18 +69,17 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 62,
-    height: 62,
+    width: 58,
+    height: 58,
     objectFit: "contain",
   },
 
-  labelLight: {
+  receiptLabel: {
     fontSize: 7,
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.secondary,
-    marginBottom: 4,
-    fontWeight: 700,
+    marginBottom: 3,
   },
 
   companyName: {
@@ -92,21 +95,21 @@ const styles = StyleSheet.create({
     lineHeight: 1.25,
   },
 
-  docBox: {
+  receiptBox: {
     width: 150,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 10,
+    padding: 9,
   },
 
-  docNumber: {
+  receiptNumber: {
     fontSize: 12,
     fontWeight: 700,
     color: colors.primary,
     marginBottom: 5,
   },
 
-  badge: {
+  badgePaid: {
     alignSelf: "flex-start",
     borderWidth: 1,
     borderColor: colors.border,
@@ -120,17 +123,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
-  docMeta: {
+  receiptMeta: {
     fontSize: 7,
     color: colors.secondary,
     lineHeight: 1.35,
   },
 
-  highlight: {
+  paymentHighlight: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 10,
-    marginBottom: 8,
+    padding: 9,
+    marginBottom: 7,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -151,7 +154,7 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
 
-  pill: {
+  paymentPill: {
     borderWidth: 1,
     borderColor: colors.border,
     color: colors.primary,
@@ -159,26 +162,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     fontSize: 7,
     fontWeight: 700,
-    textTransform: "uppercase",
   },
 
   gridTwo: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
-
-  gridThree: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
+    gap: 7,
+    marginBottom: 7,
   },
 
   card: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 10,
+    padding: 9,
   },
 
   sectionTitle: {
@@ -186,7 +182,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.secondary,
-    marginBottom: 7,
+    marginBottom: 6,
     fontWeight: 700,
   },
 
@@ -200,13 +196,12 @@ const styles = StyleSheet.create({
   strong: {
     color: colors.primary,
     fontWeight: 700,
-    fontSize: 8.5,
   },
 
   tableWrapper: {
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 8,
+    marginBottom: 7,
   },
 
   tableTitle: {
@@ -269,14 +264,14 @@ const styles = StyleSheet.create({
   totalsWrapper: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginBottom: 8,
+    marginBottom: 7,
   },
 
   totalsSummary: {
     width: 220,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 10,
+    padding: 9,
   },
 
   totalRow: {
@@ -317,29 +312,13 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
 
-  legalBox: {
+  footer: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 9,
+    padding: 8,
     fontSize: 7.5,
     color: colors.secondary,
     lineHeight: 1.3,
-  },
-
-  signatureArea: {
-    marginTop: 12,
-    flexDirection: "row",
-    gap: 16,
-  },
-
-  signatureBox: {
-    flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 5,
-    textAlign: "center",
-    fontSize: 7,
-    color: colors.secondary,
   },
 });
 
@@ -356,14 +335,24 @@ function formatCurrency(value: unknown) {
   }).format(parsed);
 }
 
-function formatDate(value: Date | string | null) {
-  if (!value) return "-";
+function formatDateTime(value: Date | string | null) {
+  if (!value) {
+    return "-";
+  }
 
   const date = value instanceof Date ? value : new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "-";
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
 
-  return date.toLocaleDateString("pt-BR");
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatDocument(value: string | null) {
@@ -404,29 +393,17 @@ function formatPhone(value: string | null) {
   return value;
 }
 
-function buildAddress(settings: {
-  address: string | null;
-  number: string | null;
-  neighborhood: string | null;
-  city: string | null;
-  state: string | null;
-  cep: string | null;
-}) {
-  const line1 = [settings.address, settings.number].filter(Boolean).join(", ");
+function paymentLabel(value: string) {
+  const labels: Record<string, string> = {
+    DINHEIRO: "Dinheiro",
+    PIX: "PIX",
+    CARTAO_CREDITO: "Cartão crédito",
+    CARTAO_DEBITO: "Cartão débito",
+    BOLETO: "Boleto",
+    OUTRO: "Outro",
+  };
 
-  const line2 = [settings.neighborhood, settings.city, settings.state]
-    .filter(Boolean)
-    .join(" • ");
-
-  const line3 = settings.cep ? `CEP ${settings.cep}` : "";
-
-  return [line1, line2, line3].filter(Boolean).join(" | ");
-}
-
-function safeText(value: string | null | undefined) {
-  const text = value?.trim();
-
-  return text && text.length > 0 ? text : "-";
+  return labels[value] ?? value;
 }
 
 type RouteContext = {
@@ -443,51 +420,22 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const estimate = await prisma.estimate.findUnique({
+  const sale = await prisma.sale.findUnique({
     where: { id },
     include: {
+      client: true,
+      sector: true,
       items: {
         include: {
-          catalogItem: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      vehicle: {
-        select: {
-          plate: true,
-          brand: true,
-          model: true,
-          version: true,
-        },
-      },
-      mechanic: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      sector: {
-        select: {
-          id: true,
-          name: true,
+          catalogItem: true,
         },
       },
     },
   });
 
-  if (!estimate) {
+  if (!sale) {
     return Response.json(
-      { error: "Orçamento não encontrado." },
+      { error: "Venda não encontrada." },
       { status: 404 }
     );
   }
@@ -502,47 +450,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     try {
       const logoPath = path.join(process.cwd(), "assets", "logo", "logo.png");
       const logoBuffer = await readFile(logoPath);
+
       logoSrc = `data:image/png;base64,${logoBuffer.toString("base64")}`;
     } catch {
       logoSrc = null;
     }
   }
 
-  const companyName =
-    companySettings?.tradeName || companySettings?.legalName || "Empresa";
-
-  const companyDocument = formatDocument(companySettings?.document ?? null);
-
-  const phone =
-    formatPhone(companySettings?.phone ?? null) ??
-    formatPhone(companySettings?.whatsapp ?? null);
-
-  const address = companySettings
-    ? buildAddress({
-        address: companySettings.address,
-        number: companySettings.number,
-        neighborhood: companySettings.neighborhood,
-        city: companySettings.city,
-        state: companySettings.state,
-        cep: companySettings.cep,
-      })
-    : "";
-
-  const vehicleDescription =
-    [
-      estimate.vehicle?.plate,
-      estimate.vehicle?.brand,
-      estimate.vehicle?.model,
-      estimate.vehicle?.version,
-    ]
-      .filter(Boolean)
-      .join(" - ") || "-";
-
-  const mechanicName = safeText(estimate.mechanic?.name);
-  const sectorName = safeText(estimate.sector?.name);
-  const responsibleName = safeText(estimate.responsible);
-
-  const items = estimate.items ?? [];
   const h = React.createElement;
 
   const doc = h(
@@ -550,7 +464,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
     null,
     h(
       Page,
-      { size: "A4", style: styles.page },
+      {
+        size: "A4",
+        style: styles.page,
+      },
 
       h(
         View,
@@ -563,74 +480,110 @@ export async function GET(_request: Request, { params }: RouteContext) {
           h(
             View,
             { style: styles.logoBox },
-            logoSrc ? h(Image, { src: logoSrc, style: styles.logo }) : null
+            logoSrc
+              ? h(Image, {
+                  src: logoSrc,
+                  style: styles.logo,
+                })
+              : null
           ),
 
           h(
             View,
             { style: { flex: 1 } },
+
+            h(Text, { style: styles.receiptLabel }, "Recibo de pagamento"),
+
             h(
               Text,
-              { style: styles.labelLight },
-              "Orçamento / proposta comercial"
+              { style: styles.companyName },
+              companySettings?.tradeName || "Empresa"
             ),
-            h(Text, { style: styles.companyName }, companyName),
-            companyDocument
+
+            companySettings?.document
               ? h(
                   Text,
                   { style: styles.companyInfo },
-                  `CNPJ/CPF: ${companyDocument}`
+                  `CNPJ: ${formatDocument(companySettings.document)}`
                 )
               : null,
-            companySettings?.stateRegistration
+
+            companySettings?.phone
               ? h(
                   Text,
                   { style: styles.companyInfo },
-                  `Inscrição Estadual: ${companySettings.stateRegistration}`
+                  formatPhone(companySettings.phone)
                 )
               : null,
-            address ? h(Text, { style: styles.companyInfo }, address) : null,
-            phone
-              ? h(Text, { style: styles.companyInfo }, `Contato: ${phone}`)
-              : null,
+
             companySettings?.email
-              ? h(Text, { style: styles.companyInfo }, companySettings.email)
+              ? h(
+                  Text,
+                  { style: styles.companyInfo },
+                  companySettings.email
+                )
               : null
           )
         ),
 
         h(
           View,
-          { style: styles.docBox },
-          h(Text, { style: styles.labelLight }, "Documento"),
-          h(Text, { style: styles.docNumber }, `#${estimate.code}`),
-          h(Text, { style: styles.badge }, "Orçamento"),
+          { style: styles.receiptBox },
+
+          h(Text, { style: styles.receiptLabel }, "Documento"),
+
+          h(Text, { style: styles.receiptNumber }, `#${sale.code}`),
+
+          h(Text, { style: styles.badgePaid }, "Pago"),
+
           h(
             Text,
-            { style: styles.docMeta },
-            `Emissão: ${formatDate(estimate.createdAt)}`
+            { style: styles.receiptMeta },
+            `Emissão: ${formatDateTime(sale.createdAt)}`
           ),
+
           h(
             Text,
-            { style: styles.docMeta },
-            `Validade: ${formatDate(estimate.validUntil)}`
+            { style: styles.receiptMeta },
+            `Pagamento: ${paymentLabel(sale.paymentMethod)}`
           )
         )
       ),
 
       h(
         View,
-        { style: styles.highlight },
+        { style: styles.paymentHighlight },
+
         h(
           View,
           null,
-          h(Text, { style: styles.totalLabel }, "Valor total estimado"),
-          h(Text, { style: styles.totalValue }, formatCurrency(estimate.total))
+
+          h(Text, { style: styles.totalLabel }, "Valor total"),
+
+          h(Text, { style: styles.totalValue }, formatCurrency(sale.total))
         ),
+
         h(
           View,
           { style: { alignItems: "flex-end" } },
-          h(Text, { style: styles.pill }, "Proposta sem valor fiscal")
+
+          h(
+            Text,
+            { style: styles.paymentPill },
+            paymentLabel(sale.paymentMethod)
+          ),
+
+          h(
+            Text,
+            {
+              style: {
+                marginTop: 5,
+                color: colors.secondary,
+                fontSize: 7,
+              },
+            },
+            `Responsável: ${sale.responsible || "-"}`
+          )
         )
       ),
 
@@ -641,51 +594,85 @@ export async function GET(_request: Request, { params }: RouteContext) {
         h(
           View,
           { style: styles.card },
-          h(Text, { style: styles.sectionTitle }, "Dados do cliente"),
+
+          h(Text, { style: styles.sectionTitle }, "Cliente"),
+
           h(
             Text,
             { style: styles.infoLine },
-            "Cliente: ",
-            h(Text, { style: styles.strong }, estimate.client?.name ?? "-")
-          )
+            "Nome: ",
+            h(Text, { style: styles.strong }, sale.client?.name || "-")
+          ),
+
+          sale.client?.cpf
+            ? h(
+                Text,
+                { style: styles.infoLine },
+                "Documento: ",
+                h(
+                  Text,
+                  { style: styles.strong },
+                  formatDocument(sale.client.cpf)
+                )
+              )
+            : null,
+
+          sale.client?.mobile
+            ? h(
+                Text,
+                { style: styles.infoLine },
+                "Telefone: ",
+                h(
+                  Text,
+                  { style: styles.strong },
+                  formatPhone(sale.client.mobile)
+                )
+              )
+            : null,
+
+          sale.client?.email
+            ? h(
+                Text,
+                { style: styles.infoLine },
+                "Email: ",
+                h(Text, { style: styles.strong }, sale.client.email)
+              )
+            : null
         ),
 
         h(
           View,
           { style: styles.card },
-          h(Text, { style: styles.sectionTitle }, "Dados do veículo"),
+
+          h(Text, { style: styles.sectionTitle }, "Venda"),
+
           h(
             Text,
             { style: styles.infoLine },
-            "Veículo: ",
-            h(Text, { style: styles.strong }, vehicleDescription)
+            "Código: ",
+            h(Text, { style: styles.strong }, `#${sale.code}`)
+          ),
+
+          h(
+            Text,
+            { style: styles.infoLine },
+            "Data: ",
+            h(Text, { style: styles.strong }, formatDateTime(sale.createdAt))
+          ),
+
+          h(
+            Text,
+            { style: styles.infoLine },
+            "Setor: ",
+            h(Text, { style: styles.strong }, sale.sector?.name || "-")
+          ),
+
+          h(
+            Text,
+            { style: styles.infoLine },
+            "Responsável: ",
+            h(Text, { style: styles.strong }, sale.responsible || "-")
           )
-        )
-      ),
-
-      h(
-        View,
-        { style: styles.gridThree },
-
-        h(
-          View,
-          { style: styles.card },
-          h(Text, { style: styles.sectionTitle }, "Mecânico"),
-          h(Text, { style: styles.strong }, mechanicName)
-        ),
-
-        h(
-          View,
-          { style: styles.card },
-          h(Text, { style: styles.sectionTitle }, "Setor"),
-          h(Text, { style: styles.strong }, sectorName)
-        ),
-
-        h(
-          View,
-          { style: styles.card },
-          h(Text, { style: styles.sectionTitle }, "Responsável"),
-          h(Text, { style: styles.strong }, responsibleName)
         )
       ),
 
@@ -696,28 +683,37 @@ export async function GET(_request: Request, { params }: RouteContext) {
         h(
           View,
           { style: styles.tableTitle },
-          h(Text, { style: styles.sectionTitle }, "Itens e serviços orçados")
+          h(Text, { style: styles.sectionTitle }, "Itens do recibo")
         ),
 
         h(
           View,
           { style: styles.tableHeader },
+
           h(
             Text,
             { style: [styles.cellItem, styles.tableHeaderText] },
-            "Descrição"
+            "Item"
           ),
-          h(Text, { style: [styles.cellQty, styles.tableHeaderText] }, "Qtd."),
+
+          h(
+            Text,
+            { style: [styles.cellQty, styles.tableHeaderText] },
+            "Qtd."
+          ),
+
           h(
             Text,
             { style: [styles.cellUnit, styles.tableHeaderText] },
             "Unitário"
           ),
+
           h(
             Text,
             { style: [styles.cellDiscount, styles.tableHeaderText] },
             "Desc."
           ),
+
           h(
             Text,
             { style: [styles.cellTotal, styles.tableHeaderText] },
@@ -725,50 +721,43 @@ export async function GET(_request: Request, { params }: RouteContext) {
           )
         ),
 
-        items.length === 0
-          ? h(
+        ...(sale.items || []).map((item, index, arr) =>
+          h(
+            View,
+            {
+              key: item.id,
+              style:
+                index === arr.length - 1
+                  ? styles.tableRowLast
+                  : styles.tableRow,
+            },
+
+            h(
               View,
-              { style: styles.tableRowLast },
+              { style: styles.cellItem },
+
+              h(Text, { style: styles.itemName }, item.description),
+
               h(
                 Text,
-                { style: [styles.cellItem, { color: colors.muted }] },
-                "Nenhum item informado."
+                { style: styles.itemSub },
+                item.catalogItem?.name || "Item"
               )
-            )
-          : items.map((item, index) =>
-              h(
-                View,
-                {
-                  key: item.id,
-                  style:
-                    index === items.length - 1
-                      ? styles.tableRowLast
-                      : styles.tableRow,
-                },
-                h(
-                  View,
-                  { style: styles.cellItem },
-                  h(Text, { style: styles.itemName }, item.description),
-                  h(
-                    Text,
-                    { style: styles.itemSub },
-                    item.catalogItem?.name ?? "Item sem catálogo cadastrado"
-                  )
-                ),
-                h(Text, { style: styles.cellQty }, String(item.quantity)),
-                h(
-                  Text,
-                  { style: styles.cellUnit },
-                  formatCurrency(item.unitPrice)
-                ),
-                h(
-                  Text,
-                  { style: styles.cellDiscount },
-                  formatCurrency(item.discount)
-                ),
-                h(Text, { style: styles.cellTotal }, formatCurrency(item.total))
-              )
-            )
+            ),
+
+            h(Text, { style: styles.cellQty }, String(item.quantity)),
+
+            h(Text, { style: styles.cellUnit }, formatCurrency(item.unitPrice)),
+
+            h(
+              Text,
+              { style: styles.cellDiscount },
+              formatCurrency(item.discount)
+            ),
+
+            h(Text, { style: styles.cellTotal }, formatCurrency(item.total))
+          )
+        )
       ),
 
       h(
@@ -782,84 +771,64 @@ export async function GET(_request: Request, { params }: RouteContext) {
           h(
             View,
             { style: styles.totalRow },
+
             h(Text, { style: styles.totalRowLabel }, "Subtotal"),
+
             h(
               Text,
               { style: styles.totalRowValue },
-              formatCurrency(estimate.subtotal)
+              formatCurrency(sale.subtotal)
             )
           ),
 
           h(
             View,
             { style: styles.totalRow },
+
             h(Text, { style: styles.totalRowLabel }, "Desconto"),
+
             h(
               Text,
               { style: styles.totalRowValue },
-              formatCurrency(estimate.discountTotal)
+              formatCurrency(sale.discountTotal)
             )
           ),
 
           h(
             View,
             { style: styles.totalRowFinal },
-            h(Text, { style: styles.totalRowFinalLabel }, "Total estimado"),
+
+            h(Text, { style: styles.totalRowFinalLabel }, "Total pago"),
+
             h(
               Text,
               { style: styles.totalRowFinalValue },
-              formatCurrency(estimate.total)
+              formatCurrency(sale.total)
             )
           )
         )
       ),
 
-      estimate.notesClient || estimate.notesInternal
-        ? h(
-            View,
-            { style: styles.gridTwo },
-            h(
-              View,
-              { style: styles.card },
-              h(Text, { style: styles.sectionTitle }, "Observações ao cliente"),
-              h(Text, { style: styles.infoLine }, estimate.notesClient || "-")
-            ),
-            h(
-              View,
-              { style: styles.card },
-              h(Text, { style: styles.sectionTitle }, "Observações internas"),
-              h(Text, { style: styles.infoLine }, estimate.notesInternal || "-")
-            )
-          )
-        : null,
-
       h(
         View,
-        { style: styles.legalBox },
-        h(Text, { style: styles.sectionTitle }, "Condições gerais"),
+        { style: styles.footer },
+
         h(
           Text,
           null,
-          "Este documento é uma proposta/orçamento comercial para fins de análise e aprovação do cliente, não substitui nota fiscal, recibo fiscal ou documento fiscal equivalente. Os valores apresentados podem sofrer alteração caso sejam identificados novos serviços, peças adicionais, variação de preço de fornecedores ou divergências após avaliação técnica. Nenhum serviço adicional deverá ser executado sem autorização prévia do cliente. A emissão de documento fiscal, quando aplicável, deverá seguir a legislação brasileira vigente."
-        ),
-
-        h(
-          View,
-          { style: styles.signatureArea },
-          h(Text, { style: styles.signatureBox }, "Assinatura do cliente"),
-          h(Text, { style: styles.signatureBox }, "Assinatura do responsável")
+          companySettings?.documentFooter ||
+            "Este recibo foi emitido digitalmente e comprova os valores descritos neste documento."
         )
       )
     )
   );
 
-  const pdfBlob = await pdf(doc).toBlob();
-  const pdfBuffer = await pdfBlob.arrayBuffer();
+  const pdfBuffer = await pdf(doc).toBuffer();
 
   return new Response(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename=orcamento-${estimate.code}.pdf`,
+      "Content-Disposition": `inline; filename=recibo-${sale.code}.pdf`,
       "Cache-Control": "private, max-age=300",
     },
   });

@@ -452,7 +452,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               setLocalError(null);
                             }}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={
                                   clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"
@@ -473,31 +473,6 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             </p>
                           ) : null}
                         </div>
-
-                        <div className="grid gap-2">
-                          <Label>Status</Label>
-                          <Select
-                            value={form.status}
-                            onValueChange={(value) => {
-                              setForm((prev) => ({
-                                ...prev,
-                                status: value as ServiceOrderStatus,
-                              }));
-                              setLocalError(null);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {serviceOrderStatusOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-3">
@@ -510,7 +485,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               setLocalError(null);
                             }}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={
                                   vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"
@@ -532,39 +507,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           ) : null}
                         </div>
 
-                        <div className="grid gap-2">
-                          <Label>Mecânico</Label>
-                          <Select
-                            value={form.mechanicId}
-                            onValueChange={(value) => {
-                              setForm((prev) => ({ ...prev, mechanicId: value }));
-                              setLocalError(null);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  mechanicsQuery.isLoading
-                                    ? "Carregando mecânicos..."
-                                    : "Selecione"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
-                                <SelectItem key={mechanic.id} value={mechanic.id}>
-                                  {mechanic.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {mechanicsQuery.isError ? (
-                            <p className="text-xs text-destructive">
-                              Não foi possível carregar mecânicos.
-                            </p>
-                          ) : null}
-                        </div>
+                
                       </div>
+
+                      
 
                       <div className="grid gap-4 md:grid-cols-3">
                         <div className="grid gap-2">
@@ -572,34 +518,6 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           <Input value={responsibleValue} onChange={onChange("responsible")} />
                         </div>
                       </div>
-
-                      <div className="grid gap-4 md:grid-cols-4">
-                        <div className="grid gap-2">
-                          <Label>Localização</Label>
-                          <Input value={form.location} onChange={onChange("location")} />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label>Km</Label>
-                          <Input value={form.km} onChange={onChange("km")} />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label>Data entrada</Label>
-                          <Input
-                            type="date"
-                            value={form.entryDate}
-                            onChange={onChange("entryDate")}
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label>Hora entrada</Label>
-                          <Input
-                            type="time"
-                            value={form.entryTime}
-                            onChange={onChange("entryTime")}
-                          />
-                        </div>
-                      </div>
-
                       <div className="grid gap-4 md:grid-cols-4">
                         <div className="grid gap-2 md:col-span-2">
                           <Label>Data prevista</Label>

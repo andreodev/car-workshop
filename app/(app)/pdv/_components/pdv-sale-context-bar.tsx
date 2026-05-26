@@ -84,8 +84,8 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
         <Label>Funcionario</Label>
         <Input
           value={state.responsible}
-          onChange={(event) => actions.setResponsible(event.target.value)}
-          aria-invalid={!state.responsible.trim()}
+          readOnly
+          aria-readonly="true"
           className="h-10"
         />
       </div>
