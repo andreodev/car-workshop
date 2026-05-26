@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Modal from "react-modal";
 
 import { fetchClients } from "../../clientes/client-api";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
@@ -51,7 +52,9 @@ const noSelection = "__none__";
 
 function createEmptyItem(): EstimateItemFormValues {
   return {
-    id: globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`,
+    id:
+      globalThis.crypto?.randomUUID?.() ??
+      `item-${Date.now()}-${Math.random()}`,
     type: "SERVICE",
     catalogItemId: "",
     description: "",
@@ -132,13 +135,19 @@ function formatCurrency(value: number) {
 }
 
 function getVehicleLabel(
-  vehicle?: { plate: string; brand?: string | null; model: string | null } | null
+  vehicle?: {
+    plate: string;
+    brand?: string | null;
+    model: string | null;
+  } | null,
 ) {
   if (!vehicle) {
     return "Veículo não selecionado";
   }
 
-  return [vehicle.plate, vehicle.brand, vehicle.model].filter(Boolean).join(" - ");
+  return [vehicle.plate, vehicle.brand, vehicle.model]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 type EstimateFormProps = {
@@ -150,13 +159,17 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<EstimateFormValues>(() =>
-    initialData ? mapEstimateToForm(initialData) : emptyForm
+    initialData ? mapEstimateToForm(initialData) : emptyForm,
   );
   const [localError, setLocalError] = useState<string | null>(null);
   const sessionQuery = useAuthSession();
-  const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
-  const responsibleValue = form.responsible || (!initialData ? sessionName : "");
+  const sessionName =
+    sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
+  const responsibleValue = sessionName || "";
   const { toast } = useToast();
+
+  const [isObservationModalOpen, setIsObservationModalOpen] = useState(false);
+const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState(false);
 
   const clientsQuery = useQuery({
     queryKey: ["estimate-clients"],
@@ -173,7 +186,11 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   const mechanicsQuery = useQuery({
     queryKey: ["estimate-mechanics", { includeInactive: mode === "edit" }],
     queryFn: () =>
-      fetchMechanics({ page: 1, pageSize: 50, includeInactive: mode === "edit" }),
+      fetchMechanics({
+        page: 1,
+        pageSize: 50,
+        includeInactive: mode === "edit",
+      }),
     staleTime: 60_000,
   });
 
@@ -203,21 +220,27 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   }, [vehiclesQuery.data, form.clientId]);
 
   const selectedClient = useMemo(() => {
-    return (clientsQuery.data?.items ?? []).find((client) => client.id === form.clientId);
+    return (clientsQuery.data?.items ?? []).find(
+      (client) => client.id === form.clientId,
+    );
   }, [clientsQuery.data, form.clientId]);
 
   const selectedVehicle = useMemo(() => {
-    return (vehiclesQuery.data?.items ?? []).find((vehicle) => vehicle.id === form.vehicleId);
+    return (vehiclesQuery.data?.items ?? []).find(
+      (vehicle) => vehicle.id === form.vehicleId,
+    );
   }, [vehiclesQuery.data, form.vehicleId]);
 
   const selectedMechanic = useMemo(() => {
     return (mechanicsQuery.data?.items ?? []).find(
-      (mechanic) => mechanic.id === form.mechanicId
+      (mechanic) => mechanic.id === form.mechanicId,
     );
   }, [mechanicsQuery.data, form.mechanicId]);
 
   const selectedSector = useMemo(() => {
-    return (sectorsQuery.data?.items ?? []).find((sector) => sector.id === form.sectorId);
+    return (sectorsQuery.data?.items ?? []).find(
+      (sector) => sector.id === form.sectorId,
+    );
   }, [sectorsQuery.data, form.sectorId]);
 
   const mutation = useMutation({
@@ -241,7 +264,9 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "Nao foi possivel salvar o orcamento.";
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel salvar o orcamento.";
       setLocalError(message);
       toast({
         title: "Erro ao salvar orcamento",
@@ -270,28 +295,36 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     };
   }, [form.items]);
 
-  const onChange = (field: keyof EstimateFormValues) =>
+  const onChange =
+    (field: keyof EstimateFormValues) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
     };
 
-  function updateItem(itemId: string, field: keyof EstimateItemFormValues, value: string) {
+  function updateItem(
+    itemId: string,
+    field: keyof EstimateItemFormValues,
+    value: string,
+  ) {
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.id === itemId ? { ...item, [field]: value } : item
+        item.id === itemId ? { ...item, [field]: value } : item,
       ),
     }));
   }
 
-  function updateItemType(itemId: string, type: EstimateItemFormValues["type"]) {
+  function updateItemType(
+    itemId: string,
+    type: EstimateItemFormValues["type"],
+  ) {
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
         item.id === itemId
           ? { ...item, type, catalogItemId: "", description: "", unitPrice: "" }
-          : item
+          : item,
       ),
     }));
   }
@@ -315,7 +348,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                     ? "SERVICE"
                     : item.type,
             }
-          : item
+          : item,
       ),
     }));
   }
@@ -328,11 +361,32 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     setForm((prev) => {
       const nextItems = prev.items.filter((item) => item.id !== itemId);
 
-      return { ...prev, items: nextItems.length > 0 ? nextItems : [createEmptyItem()] };
+      return {
+        ...prev,
+        items: nextItems.length > 0 ? nextItems : [createEmptyItem()],
+      };
     });
   }
 
+  function submitEstimate() {
+  setShouldSubmitAfterObservation(true);
+
+  requestAnimationFrame(() => {
+    const formElement = document.querySelector("form");
+    formElement?.requestSubmit();
+  });
+}
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+
+  if (!shouldSubmitAfterObservation) {
+    setIsObservationModalOpen(true);
+    return;
+  }
+
+  setShouldSubmitAfterObservation(false);
+  setLocalError(null);
     event.preventDefault();
     setLocalError(null);
 
@@ -360,11 +414,18 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
 
-      return !item.catalogItemId || !item.description.trim() || quantity <= 0 || unitPrice <= 0;
+      return (
+        !item.catalogItemId ||
+        !item.description.trim() ||
+        quantity <= 0 ||
+        unitPrice <= 0
+      );
     });
 
     if (invalidItem) {
-      setLocalError("Selecione os itens do catálogo e preencha quantidade e valor.");
+      setLocalError(
+        "Selecione os itens do catálogo e preencha quantidade e valor.",
+      );
       return;
     }
 
@@ -374,7 +435,9 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
       mechanicId: form.mechanicId,
       sectorId: form.sectorId || null,
       responsible: responsibleValue.trim(),
-      validUntil: form.validUntil ? new Date(`${form.validUntil}T23:59:59`).toISOString() : null,
+      validUntil: form.validUntil
+        ? new Date(`${form.validUntil}T23:59:59`).toISOString()
+        : null,
       status: form.status,
       type: form.type.trim() || "SIMPLES",
       notesInternal: form.notesInternal.trim() || null,
@@ -393,8 +456,11 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   }
 
   const isSaving = mutation.isPending;
-  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
-  const statusOption = estimateStatusOptions.find((option) => option.value === form.status);
+  const errorMessage =
+    localError ?? (mutation.error ? mutation.error.message : null);
+  const statusOption = estimateStatusOptions.find(
+    (option) => option.value === form.status,
+  );
   const validItemsCount = form.items.filter((item) => {
     return (
       item.catalogItemId &&
@@ -405,12 +471,19 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   }).length;
   const workflowSteps = [
     { label: "Cliente", done: Boolean(form.clientId && form.vehicleId) },
-    { label: "Execução", done: Boolean(form.mechanicId && responsibleValue.trim()) },
+    {
+      label: "Execução",
+      done: Boolean(form.mechanicId && responsibleValue.trim()),
+    },
     { label: "Itens", done: validItemsCount > 0 },
     { label: "Salvar", done: false },
   ];
-  const completedWorkflowCount = workflowSteps.filter((step) => step.done).length;
-  const workflowProgress = Math.round((completedWorkflowCount / workflowSteps.length) * 100);
+  const completedWorkflowCount = workflowSteps.filter(
+    (step) => step.done,
+  ).length;
+  const workflowProgress = Math.round(
+    (completedWorkflowCount / workflowSteps.length) * 100,
+  );
 
   return (
     <form
@@ -432,9 +505,14 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
           >
             Cancelar
           </Button>
-          <Button type="submit" className="h-10 px-5" disabled={isSaving}>
-            {isSaving ? "Salvando..." : "Salvar orçamento"}
-          </Button>
+          <Button
+  type="button"
+  className="h-12 w-full text-base font-semibold"
+  disabled={isSaving}
+  onClick={() => setIsObservationModalOpen(true)}
+>
+  {isSaving ? "Salvando..." : "Salvar orçamento"}
+</Button>
         </div>
       </div>
 
@@ -492,7 +570,9 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
       <section className="grid gap-3 border border-border bg-card p-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-center">
         <div className="flex items-center gap-2">
           <ClipboardList className="size-4 text-primary" />
-          <span className="text-sm font-semibold text-foreground">Progresso do orçamento</span>
+          <span className="text-sm font-semibold text-foreground">
+            Progresso do orçamento
+          </span>
         </div>
         <div className="grid gap-3">
           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -512,10 +592,16 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
                 >
                   <StepIcon
                     className={
-                      step.done ? "size-3.5 text-emerald-600" : "size-3.5 text-muted-foreground"
+                      step.done
+                        ? "size-3.5 text-emerald-600"
+                        : "size-3.5 text-muted-foreground"
                     }
                   />
-                  <span className={step.done ? "font-medium text-foreground" : undefined}>
+                  <span
+                    className={
+                      step.done ? "font-medium text-foreground" : undefined
+                    }
+                  >
                     {step.label}
                   </span>
                 </div>
@@ -531,384 +617,569 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
         </div>
       ) : null}
 
-      <div className="grid flex-1 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-          <section className="border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <UserRound className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">Dados da proposta</h2>
-              </div>
-            </div>
-
-            <div className="grid gap-4 p-4">
-              <div className="grid gap-2">
-                <Label>Cliente</Label>
-                <Select
-                  value={form.clientId}
-                  onValueChange={(value) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      clientId: value,
-                      vehicleId: "",
-                    }))
-                  }
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue
-                      placeholder={clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(clientsQuery.data?.items ?? []).map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {clientsQuery.isError ? (
-                  <p className="text-xs text-destructive">Não foi possível carregar clientes.</p>
-                ) : null}
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Veículo</Label>
-                <Select
-                  value={form.vehicleId}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, vehicleId: value }))}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue
-                      placeholder={vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableVehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {getVehicleLabel(vehicle)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {vehiclesQuery.isError ? (
-                  <p className="text-xs text-destructive">Não foi possível carregar veículos.</p>
-                ) : null}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({ ...prev, status: value as EstimateStatus }))
-                    }
-                  >
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estimateStatusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label>Tipo</Label>
-                  <Input className="h-10" value={form.type} onChange={onChange("type")} />
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Validade</Label>
-                <Input
-                  className="h-10"
-                  type="date"
-                  value={form.validUntil}
-                  onChange={onChange("validUntil")}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <UserCog className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">Execução</h2>
-              </div>
-            </div>
-
-            <div className="grid gap-4 p-4">
-              <div className="grid gap-2">
-                <Label>Mecânico responsável</Label>
-                <Select
-                  value={form.mechanicId}
-                  onValueChange={(value) => {
-                    setForm((prev) => ({ ...prev, mechanicId: value }));
-                    setLocalError(null);
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue
-                      placeholder={
-                        mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
-                      <SelectItem key={mechanic.id} value={mechanic.id}>
-                        {mechanic.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {mechanicsQuery.isError ? (
-                  <p className="text-xs text-destructive">Não foi possível carregar mecânicos.</p>
-                ) : null}
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Responsável interno</Label>
-                <Input
-                  className="h-10"
-                  value={responsibleValue}
-                  onChange={onChange("responsible")}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Setor</Label>
-                <Select
-                  value={form.sectorId || noSelection}
-                  onValueChange={(value) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      sectorId: value === noSelection ? "" : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue
-                      placeholder={sectorsQuery.isLoading ? "Carregando setores..." : "Selecione"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={noSelection}>Sem escolher setor</SelectItem>
-                    {sectorsQuery.data?.items.map((sector) => (
-                      <SelectItem key={sector.id} value={sector.id}>
-                        {sector.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {sectorsQuery.isError ? (
-                  <p className="text-xs text-destructive">Não foi possível carregar setores.</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
-
-          <section className="border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">Resumo financeiro</h2>
-              </div>
-            </div>
-
-            <div className="grid gap-3 p-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Itens preenchidos</span>
-                <span className="font-semibold text-foreground">
-                  {validItemsCount}/{form.items.length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-mono font-semibold">{formatCurrency(totals.subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Desconto</span>
-                <span className="font-mono font-semibold text-amber-700">
-                  -{formatCurrency(totals.discountTotal)}
-                </span>
-              </div>
-              <div className="h-px bg-border" />
-              <div className="flex items-center justify-between text-base">
-                <span className="font-semibold text-foreground">Total</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {formatCurrency(totals.total)}
-                </span>
-              </div>
-            </div>
-          </section>
-        </aside>
-
-        <div className="min-w-0 space-y-5">
-          <section className="border border-border bg-card">
-            <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="size-4 text-primary" />
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Itens do orçamento</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione produtos e serviços já cadastrados.
-                  </p>
-                </div>
-              </div>
-              <Button type="button" variant="secondary" className="h-9 gap-2" onClick={addItem}>
-                <Plus className="size-4" />
-                Adicionar item
-              </Button>
-            </div>
-
-            <div className="min-w-0 overflow-x-auto">
-              <div className="min-w-[980px]">
-                <div className="grid grid-cols-[112px_minmax(210px,1.1fr)_minmax(240px,1.3fr)_76px_116px_116px_128px_44px] gap-3 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  <span>Tipo</span>
-                  <span>Catálogo</span>
-                  <span>Descrição</span>
-                  <span>Qtd</span>
-                  <span>Valor</span>
-                  <span>Desconto</span>
-                  <span className="text-right">Total</span>
-                  <span />
-                </div>
-
-                <div className="divide-y divide-border">
-                  {form.items.map((item, index) => {
-                    const quantity = normalizeAmount(item.quantity);
-                    const unitPrice = normalizeAmount(item.unitPrice);
-                    const discount = normalizeAmount(item.discount);
-                    const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-                    const availableCatalogItems = catalogItems.filter((catalogItem) =>
-                      item.type === "PRODUCT"
-                        ? catalogItem.type === "PRODUTO"
-                        : catalogItem.type === "SERVICO"
-                    );
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-[112px_minmax(210px,1.1fr)_minmax(240px,1.3fr)_76px_116px_116px_128px_44px] gap-3 px-4 py-3"
-                      >
-                        <Select
-                          value={item.type}
-                          onValueChange={(value) =>
-                            updateItemType(item.id, value as EstimateItemFormValues["type"])
-                          }
-                        >
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="SERVICE">Serviço</SelectItem>
-                            <SelectItem value="PRODUCT">Produto</SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        <Select
-                          value={item.catalogItemId || noSelection}
-                          onValueChange={(value) =>
-                            updateItemCatalog(item.id, value === noSelection ? "" : value)
-                          }
-                        >
-                          <SelectTrigger className="h-10">
-                            <SelectValue
-                              placeholder={
-                                catalogItemsQuery.isLoading ? "Carregando..." : "Selecione"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={noSelection}>
-                              {item.type === "PRODUCT" ? "Selecione produto" : "Selecione serviço"}
-                            </SelectItem>
-                            {availableCatalogItems.map((catalogItem) => (
-                              <SelectItem key={catalogItem.id} value={catalogItem.id}>
-                                #{catalogItem.code} {catalogItem.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Input
-                          className="h-10"
-                          value={item.description}
-                          onChange={(event) => updateItem(item.id, "description", event.target.value)}
-                          placeholder={`Item ${index + 1}`}
-                        />
-                        <Input
-                          className="h-10"
-                          value={item.quantity}
-                          onChange={(event) => updateItem(item.id, "quantity", event.target.value)}
-                        />
-                        <Input
-                          className="h-10"
-                          value={item.unitPrice}
-                          onChange={(event) => updateItem(item.id, "unitPrice", event.target.value)}
-                        />
-                        <Input
-                          className="h-10"
-                          value={item.discount}
-                          onChange={(event) => updateItem(item.id, "discount", event.target.value)}
-                        />
-                        <div className="flex h-10 items-center justify-end font-mono text-sm font-semibold text-foreground">
-                          {formatCurrency(lineTotal)}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title="Remover item"
-                          className="size-10"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {catalogItemsQuery.isError ? (
-              <p className="border-t border-border px-4 py-3 text-xs text-destructive">
-                Não foi possível carregar produtos e serviços.
-              </p>
-            ) : null}
-          </section>
-
-          <section className="grid gap-5 border border-border bg-card p-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2">
-                <StickyNote className="size-4 text-primary" />
-                <Label>Observação interna</Label>
-              </div>
-              <Textarea
-                value={form.notesInternal}
-                onChange={onChange("notesInternal")}
-                rows={7}
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-primary" />
-                <Label>Observação para o cliente</Label>
-              </div>
-              <Textarea value={form.notesClient} onChange={onChange("notesClient")} rows={7} />
-            </div>
-          </section>
+      <div className="grid flex-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+  {/* LEFT */}
+  <aside className="space-y-5">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex items-center gap-2">
+          <UserRound className="size-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">
+            Dados da proposta
+          </h2>
         </div>
       </div>
+
+      <div className="space-y-5 p-5">
+        <div className="grid gap-2">
+          <Label>Cliente</Label>
+
+          <Select
+            value={form.clientId}
+            onValueChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                clientId: value,
+                vehicleId: "",
+              }))
+            }
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  clientsQuery.isLoading
+                    ? "Carregando clientes..."
+                    : "Selecione"
+                }
+              />
+            </SelectTrigger>
+
+            <SelectContent>
+              {(clientsQuery.data?.items ?? []).map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Veículo</Label>
+
+          <Select
+            value={form.vehicleId}
+            onValueChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                vehicleId: value,
+              }))
+            }
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  vehiclesQuery.isLoading
+                    ? "Carregando veículos..."
+                    : "Selecione"
+                }
+              />
+            </SelectTrigger>
+
+            <SelectContent>
+              {availableVehicles.map((vehicle) => (
+                <SelectItem key={vehicle.id} value={vehicle.id}>
+                  {getVehicleLabel(vehicle)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Validade</Label>
+
+          <Input
+            type="date"
+            className="h-11"
+            value={form.validUntil}
+            onChange={onChange("validUntil")}
+          />
+        </div>
+      </div>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex items-center gap-2">
+          <UserCog className="size-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">
+            Execução
+          </h2>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
+        <div className="grid gap-2">
+          <Label>Mecânico responsável</Label>
+
+          <Select
+            value={form.mechanicId}
+            onValueChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                mechanicId: value,
+              }))
+            }
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  mechanicsQuery.isLoading
+                    ? "Carregando mecânicos..."
+                    : "Selecione"
+                }
+              />
+            </SelectTrigger>
+
+            <SelectContent>
+              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+                <SelectItem key={mechanic.id} value={mechanic.id}>
+                  {mechanic.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Setor</Label>
+
+          <Select
+            value={form.sectorId || noSelection}
+            onValueChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                sectorId: value === noSelection ? "" : value,
+              }))
+            }
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue
+                placeholder={
+                  sectorsQuery.isLoading
+                    ? "Carregando setores..."
+                    : "Selecione"
+                }
+              />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value={noSelection}>
+                Sem setor
+              </SelectItem>
+
+              {sectorsQuery.data?.items.map((sector) => (
+                <SelectItem key={sector.id} value={sector.id}>
+                  {sector.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  {/* CENTER */}
+  <div className="min-w-0 space-y-5">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="size-4 text-primary" />
+
+            <h2 className="text-sm font-semibold text-foreground">
+              Itens do orçamento
+            </h2>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Adicione produtos e serviços ao orçamento.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          className="h-10 gap-2"
+          onClick={addItem}
+        >
+          <Plus className="size-4" />
+          Adicionar item
+        </Button>
+      </div>
+
+      <div className="space-y-4 p-5">
+        {form.items.map((item, index) => {
+          const quantity = normalizeAmount(item.quantity);
+          const unitPrice = normalizeAmount(item.unitPrice);
+          const discount = normalizeAmount(item.discount);
+
+          const lineTotal = Math.max(
+            quantity * unitPrice - discount,
+            0,
+          );
+
+          const availableCatalogItems = catalogItems.filter(
+            (catalogItem) =>
+              item.type === "PRODUCT"
+                ? catalogItem.type === "PRODUTO"
+                : catalogItem.type === "SERVICO",
+          );
+
+          return (
+            <details
+              key={item.id}
+              className="group overflow-hidden rounded-2xl border border-border bg-background"
+              open={index === 0}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/40">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      Item {index + 1}
+                    </span>
+
+                    <Badge variant="outline">
+                      {item.type === "PRODUCT"
+                        ? "Produto"
+                        : "Serviço"}
+                    </Badge>
+                  </div>
+
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {item.description || "Nenhuma descrição"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <span className="font-mono text-sm font-semibold">
+                    {formatCurrency(lineTotal)}
+                  </span>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      removeItem(item.id);
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </summary>
+
+              <div className="border-t border-border p-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label>Tipo</Label>
+
+                    <Select
+                      value={item.type}
+                      onValueChange={(value) =>
+                        updateItemType(
+                          item.id,
+                          value as EstimateItemFormValues["type"],
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        <SelectItem value="SERVICE">
+                          Serviço
+                        </SelectItem>
+
+                        <SelectItem value="PRODUCT">
+                          Produto
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Catálogo</Label>
+
+                    <Select
+                      value={item.catalogItemId || noSelection}
+                      onValueChange={(value) =>
+                        updateItemCatalog(
+                          item.id,
+                          value === noSelection ? "" : value,
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue
+                          placeholder={
+                            catalogItemsQuery.isLoading
+                              ? "Carregando..."
+                              : "Selecione"
+                          }
+                        />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        <SelectItem value={noSelection}>
+                          {item.type === "PRODUCT"
+                            ? "Selecione produto"
+                            : "Selecione serviço"}
+                        </SelectItem>
+
+                        {availableCatalogItems.map((catalogItem) => (
+                          <SelectItem
+                            key={catalogItem.id}
+                            value={catalogItem.id}
+                          >
+                            #{catalogItem.code}{" "}
+                            {catalogItem.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label>Descrição</Label>
+
+                    <Input
+                      className="h-11"
+                      value={item.description}
+                      onChange={(event) =>
+                        updateItem(
+                          item.id,
+                          "description",
+                          event.target.value,
+                        )
+                      }
+                      placeholder={`Item ${index + 1}`}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Quantidade</Label>
+
+                    <Input
+                      className="h-11"
+                      value={item.quantity}
+                      onChange={(event) =>
+                        updateItem(
+                          item.id,
+                          "quantity",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Valor unitário</Label>
+
+                    <Input
+                      className="h-11"
+                      value={item.unitPrice}
+                      onChange={(event) =>
+                        updateItem(
+                          item.id,
+                          "unitPrice",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label>Desconto</Label>
+
+                    <Input
+                      className="h-11"
+                      value={item.discount}
+                      onChange={(event) =>
+                        updateItem(
+                          item.id,
+                          "discount",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </section>
+  </div>
+
+  {/* RIGHT */}
+  <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Total do orçamento
+            </p>
+
+            <h2 className="mt-1 font-mono text-3xl font-bold text-foreground">
+              {formatCurrency(totals.total)}
+            </h2>
+          </div>
+
+          <Badge
+            variant={statusOption?.variant ?? "secondary"}
+            className={statusOption?.className}
+          >
+            {statusOption?.label ?? form.status}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="space-y-4 p-5">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Itens válidos
+          </span>
+
+          <span className="font-semibold">
+            {validItemsCount}/{form.items.length}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Subtotal
+          </span>
+
+          <span className="font-mono font-semibold">
+            {formatCurrency(totals.subtotal)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Desconto
+          </span>
+
+          <span className="font-mono font-semibold text-amber-600">
+            -{formatCurrency(totals.discountTotal)}
+          </span>
+        </div>
+
+        <div className="h-px bg-border" />
+
+        <div className="flex items-center justify-between">
+          <span className="text-base font-semibold">
+            Total
+          </span>
+
+          <span className="font-mono text-2xl font-bold">
+            {formatCurrency(totals.total)}
+          </span>
+        </div>
+
+        <div className="pt-2">
+          <Button
+  type="button"
+  className="h-10 px-5 w-full"
+  disabled={isSaving}
+  onClick={() => setIsObservationModalOpen(true)}
+>
+  {isSaving ? "Salvando..." : "Salvar orçamento"}
+</Button>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full"
+          onClick={() => router.push("/orcamentos")}
+        >
+          Cancelar
+        </Button>
+      </div>
+    </section>
+  </aside>
+</div>
+<Modal
+  isOpen={isObservationModalOpen}
+  onRequestClose={() => setIsObservationModalOpen(false)}
+  ariaHideApp={false}
+  className="mx-auto mt-24 w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-border bg-card shadow-xl outline-none"
+  overlayClassName="fixed inset-0 z-50 bg-black/50 px-4"
+>
+  <div className="border-b border-border px-6 py-5">
+    <h2 className="text-lg font-semibold text-foreground">
+      Deseja adicionar observações?
+    </h2>
+    <p className="mt-1 text-sm text-muted-foreground">
+      Você pode adicionar uma observação interna ou uma mensagem que aparecerá para o cliente.
+    </p>
+  </div>
+
+  <div className="grid gap-5 p-6 md:grid-cols-2">
+    <div className="grid gap-2">
+      <Label>Observação interna</Label>
+      <Textarea
+        rows={8}
+        value={form.notesInternal}
+        onChange={onChange("notesInternal")}
+        placeholder="Informações internas da oficina..."
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Observação para o cliente</Label>
+      <Textarea
+        rows={8}
+        value={form.notesClient}
+        onChange={onChange("notesClient")}
+        placeholder="Mensagem que será exibida para o cliente..."
+      />
+    </div>
+  </div>
+
+  <div className="flex flex-col-reverse gap-3 border-t border-border px-6 py-5 sm:flex-row sm:justify-end">
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        setIsObservationModalOpen(false);
+        submitEstimate();
+      }}
+      disabled={isSaving}
+    >
+      Salvar sem observação
+    </Button>
+
+    <Button
+      type="button"
+      onClick={() => {
+        setIsObservationModalOpen(false);
+        submitEstimate();
+      }}
+      disabled={isSaving}
+    >
+      {isSaving ? "Salvando..." : "Salvar orçamento"}
+    </Button>
+  </div>
+</Modal>
     </form>
   );
 }

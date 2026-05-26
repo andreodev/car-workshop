@@ -9,6 +9,14 @@ import { PdvSaleHeader } from "./pdv-sale-header";
 import { PdvSaleItemsTable } from "./pdv-sale-items-table";
 import { PdvSaleSummary } from "./pdv-sale-summary";
 import { usePdvSale } from "./use-pdv-sale";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type PdvSaleDialogProps = {
   open: boolean;
@@ -18,6 +26,7 @@ type PdvSaleDialogProps = {
 
 export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDialogProps) {
   const controller = usePdvSale({ open, defaultResponsible, onClose });
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const [appElement] = useState<HTMLElement | null>(() => {
     if (typeof document === "undefined") {
       return null;
@@ -31,6 +40,12 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
       Modal.setAppElement(appElement);
     }
   }, [appElement]);
+
+  useEffect(() => {
+    if (controller.state.lastSale) {
+      setReceiptOpen(true);
+    }
+  }, [controller.state.lastSale]);
 
   if (!open || !appElement) {
     return null;
@@ -73,6 +88,57 @@ export function PdvSaleDialog({ open, defaultResponsible, onClose }: PdvSaleDial
           <PdvSaleSummary controller={controller} />
         </div>
       </div>
+
+      <Dialog
+        open={receiptOpen && Boolean(controller.state.lastSale)}
+        onOpenChange={(nextOpen) => {
+          setReceiptOpen(nextOpen);
+          if (!nextOpen) {
+            controller.actions.clearLastSale();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recibo pronto para imprimir</DialogTitle>
+            <DialogDescription>
+              {controller.state.lastSale
+                ? `Venda #${controller.state.lastSale.code} registrada com sucesso.`
+                : "Venda registrada com sucesso."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              className="w-full"
+              asChild
+              disabled={!controller.state.lastSale}
+            >
+              <a
+                href={
+                  controller.state.lastSale
+                    ? `/api/sales/${controller.state.lastSale.id}/receipt`
+                    : "#"
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
+                Imprimir recibo
+              </a>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setReceiptOpen(false);
+                controller.actions.clearLastSale();
+              }}
+            >
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Modal>
   );
 }

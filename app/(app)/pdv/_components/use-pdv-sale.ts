@@ -48,6 +48,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [lastSale, setLastSale] = useState<{ id: string; code: number } | null>(null);
   const [clientHighlightIndex, setClientHighlightIndex] = useState(0);
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [clientListOpen, setClientListOpen] = useState(false);
@@ -129,7 +130,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     },
   });
 
-  const resetDraft = useCallback(() => {
+  const resetDraft = useCallback((options?: { keepLastSale?: boolean }) => {
     setLines([]);
     setClientSearch("");
     setSelectedClient(null);
@@ -140,6 +141,9 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     setDiscountPercent("0");
     setLocalError(null);
     setSuccessMessage(null);
+    if (!options?.keepLastSale) {
+      setLastSale(null);
+    }
   }, []);
 
   const saleMutation = useMutation({
@@ -147,7 +151,8 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
-      resetDraft();
+      resetDraft({ keepLastSale: true });
+      setLastSale({ id: sale.id, code: sale.code });
       setSuccessMessage(`Venda ${sale.code} guardada com sucesso.`);
       toast({
         title: "Venda registrada",
@@ -506,11 +511,13 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       successMessage,
       totals,
       unitPrice,
+      lastSale,
     },
     actions: {
       addCatalogItem,
       addLine,
       clearSale,
+      clearLastSale: () => setLastSale(null),
       close,
       handleClientSearchKeyDown,
       handleProductSearchKeyDown,
