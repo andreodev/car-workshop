@@ -443,7 +443,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     )
   );
 
-  const pdfBuffer = await pdf(doc).toBuffer();
+  const pdfBlob = await pdf(doc).toBlob();
+  const pdfBuffer = await pdfBlob.arrayBuffer();
 
   return new Response(pdfBuffer, {
     headers: {

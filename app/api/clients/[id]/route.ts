@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
+import type { ClientIcms, ClientPersonType, ClientStatus, Prisma } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -49,9 +49,9 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   const data: Prisma.ClientUpdateInput = {
-    personType: parsed.data.personType as Prisma.ClientPersonType,
-    status: parsed.data.status as Prisma.ClientStatus,
-    icms: parsed.data.icms as Prisma.ClientIcms,
+    personType: parsed.data.personType as ClientPersonType,
+    status: parsed.data.status as ClientStatus,
+    icms: parsed.data.icms as ClientIcms,
     name: parsed.data.name,
     cpf: toNullableString(parsed.data.cpf),
     rg: toNullableString(parsed.data.rg),

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Accordion as AccordionPrimitive } from "@radix-ui/react-accordion"
+import * as AccordionPrimitive from "@radix-ui/react-accordion"
 
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"

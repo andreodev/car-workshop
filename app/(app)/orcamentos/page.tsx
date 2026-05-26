@@ -307,8 +307,7 @@ export default function EstimatesPage() {
   const shareLinks = shareEstimate ? buildEstimateShareLinks(shareEstimate) : null;
   const shareText = shareLinks?.text ?? "";
   const shareSentDisabled =
-    Boolean(shareEstimate) &&
-    (shareEstimate.status === "ENVIADO" || shareEstimate.status === "CONVERTIDO");
+    shareEstimate?.status === "ENVIADO" || shareEstimate?.status === "CONVERTIDO";
   const printHref = printEstimate ? getEstimatePrintHref(printEstimate.id) : null;
 
   async function handleCopyShareText() {

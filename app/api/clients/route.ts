@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
+import type { ClientIcms, ClientPersonType, ClientStatus, Prisma } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   const where: Prisma.ClientWhereInput = {};
 
   if (status && status !== "TODOS") {
-    where.status = status as Prisma.ClientStatus;
+    where.status = status as ClientStatus;
   }
 
   if (search) {
@@ -89,9 +89,9 @@ export async function POST(request: NextRequest) {
   }
 
   const data: Prisma.ClientCreateInput = {
-    personType: parsed.data.personType as Prisma.ClientPersonType,
-    status: parsed.data.status as Prisma.ClientStatus,
-    icms: parsed.data.icms as Prisma.ClientIcms,
+    personType: parsed.data.personType as ClientPersonType,
+    status: parsed.data.status as ClientStatus,
+    icms: parsed.data.icms as ClientIcms,
     name: parsed.data.name,
     cpf: toNullableString(parsed.data.cpf),
     rg: toNullableString(parsed.data.rg),

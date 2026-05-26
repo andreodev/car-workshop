@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Menubar as MenubarPrimitive } from "@radix-ui/react-menubar"
+import * as MenubarPrimitive from "@radix-ui/react-menubar"
 
 import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
+import type { Prisma, VehicleFuel, VehicleStatus } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
   const where: Prisma.VehicleWhereInput = {};
 
   if (status && status !== "TODOS") {
-    where.status = status as Prisma.VehicleStatus;
+    where.status = status as VehicleStatus;
   }
 
   if (search) {
@@ -149,13 +149,13 @@ export async function POST(request: NextRequest) {
     model: normalizeString(payload.model),
     version: normalizeString(payload.version),
     fleet: normalizeString(payload.fleet),
-    fuel: fuel ? (fuel as Prisma.VehicleFuel) : null,
+    fuel: fuel ? (fuel as VehicleFuel) : null,
     color: normalizeString(payload.color),
     chassis: normalizeString(payload.chassis),
     renavam: normalizeString(payload.renavam),
     engine: normalizeString(payload.engine),
     city: normalizeString(payload.city),
-    status: (status ?? "ATIVO") as Prisma.VehicleStatus,
+    status: (status ?? "ATIVO") as VehicleStatus,
     manufactureYear: manufactureYear?.value ?? null,
     modelYear: modelYear?.value ?? null,
     notes: normalizeString(payload.notes),
