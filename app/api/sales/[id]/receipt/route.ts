@@ -823,7 +823,15 @@ export async function GET(_request: Request, { params }: RouteContext) {
     )
   );
 
-  const pdfBuffer = await pdf(doc).toBuffer();
+  const pdfStream = await pdf(doc).toBuffer();
+
+const chunks: Uint8Array[] = [];
+
+for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
+  chunks.push(chunk);
+}
+
+const pdfBuffer = Buffer.concat(chunks);
 
   return new Response(pdfBuffer, {
     headers: {

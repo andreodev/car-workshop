@@ -854,9 +854,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
   );
 
   const pdfBlob = await pdf(doc).toBlob();
-  const pdfBuffer = await pdfBlob.arrayBuffer();
+const pdfStream = await pdf(doc).toBuffer();
 
-  return new Response(pdfBuffer, {
+const chunks: Uint8Array[] = [];
+
+for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
+  chunks.push(chunk);
+}
+
+const pdfBuffer = Buffer.concat(chunks);
+
+return new Response(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename=orcamento-${estimate.code}.pdf`,
