@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+
 import "./globals.css";
+
 import Providers from "./providers";
+
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Car Workshop",
-  description: "Gestao de orcamentos e servicos.",
+  title: "Rikinho Auto Center",
+  description: "Gestão de Orçamentos e Serviços",
 };
 
 export default function RootLayout({
@@ -21,11 +25,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="pt-BR"
+      suppressHydrationWarning
       className={cn(
         "h-full",
         "antialiased",
         inter.variable,
+        inter.className,
         "font-sans"
       )}
     >

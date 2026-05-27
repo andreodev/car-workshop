@@ -17,17 +17,20 @@ export default async function AppLayout({
   }
 
   return (
-    <html lang="pt-BR">
-
     <SidebarProvider>
       <AppSidebar />
+
       <main className="w-full min-w-0 px-4 pb-6 pt-16 md:py-6 xl:px-6">
         {children}
+
         <PdvLauncher
-          defaultResponsible={session.user?.name ?? session.user?.email ?? "Operador"}
-          />
+          defaultResponsible={
+            session.user?.name ??
+            session.user?.email ??
+            "Operador"
+          }
+        />
       </main>
     </SidebarProvider>
-          </html>
-  )
+  );
 }
