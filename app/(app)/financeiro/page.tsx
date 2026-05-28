@@ -762,7 +762,7 @@ export default function FinancialPage() {
           <Button type="button" onClick={() => openNewAccount("RECEBER")} className="gap-1.5">
             <Plus className="size-4" />
             Conta a receber
-          </Button>
+          </Button> 
 
           <Button type="button" variant="outline" onClick={() => openNewAccount("PAGAR")} className="gap-1.5">
             <Plus className="size-4" />
@@ -786,17 +786,100 @@ export default function FinancialPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={ArrowDownLeft} label="A receber aberto" value={formatCurrency(accountTotals.receivableOpen)} tone="text-emerald-700" />
-        <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
-        <SummaryCard icon={ArrowUpRight} label="A pagar aberto" value={formatCurrency(accountTotals.payableOpen)} tone="text-rose-700" />
-        </Link>
-        <SummaryCard icon={Banknote} label="Caixa filtrado" value={formatCurrency(cashTotals.balance)} tone={cashTotals.balance >= 0 ? "text-emerald-700" : "text-rose-700"} />
-        <SummaryCard icon={Wallet} label="Recebido / pago" value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(accountTotals.paid)}`} tone="text-foreground" />
-      </div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+  <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <SummaryCard
+      icon={ArrowDownLeft}
+      label="A receber aberto"
+      value={formatCurrency(accountTotals.receivableOpen)}
+      tone="text-emerald-700"
+    />
 
-      p
+    <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
+      <SummaryCard
+        icon={ArrowUpRight}
+        label="A pagar aberto"
+        value={formatCurrency(accountTotals.payableOpen)}
+        tone="text-rose-700"
+      />
+    </Link>
 
+    <SummaryCard
+      icon={Wallet}
+      label="Recebido / pago"
+      value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
+        accountTotals.paid
+      )}`}
+      tone="text-foreground"
+    />
+  </div>
+
+  <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
+    <span className="text-sm font-medium text-muted-foreground">
+      Período:
+    </span>
+
+    <Button
+      type="button"
+      variant={!from && !to ? "default" : "outline"}
+      size="sm"
+      onClick={() => {
+        setFrom("");
+        setTo("");
+      }}
+    >
+      Todos
+    </Button>
+
+    <Button
+      type="button"
+      variant={from === todayInputValue() ? "default" : "outline"}
+      size="sm"
+      onClick={() => {
+        const today = todayInputValue();
+
+        setFrom(today);
+        setTo(today);
+      }}
+    >
+      1 dia
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        const end = new Date();
+        const start = new Date();
+
+        start.setDate(end.getDate() - 7);
+
+        setFrom(start.toISOString().slice(0, 10));
+        setTo(end.toISOString().slice(0, 10));
+      }}
+    >
+      7 dias
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        const end = new Date();
+        const start = new Date();
+
+        start.setDate(end.getDate() - 30);
+
+        setFrom(start.toISOString().slice(0, 10));
+        setTo(end.toISOString().slice(0, 10));
+      }}
+    >
+      30 dias
+    </Button>
+  </div>
+</div>
       {errorMessage ? (
         <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <span>{errorMessage}</span>
