@@ -92,6 +92,7 @@ enum ServiceOrderStatus {
   IMPEDIDA
   FINALIZADA
   CANCELADA
+  PAGA
 }
 
 enum EstimateStatus {

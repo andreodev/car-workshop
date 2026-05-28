@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 
 type PdvSaleHeaderProps = {
   onClose: () => void;
+  title?: string;
 };
 
-export function PdvSaleHeader({ onClose }: PdvSaleHeaderProps) {
+export function PdvSaleHeader({ onClose, title  }: PdvSaleHeaderProps) {
   return (
     <header className="grid gap-3 border-b border-border bg-card px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
       <div className="flex min-w-0 items-center gap-4">

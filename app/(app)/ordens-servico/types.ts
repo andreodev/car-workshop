@@ -4,7 +4,8 @@ export type ServiceOrderStatus =
   | "AGUARDANDO_PECAS"
   | "IMPEDIDA"
   | "FINALIZADA"
-  | "CANCELADA";
+  | "CANCELADA"
+  | "PAGA";
 
 export type ServiceOrderItemType = "SERVICE" | "PRODUCT";
 

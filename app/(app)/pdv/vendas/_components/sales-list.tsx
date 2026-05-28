@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   CircleX,
+  CreditCard,
   Plus,
   Search,
 } from "lucide-react";
@@ -50,8 +51,49 @@ const PAGE_SIZE = 10;
 
 type StatusFilter = SaleStatus | "TODOS";
 
+type ServiceOrderCompleted = {
+  id: string;
+  code: number;
+  status: string;
+  responsible: string;
+  total: string | number;
+  updatedAt: string;
+  client?: {
+    id: string;
+    name: string;
+  } | null;
+  vehicle?: {
+    id: string;
+    plate: string;
+    model: string;
+  } | null;
+  mechanic?: {
+    id: string;
+    name: string;
+  } | null;
+  financialAccount?: {
+    id: string;
+    code: number;
+    status: string;
+    amount: string | number;
+    dueDate: string;
+    paymentDate: string | null;
+    paidAmount: string | number | null;
+    paymentMethod: string | null;
+  } | null;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: string | number;
+    discount: string | number;
+    total: string | number;
+  }>;
+};
+
 function formatCurrency(value: string | number) {
   const parsed = typeof value === "number" ? value : Number(value);
+
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -60,6 +102,7 @@ function formatCurrency(value: string | number) {
 
 function formatDateTime(value: string) {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
@@ -82,11 +125,13 @@ function paymentLabel(value: string) {
     BOLETO: "Boleto",
     OUTRO: "Outro",
   };
+
   return labels[value] ?? value;
 }
 
 export function SalesList({ defaultResponsible }: SalesListProps) {
   const queryClient = useQueryClient();
+
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -94,14 +139,36 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedServiceOrderId, setExpandedServiceOrderId] = useState<string | null>(
+    null,
+  );
+
   const [pdvOpen, setPdvOpen] = useState(false);
+  const [selectedServiceOrder, setSelectedServiceOrder] =
+    useState<ServiceOrderCompleted | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["sales", { page, search, status, from, to }],
-    queryFn: () => fetchSales({ page, pageSize: PAGE_SIZE, search, status, from, to }),
+    queryFn: () =>
+      fetchSales({
+        page,
+        pageSize: PAGE_SIZE,
+        search,
+        status,
+        from,
+        to,
+      }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
+
+  const serviceOrdersCompleted = useMemo(() => {
+    const response = data as unknown as
+      | { serviceOrdersCompleted?: ServiceOrderCompleted[] }
+      | undefined;
+
+    return response?.serviceOrdersCompleted ?? [];
+  }, [data]);
 
   const cancelMutation = useMutation({
     mutationFn: (sale: Sale) => updateSaleStatus(sale.id, "CANCELADA"),
@@ -114,6 +181,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
     if (!data) {
       return 1;
     }
+
     return Math.max(1, Math.ceil(data.total / data.pageSize));
   }, [data]);
 
@@ -123,6 +191,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
         if (sale.status === "CANCELADA") {
           return sum;
         }
+
         return sum + Number(sale.total);
       }, 0) ?? 0
     );
@@ -132,10 +201,32 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
     return data?.items.filter((sale) => sale.status === "CANCELADA").length ?? 0;
   }, [data]);
 
+  const serviceOrdersPendingPaymentTotal = useMemo(() => {
+    return serviceOrdersCompleted.reduce((sum, order) => {
+      return sum + Number(order.total);
+    }, 0);
+  }, [serviceOrdersCompleted]);
+
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
     setSearch(searchInput.trim());
+  }
+
+  function handleOpenNormalPdv() {
+    setSelectedServiceOrder(null);
+    setPdvOpen(true);
+  }
+
+  function handlePayServiceOrder(order: ServiceOrderCompleted) {
+    setSelectedServiceOrder(order);
+    setPdvOpen(true);
+  }
+
+  function handleClosePdv() {
+    setPdvOpen(false);
+    setSelectedServiceOrder(null);
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
   }
 
   return (
@@ -146,7 +237,11 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           description="Consulte vendas de balcão, abra uma nova venda e acompanhe o movimento."
         />
 
-        <Button type="button" onClick={() => setPdvOpen(true)} className="shrink-0 gap-2 font-medium">
+        <Button
+          type="button"
+          onClick={handleOpenNormalPdv}
+          className="shrink-0 gap-2 font-medium"
+        >
           <Plus className="size-3.5" />
           Nova venda
         </Button>
@@ -192,6 +287,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           }}
           className="h-9 text-sm"
         />
+
         <Input
           type="date"
           value={to}
@@ -201,25 +297,202 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           }}
           className="h-9 text-sm"
         />
+
         <Button type="submit" variant="secondary" size="sm" className="h-9 px-5 font-medium">
           Buscar
         </Button>
       </form>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium uppercase text-muted-foreground">Vendas encontradas</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{data?.total ?? 0}</p>
         </div>
+
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium uppercase text-muted-foreground">Total da página</p>
           <p className="mt-1 text-2xl font-semibold text-primary">{formatCurrency(pageTotal)}</p>
         </div>
+
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium uppercase text-muted-foreground">Canceladas na página</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{canceledCount}</p>
         </div>
+
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase text-muted-foreground">OS aguardando caixa</p>
+          <p className="mt-1 text-2xl font-semibold text-primary">
+            {serviceOrdersCompleted.length}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCurrency(serviceOrdersPendingPaymentTotal)}
+          </p>
+        </div>
       </div>
+
+      {serviceOrdersCompleted.length > 0 ? (
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <div className="flex items-center justify-between border-b border-border p-4">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Ordens de serviço finalizadas aguardando pagamento
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Serviços concluídos que precisam passar no caixa para informar a forma de pagamento.
+              </p>
+            </div>
+          </div>
+
+          <Table className="min-w-[980px]">
+            <TableHeader>
+              <TableRow className="bg-muted/60 hover:bg-muted/60">
+                <TableHead>OS</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Veículo</TableHead>
+                <TableHead>Mecânico</TableHead>
+                <TableHead>Conta</TableHead>
+                <TableHead>Atualizada em</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {serviceOrdersCompleted.map((order) => (
+                <Fragment key={order.id}>
+                  <TableRow className="group transition-colors hover:bg-accent/40">
+                    <TableCell className="font-mono text-sm text-muted-foreground">
+                      #{order.code}
+                    </TableCell>
+
+                    <TableCell className="font-medium text-foreground">
+                      {order.client?.name ?? "-"}
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground">
+                      {order.vehicle
+                        ? `${order.vehicle.plate} - ${order.vehicle.model}`
+                        : "-"}
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground">
+                      {order.mechanic?.name ?? "-"}
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground">
+                      {order.financialAccount ? (
+                        <span>
+                          #{order.financialAccount.code} - {order.financialAccount.status}
+                        </span>
+                      ) : (
+                        "Sem conta"
+                      )}
+                    </TableCell>
+
+                    <TableCell className="font-mono text-sm text-muted-foreground">
+                      {formatDateTime(order.updatedAt)}
+                    </TableCell>
+
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(order.total)}
+                    </TableCell>
+
+                    <TableCell className="text-center">
+                      {order.financialAccount?.status === "PAGA" ? (
+                        <Badge
+                          variant="default"
+                          className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                        >
+                          <span className="status-dot-active" />
+                          Pago
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1.5 bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/20"
+                        >
+                          <span className="status-dot-inactive" />
+                          Aguardando pagamento
+                        </Badge>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1.5 px-3 text-xs font-medium"
+                          onClick={() =>
+                            setExpandedServiceOrderId((current) =>
+                              current === order.id ? null : order.id,
+                            )
+                          }
+                        >
+                          <ChevronsUpDown className="size-3" />
+                          Itens
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 gap-1.5 px-3 text-xs font-medium"
+                          onClick={() => handlePayServiceOrder(order)}
+                        >
+                          <CreditCard className="size-3" />
+                          Efetuar pagamento
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+
+                  {expandedServiceOrderId === order.id ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="bg-muted/30 p-0">
+                        <div className="p-4">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-right">Qtde.</TableHead>
+                                <TableHead className="text-right">Unit.</TableHead>
+                                <TableHead className="text-right">Desc.</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                              </TableRow>
+                            </TableHeader>
+
+                            <TableBody>
+                              {order.items.map((item) => (
+                                <TableRow key={item.id}>
+                                  <TableCell>{item.description}</TableCell>
+                                  <TableCell className="text-right">
+                                    {Number(item.quantity)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(item.unitPrice)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(item.discount)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {formatCurrency(item.total)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
 
       {cancelMutation.isError ? (
         <Alert variant="destructive">
@@ -249,14 +522,14 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
           </Alert>
         ) : null}
 
-        {data && data.items.length === 0 && !isLoading ? (
+        {data && data.items.length === 0 && serviceOrdersCompleted.length === 0 && !isLoading ? (
           <Empty className="min-h-[220px]">
             <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
               <Search className="size-4" />
             </span>
             <EmptyTitle className="text-sm font-medium">Nenhuma venda encontrada</EmptyTitle>
             <EmptyDescription>
-              Nenhuma venda encontrada para os filtros aplicados.
+              Nenhuma venda ou ordem de serviço encontrada para os filtros aplicados.
             </EmptyDescription>
           </Empty>
         ) : null}
@@ -295,6 +568,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                   </TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {data.items.map((sale) => (
                   <Fragment key={sale.id}>
@@ -302,22 +576,31 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         #{sale.code}
                       </TableCell>
+
                       <TableCell className="font-medium text-foreground">
                         {sale.client?.name ?? "Caixa livre"}
                       </TableCell>
+
                       <TableCell className="text-muted-foreground">
                         {sale.sector?.name ?? sale.sectorName ?? "-"}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{sale.responsible}</TableCell>
+
+                      <TableCell className="text-muted-foreground">
+                        {sale.responsible}
+                      </TableCell>
+
                       <TableCell className="text-muted-foreground">
                         {paymentLabel(sale.paymentMethod)}
                       </TableCell>
+
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         {formatDateTime(sale.createdAt)}
                       </TableCell>
+
                       <TableCell className="text-right font-medium">
                         {formatCurrency(sale.total)}
                       </TableCell>
+
                       <TableCell className="text-center">
                         {sale.status === "CONCLUIDA" ? (
                           <Badge
@@ -328,12 +611,16 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                             Concluída
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1.5 text-muted-foreground">
+                          <Badge
+                            variant="secondary"
+                            className="gap-1.5 text-muted-foreground"
+                          >
                             <span className="status-dot-inactive" />
                             Cancelada
                           </Badge>
                         )}
                       </TableCell>
+
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -342,12 +629,15 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                             variant="ghost"
                             className="h-7 gap-1.5 px-3 text-xs font-medium opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
                             onClick={() =>
-                              setExpandedId((current) => (current === sale.id ? null : sale.id))
+                              setExpandedId((current) =>
+                                current === sale.id ? null : sale.id,
+                              )
                             }
                           >
                             <ChevronsUpDown className="size-3" />
                             Itens
                           </Button>
+
                           <Button
                             type="button"
                             size="sm"
@@ -362,6 +652,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                         </div>
                       </TableCell>
                     </TableRow>
+
                     {expandedId === sale.id ? (
                       <TableRow>
                         <TableCell colSpan={9} className="bg-muted/30 p-0">
@@ -376,6 +667,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
                                   <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
                               </TableHeader>
+
                               <TableBody>
                                 {sale.items.map((item) => (
                                   <TableRow key={item.id}>
@@ -427,6 +719,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
               <ChevronLeft className="size-3" />
               Anterior
             </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -443,8 +736,11 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
 
       <PdvSaleDialog
         open={pdvOpen}
-        defaultResponsible={defaultResponsible}
-        onClose={() => setPdvOpen(false)}
+        defaultResponsible={selectedServiceOrder?.responsible ?? defaultResponsible}
+        onClose={handleClosePdv}
+        mode={selectedServiceOrder ? "SERVICE_ORDER" : "PDV"}
+        serviceOrderId={selectedServiceOrder?.id}
+        serviceOrderCode={selectedServiceOrder?.code}
       />
     </section>
   );

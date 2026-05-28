@@ -65,6 +65,7 @@ const serviceOrderStatusLabels: Record<ServiceOrderStatus, string> = {
   IMPEDIDA: "Impedidas",
   FINALIZADA: "Finalizadas",
   CANCELADA: "Canceladas",
+  PAGA: "Pagas",
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {

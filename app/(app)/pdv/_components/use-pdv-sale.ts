@@ -18,17 +18,121 @@ import {
   type SaleLine,
 } from "./pdv-sale-utils";
 import { useToast } from "@/components/ui/toast";
+import type { CatalogItemType } from "@prisma/client";
+
+type PdvMode = "PDV" | "SERVICE_ORDER";
 
 type UsePdvSaleOptions = {
   open: boolean;
   defaultResponsible: string;
   onClose: () => void;
+  mode?: PdvMode;
+  serviceOrderId?: string;
 };
 
-export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOptions) {
+type ServiceOrderPdvResponse = {
+  id: string;
+  code: number;
+  status: string;
+  client?: ClientOption | null;
+  sector?: {
+    id: string;
+    name: string;
+  } | null;
+  items: Array<{
+    id: string;
+    catalogItemId?: string | null;
+    code?: number | string | null;
+    name: string;
+    type: CatalogItem["type"];
+     catalogItem: {
+    id: string;
+    name: string;
+    type: CatalogItemType;
+    stockCurrent: string | null;
+  },
+    quantity: string | number;
+    unitPrice: string | number;
+    discount?: string | number | null;
+    total: string | number;
+    stockCurrent?: string | number | null;
+  }>;
+};
+
+async function fetchServiceOrderPdv(serviceOrderId: string) {
+  const response = await fetch(`/api/service-orders/${serviceOrderId}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error ?? "Erro ao buscar dados da ordem de serviço.");
+  }
+
+  return data as ServiceOrderPdvResponse;
+}
+
+async function payServiceOrderPdv({
+  serviceOrderId,
+  paymentMethod,
+}: {
+  serviceOrderId: string;
+  paymentMethod: SalePaymentMethod;
+}) {
+  const payload = {
+    paymentMethod,
+    serviceOrderId,
+  };
+
+  console.log("[PDV_OS_PAYMENT] Payload enviado:", payload);
+
+  const response = await fetch(`/api/sales/${serviceOrderId}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+
+  console.log("[PDV_OS_PAYMENT] Status:", response.status);
+  console.log("[PDV_OS_PAYMENT] Resposta bruta:", text);
+
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ??
+        data?.details ??
+        "Erro ao efetuar pagamento da ordem de serviço."
+    );
+  }
+
+  return data as {
+    sale: {
+      id: string;
+      code: number;
+    };
+  };
+}
+
+export function usePdvSale({
+  open,
+  defaultResponsible,
+  onClose,
+  mode = "PDV",
+  serviceOrderId,
+}: UsePdvSaleOptions) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const isServiceOrderMode = mode === "SERVICE_ORDER" && Boolean(serviceOrderId);
+
   const clientInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +157,8 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
   const [productHighlightIndex, setProductHighlightIndex] = useState(0);
   const [clientListOpen, setClientListOpen] = useState(false);
   const [productListOpen, setProductListOpen] = useState(false);
+  const [serviceOrderLoading, setServiceOrderLoading] = useState(false);
+  
 
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", clientSearch],
@@ -63,7 +169,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         search: clientSearch,
         status: "ATIVO",
       }),
-    enabled: open,
+    enabled: open && !isServiceOrderMode,
     staleTime: 30_000,
   });
 
@@ -75,7 +181,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         pageSize: 6,
         search: productSearch,
       }),
-    enabled: open,
+    enabled: open && !isServiceOrderMode,
     staleTime: 30_000,
   });
 
@@ -86,7 +192,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         page: 1,
         pageSize: 50,
       }),
-    enabled: open,
+    enabled: open && !isServiceOrderMode,
     staleTime: 60_000,
   });
 
@@ -105,13 +211,16 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
             total: current.total + 1,
             items: [item, ...current.items].slice(0, current.pageSize),
           };
-        }
+        },
       );
+
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+
       setSelectedProduct(item);
       setProductSearch(item.name);
       setUnitPrice(String(item.unitPrice));
       setLocalError(null);
+
       toast({
         title: "Produto cadastrado",
         description: "O item foi adicionado ao catalogo.",
@@ -121,7 +230,9 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     onError: (error) => {
       const message =
         error instanceof Error ? error.message : "Nao foi possivel cadastrar o produto.";
+
       setLocalError(message);
+
       toast({
         title: "Erro ao cadastrar produto",
         description: message,
@@ -141,6 +252,8 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     setDiscountPercent("0");
     setLocalError(null);
     setSuccessMessage(null);
+    setServiceOrderLoading(false);
+
     if (!options?.keepLastSale) {
       setLastSale(null);
     }
@@ -151,19 +264,24 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+
       resetDraft({ keepLastSale: true });
       setLastSale({ id: sale.id, code: sale.code });
       setSuccessMessage(`Venda ${sale.code} guardada com sucesso.`);
+
       toast({
         title: "Venda registrada",
         description: `Venda ${sale.code} guardada com sucesso.`,
         variant: "success",
       });
+
       requestAnimationFrame(() => productInputRef.current?.focus());
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Erro ao guardar venda.";
+
       setLocalError(message);
+
       toast({
         title: "Erro ao guardar venda",
         description: message,
@@ -172,11 +290,49 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     },
   });
 
+  const serviceOrderPaymentMutation = useMutation({
+    mutationFn: payServiceOrderPdv,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+
+      resetDraft({ keepLastSale: true });
+      setLastSale({
+        id: result.sale.id,
+        code: result.sale.code,
+      });
+
+      setSuccessMessage("Pagamento da ordem de serviço registrado com sucesso.");
+
+      toast({
+        title: "Ordem de serviço paga",
+        description: "Pagamento registrado com sucesso.",
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erro ao efetuar pagamento da ordem de serviço.";
+
+      setLocalError(message);
+
+      toast({
+        title: "Erro ao efetuar pagamento",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const totals = useMemo(() => calculateTotals(lines), [lines]);
+
   const clientOptions = useMemo(() => clientsQuery.data?.items ?? [], [clientsQuery.data?.items]);
+
   const productOptions = useMemo(
     () => productsQuery.data?.items ?? [],
-    [productsQuery.data?.items]
+    [productsQuery.data?.items],
   );
 
   useEffect(() => {
@@ -184,9 +340,104 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       return;
     }
 
-    const frame = requestAnimationFrame(() => productInputRef.current?.focus());
+    const frame = requestAnimationFrame(() => {
+      if (isServiceOrderMode) {
+        paymentTriggerRef.current?.focus();
+        return;
+      }
+
+      productInputRef.current?.focus();
+    });
+
     return () => cancelAnimationFrame(frame);
-  }, [open]);
+  }, [isServiceOrderMode, open]);
+
+  useEffect(() => {
+    if (!open || !isServiceOrderMode || !serviceOrderId) {
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadServiceOrder() {
+      try {
+        setServiceOrderLoading(true);
+        setLocalError(null);
+        setSuccessMessage("Carregando dados da ordem de serviço...");
+        setLines([]);
+
+       const serviceOrder = await fetchServiceOrderPdv(serviceOrderId!);
+
+        if (ignore) {
+          return;
+        }
+
+        const mappedLines = serviceOrder.items.map((item) => {
+          const quantityValue = Number(item.quantity);
+          const unitPriceValue = Number(item.unitPrice);
+          const discountValue = Number(item.discount ?? 0);
+
+          console.log(item)
+
+          const catalogItem = {
+  id: item.catalogItemId ?? item.id,
+  code: item.code ?? null,
+  name: item.catalogItem.name,
+  type: item.type,
+  unitPrice: unitPriceValue,
+  stockCurrent: item.stockCurrent ?? null,
+} as unknown as CatalogItem;
+
+          console.log(catalogItem)
+
+          return createSaleLine({
+            product: catalogItem,
+            quantity: Number.isFinite(quantityValue) ? quantityValue : 1,
+            unitPrice: Number.isFinite(unitPriceValue) ? unitPriceValue : 0,
+            discountPercent: Number.isFinite(discountValue) ? discountValue : 0,
+          });
+        });
+
+        setLines(mappedLines);
+        setSelectedClient(serviceOrder.client ?? null);
+        setClientSearch(serviceOrder.client?.name ?? "");
+        setResponsible(defaultResponsible);
+        setSectorId(serviceOrder.sector?.id ?? NO_SECTOR_VALUE);
+        setProductSearch("");
+        setSelectedProduct(null);
+        setQuantity("1");
+        setUnitPrice("");
+        setDiscountPercent("0");
+        setSuccessMessage(null);
+        setLocalError(null);
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Erro ao carregar ordem de serviço.";
+
+        setLocalError(message);
+
+        toast({
+          title: "Erro ao carregar OS",
+          description: message,
+          variant: "destructive",
+        });
+      } finally {
+        if (!ignore) {
+          setServiceOrderLoading(false);
+        }
+      }
+    }
+
+    loadServiceOrder();
+
+    return () => {
+      ignore = true;
+    };
+  }, [defaultResponsible, isServiceOrderMode, open, serviceOrderId, toast]);
 
   const selectClient = useCallback((client: ClientOption) => {
     setSelectedClient(client);
@@ -204,6 +455,10 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
   }, []);
 
   const addCatalogItem = useCallback(() => {
+    if (isServiceOrderMode) {
+      return;
+    }
+
     const name = productSearch.trim();
     const price = parseDecimal(unitPrice);
 
@@ -222,11 +477,15 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       type: "PRODUTO",
       unitPrice: price,
     });
-  }, [createCatalogMutation, productSearch, unitPrice]);
+  }, [createCatalogMutation, isServiceOrderMode, productSearch, unitPrice]);
 
   const addLine = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+
+      if (isServiceOrderMode) {
+        return;
+      }
 
       if (!selectedProduct) {
         setLocalError("Selecione um produto/servico cadastrado ou cadastre o item antes de incluir.");
@@ -255,7 +514,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       const stockValidationMessage = getStockValidationMessage(
         selectedProduct,
         parsedQuantity,
-        lines
+        lines,
       );
 
       if (stockValidationMessage) {
@@ -272,6 +531,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
           discountPercent: parsedDiscount,
         }),
       ]);
+
       setProductSearch("");
       setSelectedProduct(null);
       setQuantity("1");
@@ -279,18 +539,44 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       setDiscountPercent("0");
       setLocalError(null);
       setSuccessMessage(null);
+
       requestAnimationFrame(() => productInputRef.current?.focus());
     },
-    [discountPercent, lines, quantity, selectedProduct, unitPrice]
+    [discountPercent, isServiceOrderMode, lines, quantity, selectedProduct, unitPrice],
   );
 
-  const removeLine = useCallback((lineId: string) => {
-    setLines((current) => current.filter((item) => item.localId !== lineId));
-  }, []);
+  const removeLine = useCallback(
+    (lineId: string) => {
+      if (isServiceOrderMode) {
+        return;
+      }
+
+      setLines((current) => current.filter((item) => item.localId !== lineId));
+    },
+    [isServiceOrderMode],
+  );
 
   const saveSale = useCallback(() => {
     if (lines.length === 0) {
-      setLocalError("Inclua pelo menos um item na venda.");
+      setLocalError(
+        isServiceOrderMode
+          ? "Nenhum item foi encontrado para esta ordem de serviço."
+          : "Inclua pelo menos um item na venda.",
+      );
+      return;
+    }
+
+    if (isServiceOrderMode) {
+      if (!serviceOrderId) {
+        setLocalError("Ordem de serviço inválida.");
+        return;
+      }
+
+      serviceOrderPaymentMutation.mutate({
+        serviceOrderId,
+        paymentMethod,
+      });
+
       return;
     }
 
@@ -313,35 +599,53 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         discountPercent: line.discountPercent,
       })),
     });
-  }, [lines, paymentMethod, responsible, saleMutation, sectorId, selectedClient?.id]);
+  }, [
+    isServiceOrderMode,
+    lines,
+    paymentMethod,
+    responsible,
+    saleMutation,
+    sectorId,
+    selectedClient?.id,
+    serviceOrderId,
+    serviceOrderPaymentMutation,
+  ]);
 
   const clearSale = useCallback(() => {
+    if (isServiceOrderMode) {
+      return;
+    }
+
     if (lines.length > 0 && !window.confirm("Descartar os itens desta venda?")) {
       return;
     }
 
     resetDraft();
     requestAnimationFrame(() => productInputRef.current?.focus());
-  }, [lines.length, resetDraft]);
+  }, [isServiceOrderMode, lines.length, resetDraft]);
 
   const close = useCallback(() => {
-    if (lines.length > 0 && !window.confirm("Fechar o PDV e descartar a venda em andamento?")) {
-      return;
+    if (!isServiceOrderMode && lines.length > 0) {
+      if (!window.confirm("Fechar o PDV e descartar a venda em andamento?")) {
+        return;
+      }
     }
 
     resetDraft();
     onClose();
-  }, [lines.length, onClose, resetDraft]);
+  }, [isServiceOrderMode, lines.length, onClose, resetDraft]);
 
   const openSalesList = useCallback(() => {
-    if (lines.length > 0 && !window.confirm("Ir para a lista de vendas e descartar a venda em andamento?")) {
-      return;
+    if (!isServiceOrderMode && lines.length > 0) {
+      if (!window.confirm("Ir para a lista de vendas e descartar a venda em andamento?")) {
+        return;
+      }
     }
 
     resetDraft();
     onClose();
     router.push("/pdv/vendas");
-  }, [lines.length, onClose, resetDraft, router]);
+  }, [isServiceOrderMode, lines.length, onClose, resetDraft, router]);
 
   useEffect(() => {
     if (!open) {
@@ -359,25 +663,25 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         return;
       }
 
-      if (event.key === "F2") {
+      if (event.key === "F2" && !isServiceOrderMode) {
         event.preventDefault();
         productInputRef.current?.focus();
         return;
       }
 
-      if (event.key === "F3") {
+      if (event.key === "F3" && !isServiceOrderMode) {
         event.preventDefault();
         clientInputRef.current?.focus();
         return;
       }
 
-      if (event.key === "F4") {
+      if (event.key === "F4" && !isServiceOrderMode) {
         event.preventDefault();
         quantityInputRef.current?.focus();
         return;
       }
 
-      if (event.key === "F5") {
+      if (event.key === "F5" && !isServiceOrderMode) {
         event.preventDefault();
         unitPriceInputRef.current?.focus();
         return;
@@ -395,7 +699,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         return;
       }
 
-      if (event.key === "Delete" && !isEditableTarget(event.target)) {
+      if (event.key === "Delete" && !isEditableTarget(event.target) && !isServiceOrderMode) {
         event.preventDefault();
         setLines((current) => current.slice(0, -1));
       }
@@ -403,11 +707,11 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [close, open, saveSale]);
+  }, [close, isServiceOrderMode, open, saveSale]);
 
   const handleClientSearchKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (selectedClient || clientOptions.length === 0) {
+      if (isServiceOrderMode || selectedClient || clientOptions.length === 0) {
         return;
       }
 
@@ -422,26 +726,35 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         event.preventDefault();
         setClientListOpen(true);
         setClientHighlightIndex((current) =>
-          current === 0 ? clientOptions.length - 1 : current - 1
+          current === 0 ? clientOptions.length - 1 : current - 1,
         );
         return;
       }
 
       if (event.key === "Enter" && clientListOpen) {
         event.preventDefault();
+
         const highlightedClient =
           clientOptions[Math.min(clientHighlightIndex, clientOptions.length - 1)];
+
         if (highlightedClient) {
           selectClient(highlightedClient);
         }
       }
     },
-    [clientHighlightIndex, clientListOpen, clientOptions, selectClient, selectedClient]
+    [
+      clientHighlightIndex,
+      clientListOpen,
+      clientOptions,
+      isServiceOrderMode,
+      selectClient,
+      selectedClient,
+    ],
   );
 
   const handleProductSearchKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (selectedProduct || productOptions.length === 0) {
+      if (isServiceOrderMode || selectedProduct || productOptions.length === 0) {
         return;
       }
 
@@ -456,21 +769,30 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
         event.preventDefault();
         setProductListOpen(true);
         setProductHighlightIndex((current) =>
-          current === 0 ? productOptions.length - 1 : current - 1
+          current === 0 ? productOptions.length - 1 : current - 1,
         );
         return;
       }
 
       if (event.key === "Enter" && productListOpen) {
         event.preventDefault();
+
         const highlightedProduct =
           productOptions[Math.min(productHighlightIndex, productOptions.length - 1)];
+
         if (highlightedProduct) {
           selectProduct(highlightedProduct);
         }
       }
     },
-    [productHighlightIndex, productListOpen, productOptions, selectProduct, selectedProduct]
+    [
+      isServiceOrderMode,
+      productHighlightIndex,
+      productListOpen,
+      productOptions,
+      selectProduct,
+      selectedProduct,
+    ],
   );
 
   return {
@@ -489,6 +811,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
     mutations: {
       createCatalogMutation,
       saleMutation,
+      serviceOrderPaymentMutation,
     },
     state: {
       clientHighlightIndex,
@@ -496,6 +819,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       clientOptions,
       clientSearch,
       discountPercent,
+      isServiceOrderMode,
       lines,
       localError,
       paymentMethod,
@@ -508,6 +832,7 @@ export function usePdvSale({ open, defaultResponsible, onClose }: UsePdvSaleOpti
       sectorId,
       selectedClient,
       selectedProduct,
+      serviceOrderLoading,
       successMessage,
       totals,
       unitPrice,

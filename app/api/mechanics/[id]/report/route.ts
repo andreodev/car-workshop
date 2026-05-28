@@ -14,6 +14,7 @@ const serviceOrderStatuses = [
   "IMPEDIDA",
   "FINALIZADA",
   "CANCELADA",
+  "PAGA",
 ] as const;
 
 type RouteContext = {

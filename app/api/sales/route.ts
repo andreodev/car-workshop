@@ -224,51 +224,70 @@ async function createSaleCashEntry(
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  try {
+    console.log("[PDV_GET] INIT");
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
-  }
+    const session = await getServerAuthSession();
 
-  const { searchParams } = new URL(request.url);
-  const page = coerceNumber(searchParams.get("page"), 1);
-  const pageSize = Math.min(
-    coerceNumber(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE),
-    MAX_PAGE_SIZE
-  );
-  const search = normalizeString(searchParams.get("search")) ?? "";
-  const status = normalizeStatus(searchParams.get("status"));
-  const from = normalizeDateStart(searchParams.get("from"));
-  const to = normalizeDateEnd(searchParams.get("to"));
+    if (!session?.user) {
+      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    }
 
-  const where: Prisma.SaleWhereInput = {};
+    const { searchParams } = new URL(request.url);
 
-  if (status) {
-    where.status = status;
-  }
+    const page = coerceNumber(searchParams.get("page"), 1);
+    const pageSize = Math.min(
+      coerceNumber(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE),
+      MAX_PAGE_SIZE,
+    );
 
-  if (from || to) {
-    where.createdAt = {
-      ...(from ? { gte: from } : {}),
-      ...(to ? { lte: to } : {}),
-    };
-  }
+    const search = normalizeString(searchParams.get("search")) ?? "";
+    const status = normalizeStatus(searchParams.get("status"));
+    const from = normalizeDateStart(searchParams.get("from"));
+    const to = normalizeDateEnd(searchParams.get("to"));
 
-  if (search) {
-    const code = Number(search);
-    where.OR = [
-      { responsible: { contains: search, mode: "insensitive" } },
-      { sectorName: { contains: search, mode: "insensitive" } },
-      { sector: { name: { contains: search, mode: "insensitive" } } },
-      { client: { name: { contains: search, mode: "insensitive" } } },
-      { items: { some: { description: { contains: search, mode: "insensitive" } } } },
-      ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
-    ];
-  }
+    console.log("[PDV_GET] FILTERS:", {
+      page,
+      pageSize,
+      search,
+      status,
+      from,
+      to,
+    });
 
-  const [total, items] = await prisma.$transaction([
-    prisma.sale.count({ where }),
-    prisma.sale.findMany({
+    const where: Prisma.SaleWhereInput = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (from || to) {
+      where.createdAt = {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      };
+    }
+
+    if (search) {
+      const code = Number(search);
+
+      where.OR = [
+        { responsible: { contains: search, mode: "insensitive" } },
+        { sectorName: { contains: search, mode: "insensitive" } },
+        { sector: { name: { contains: search, mode: "insensitive" } } },
+        { client: { name: { contains: search, mode: "insensitive" } } },
+        { items: { some: { description: { contains: search, mode: "insensitive" } } } },
+        ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
+      ];
+    }
+
+    console.log("[PDV_GET] BEFORE SALE COUNT");
+
+    const total = await prisma.sale.count({ where });
+
+    console.log("[PDV_GET] BEFORE SALE FIND MANY");
+
+    const items = await prisma.sale.findMany({
       where,
       include: {
         client: { select: { id: true, name: true } },
@@ -276,17 +295,119 @@ export async function GET(request: NextRequest) {
         items: {
           orderBy: { createdAt: "asc" },
           include: {
-            catalogItem: { select: { id: true, code: true, name: true, type: true } },
+            catalogItem: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                type: true,
+              },
+            },
           },
         },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
-    }),
-  ]);
+    });
 
-  return Response.json({ items, total, page, pageSize });
+    const serviceOrderWhere: Prisma.ServiceOrderWhereInput = {
+      status: "FINALIZADA",
+    };
+
+    if (search) {
+      const code = Number(search);
+
+      serviceOrderWhere.OR = [
+        { responsible: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
+        { client: { name: { contains: search, mode: "insensitive" } } },
+        { vehicle: { plate: { contains: search, mode: "insensitive" } } },
+        { vehicle: { model: { contains: search, mode: "insensitive" } } },
+        { mechanic: { name: { contains: search, mode: "insensitive" } } },
+        ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
+      ];
+    }
+
+    console.log("[PDV_GET] SERVICE ORDER WHERE:", serviceOrderWhere);
+    console.log("[PDV_GET] BEFORE SERVICE ORDER FIND MANY");
+
+    const serviceOrdersCompleted = await prisma.serviceOrder.findMany({
+      where: serviceOrderWhere,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        vehicle: {
+          select: {
+            id: true,
+            plate: true,
+            model: true,
+          },
+        },
+        mechanic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        financialAccount: {
+  select: {
+    id: true,
+    code: true,
+    status: true,
+    amount: true,
+    dueDate: true,
+    paymentDate: true,
+    paidAmount: true,
+    paymentMethod: true,
+  },
+},
+        items: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            catalogItem: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+
+    console.log("[PDV_GET] SUCCESS:", {
+      total,
+      sales: items.length,
+      serviceOrdersCompleted: serviceOrdersCompleted.length,
+    });
+
+    return Response.json({
+      items,
+      total,
+      page,
+      pageSize,
+      serviceOrdersCompleted,
+    });
+  } catch (error) {
+    console.error("[PDV_GET] ERROR:", error);
+
+    return Response.json(
+      {
+        error: "Erro ao buscar dados do PDV.",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {

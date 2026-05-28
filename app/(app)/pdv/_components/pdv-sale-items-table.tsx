@@ -16,7 +16,7 @@ type PdvSaleItemsTableProps = {
   lines: SaleLine[];
   localError: string | null;
   successMessage: string | null;
-  onRemoveLine: (lineId: string) => void;
+  onRemoveLine?: (lineId: string) => void;
 };
 
 export function PdvSaleItemsTable({
@@ -82,7 +82,7 @@ export function PdvSaleItemsTable({
                       type="button"
                       size="icon-sm"
                       variant="ghost"
-                      onClick={() => onRemoveLine(line.localId)}
+                      onClick={() => onRemoveLine && onRemoveLine(line.localId)}
                       title="Remover item"
                       aria-label="Remover item"
                     >

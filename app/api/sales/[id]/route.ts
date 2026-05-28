@@ -1,17 +1,25 @@
 import type { NextRequest } from "next/server";
-import { randomUUID } from "node:crypto";
-import { Prisma, type SalePaymentMethod, type SaleStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const saleStatuses = ["CONCLUIDA", "CANCELADA"] as const;
+const paymentMethods = [
+  "DINHEIRO",
+  "PIX",
+  "CARTAO_CREDITO",
+  "CARTAO_DEBITO",
+] as const;
 
-type SaleStatusValue = (typeof saleStatuses)[number];
+type PdvPaymentMethod = (typeof paymentMethods)[number];
 
-class StockError extends Error {}
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 function normalizeString(value: unknown) {
   if (typeof value !== "string") {
@@ -19,114 +27,98 @@ function normalizeString(value: unknown) {
   }
 
   const trimmed = value.trim();
+
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeStatus(value: unknown) {
+function isPdvPaymentMethod(method: unknown): method is PdvPaymentMethod {
+  return (
+    typeof method === "string" &&
+    paymentMethods.includes(method as PdvPaymentMethod)
+  );
+}
+
+function normalizePaymentMethod(value: unknown): PdvPaymentMethod | null {
   const normalized = normalizeString(value);
 
-  if (!normalized || !saleStatuses.includes(normalized as SaleStatusValue)) {
+  if (!normalized) {
     return null;
   }
 
-  return normalized as SaleStatus;
+  if (!isPdvPaymentMethod(normalized)) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function formatStock(value: unknown) {
   const parsed = Number(value);
+
   return Number.isFinite(parsed)
-    ? parsed.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
+    ? parsed.toLocaleString("pt-BR", {
+        maximumFractionDigits: 3,
+      })
     : "0";
 }
 
-type StockMovementData = {
-  type: "ENTRADA" | "SAIDA" | "ESTORNO" | "AJUSTE";
-  catalogItemId: string;
-  saleId: string | null;
-  saleItemId: string | null;
-  quantity: Prisma.Decimal;
-  stockBefore: Prisma.Decimal | null;
-  stockAfter: Prisma.Decimal | null;
-  reason: string;
-  notes?: string | null;
-};
+class StockError extends Error {}
 
-type StockMovementWriter = {
-  stockMovement?: {
-    create(args: { data: StockMovementData }): Promise<unknown>;
-  };
-  $executeRaw(
-    query: TemplateStringsArray,
-    ...values: Array<string | Prisma.Decimal | null>
-  ): Promise<unknown>;
-};
-
-async function createStockMovement(
-  tx: StockMovementWriter,
-  data: StockMovementData
-) {
-  if (tx.stockMovement) {
-    await tx.stockMovement.create({ data });
-    return;
-  }
-
-  await tx.$executeRaw`
-    INSERT INTO "StockMovement" (
-      "id",
-      "type",
-      "catalogItemId",
-      "saleId",
-      "saleItemId",
-      "quantity",
-      "stockBefore",
-      "stockAfter",
-      "reason",
-      "notes",
-      "createdAt"
-    )
-    VALUES (
-      ${randomUUID()},
-      ${data.type}::"StockMovementType",
-      ${data.catalogItemId},
-      ${data.saleId},
-      ${data.saleItemId},
-      ${data.quantity},
-      ${data.stockBefore},
-      ${data.stockAfter},
-      ${data.reason},
-      ${data.notes ?? null},
-      CURRENT_TIMESTAMP
-    )
-  `;
-}
-
-async function ensurePdvCategory(tx: Prisma.TransactionClient) {
+async function ensureServiceOrderCategory(tx: Prisma.TransactionClient) {
   return tx.financialCategory.upsert({
-    where: { name: "Vendas PDV" },
-    update: { type: "RECEITA", active: true },
-    create: { name: "Vendas PDV", type: "RECEITA" },
-    select: { id: true },
+    where: {
+      name: "Ordens de Serviço",
+    },
+    update: {
+      type: "RECEITA",
+      active: true,
+    },
+    create: {
+      name: "Ordens de Serviço",
+      type: "RECEITA",
+    },
+    select: {
+      id: true,
+    },
   });
 }
+
+const saleStockInclude = {
+  items: {
+    include: {
+      catalogItem: true,
+    },
+  },
+} satisfies Prisma.SaleInclude;
+
+const saleInclude = {
+  client: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  items: true,
+} satisfies Prisma.SaleInclude;
 
 async function createSaleCashMovement(
   tx: Prisma.TransactionClient,
   sale: {
     id: string;
-    code: number;
+    code: number | string;
     total: Prisma.Decimal;
-    paymentMethod: SalePaymentMethod;
+    paymentMethod: PdvPaymentMethod | null;
   },
   type: "ENTRADA" | "SAIDA",
   description: string
 ) {
-  if (new Prisma.Decimal(sale.total).lessThanOrEqualTo(0)) {
-    return;
+  if (!sale.paymentMethod) {
+    throw new Error("Forma de pagamento não informada.");
   }
 
-  const category = await ensurePdvCategory(tx);
+  const category = await ensureServiceOrderCategory(tx);
 
-  await tx.cashMovement.create({
+  return tx.cashMovement.create({
     data: {
       type,
       categoryId: category.id,
@@ -136,35 +128,10 @@ async function createSaleCashMovement(
       amount: sale.total,
       paymentMethod: sale.paymentMethod,
       documentNumber: `PDV-${sale.code}`,
-      notes: type === "SAIDA" ? `Estorno da venda #${sale.code}` : `Reativação da venda #${sale.code}`,
+      notes: "Movimento gerado automaticamente pelo PDV",
     },
   });
 }
-
-const saleInclude = {
-  client: { select: { id: true, name: true } },
-  sector: { select: { id: true, name: true } },
-  items: {
-    orderBy: { createdAt: "asc" as const },
-    include: {
-      catalogItem: { select: { id: true, code: true, name: true, type: true } },
-    },
-  },
-};
-
-const saleStockInclude = {
-  items: {
-    include: {
-      catalogItem: { select: { id: true, name: true, type: true, stockCurrent: true } },
-    },
-  },
-};
-
-type RouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
-};
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
@@ -174,19 +141,90 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 
   const { id } = await params;
-  const sale = await prisma.sale.findUnique({
-    where: { id },
-    include: saleInclude,
+
+  const serviceOrder = await prisma.serviceOrder.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          phone1: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          plate: true,
+          brand: true,
+          model: true,
+          modelYear: true,
+          color: true,
+        },
+      },
+      mechanic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      items: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          catalogItem: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              type: true,
+              stockCurrent: true,
+            },
+          },
+        },
+      },
+    },
   });
 
-  if (!sale) {
-    return Response.json({ error: "Venda não encontrada." }, { status: 404 });
+  if (!serviceOrder) {
+    return Response.json(
+      {
+        error: "Ordem de serviço não encontrada.",
+      },
+      {
+        status: 404,
+      }
+    );
   }
 
-  return Response.json(sale);
+  return Response.json({
+  id: serviceOrder.id,
+  code: serviceOrder.code,
+  status: serviceOrder.status,
+  client: serviceOrder.client,
+  vehicle: serviceOrder.vehicle,
+  mechanic: serviceOrder.mechanic,
+  items: serviceOrder.items.map((item) => ({
+    id: item.id,
+    catalogItemId: item.catalogItemId,
+    code: item.catalogItem?.code ?? null,
+    name: item.catalogItem?.name ?? item.description ?? "Item sem nome",
+    type: item.catalogItem?.type ?? "SERVICO",
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    total: Number(item.quantity) * Number(item.unitPrice),
+    stockCurrent: item.catalogItem?.stockCurrent ?? null,
+  })),
+  subtotal: serviceOrder.subtotal,
+  discount: serviceOrder.discountTotal,
+  total: serviceOrder.total,
+});
 }
 
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
@@ -195,28 +233,265 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const { id } = await params;
   const payload = (await request.json()) as Record<string, unknown>;
-  const status = normalizeStatus(payload.status);
 
-  if (!status) {
-    return Response.json({ error: "Status inválido." }, { status: 400 });
+  const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
+
+  if (!paymentMethod) {
+    return Response.json(
+      {
+        error: "Forma de pagamento inválida.",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const serviceOrderId = normalizeString(payload.serviceOrderId);
+
+  if (serviceOrderId) {
+   const serviceOrder = await prisma.serviceOrder.findUnique({
+  where: {
+    id,
+  },
+  include: {
+    client: {
+      select: {
+        id: true,
+        name: true,
+        phone1: true,
+      },
+    },
+
+    vehicle: {
+      select: {
+        id: true,
+        plate: true,
+        brand: true,
+        model: true,
+        modelYear: true,
+        color: true,
+      },
+    },
+
+    mechanic: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+
+    items: {
+      orderBy: {
+        createdAt: "asc",
+      },
+      include: {
+        catalogItem: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+            stockCurrent: true,
+          },
+        },
+      },
+    },
+  },
+});
+
+    if (!serviceOrder) {
+      return Response.json(
+        {
+          error: "Ordem de serviço não encontrada.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    if (serviceOrder.status === "PAGA") {
+      return Response.json(
+        {
+          error: "Esta ordem de serviço já foi paga.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        for (const item of serviceOrder.items) {
+          if (!item.catalogItemId || item.catalogItem?.type !== "PRODUTO") {
+            continue;
+          }
+
+          const catalogItem = await tx.catalogItem.findUnique({
+            where: {
+              id: item.catalogItemId,
+            },
+            select: {
+              id: true,
+              name: true,
+              stockCurrent: true,
+            },
+          });
+
+          if (!catalogItem) {
+            continue;
+          }
+
+          const quantity = new Prisma.Decimal(item.quantity);
+          const currentStock = new Prisma.Decimal(
+            catalogItem.stockCurrent ?? 0
+          );
+
+          if (currentStock.lessThan(quantity)) {
+            throw new StockError(
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
+                currentStock
+              )}. Solicitado: ${formatStock(quantity)}.`
+            );
+          }
+
+          const updateResult = await tx.catalogItem.updateMany({
+            where: {
+              id: catalogItem.id,
+              stockCurrent: {
+                not: null,
+                gte: quantity,
+              },
+            },
+            data: {
+              stockCurrent: {
+                decrement: quantity,
+              },
+            },
+          });
+
+          if (updateResult.count !== 1) {
+            throw new StockError(
+              `Estoque insuficiente para ${catalogItem.name}. Atualize a ordem de serviço e tente novamente.`
+            );
+          }
+
+          const updatedItem = await tx.catalogItem.findUnique({
+            where: {
+              id: catalogItem.id,
+            },
+            select: {
+              stockCurrent: true,
+            },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              type: "SAIDA",
+              catalogItemId: catalogItem.id,
+              quantity,
+              stockBefore: currentStock,
+              stockAfter: updatedItem?.stockCurrent ?? null,
+              reason: `Pagamento da OS #${serviceOrder.code}`,
+            },
+          });
+        }
+
+        const sale = await tx.sale.create({
+          data: {
+            clientId: serviceOrder.clientId,
+            status: "CONCLUIDA",
+            paymentMethod,
+            subtotal: serviceOrder.subtotal,
+            discountTotal: serviceOrder.discountTotal,
+            total: serviceOrder.total,
+            responsible: serviceOrder.responsible ?? "PDV",
+            notes: `Pagamento da ordem de serviço #${serviceOrder.code}`,
+            items: {
+              create: serviceOrder.items.map((item) => ({
+                catalogItemId: item.catalogItemId,
+                description: item.catalogItem?.name ?? item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice),
+              })),
+            },
+          },
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            items: true,
+          },
+        });
+
+        const category = await ensureServiceOrderCategory(tx);
+
+        await tx.cashMovement.create({
+          data: {
+            type: "ENTRADA",
+            categoryId: category.id,
+            saleId: sale.id,
+            description: `Pagamento da ordem de serviço #${serviceOrder.code}`,
+            movementDate: new Date(),
+            amount: serviceOrder.total,
+            paymentMethod,
+            documentNumber: `OS-${serviceOrder.code}`,
+            notes: "Pagamento realizado via PDV",
+          },
+        });
+
+        const updatedServiceOrder = await tx.serviceOrder.update({
+          where: {
+            id: serviceOrder.id,
+          },
+          data: {
+            status: "PAGA",
+          },
+        });
+
+        return {
+          sale,
+          serviceOrder: updatedServiceOrder,
+        };
+      });
+
+      return Response.json(result);
+    } catch (error) {
+      return Response.json(
+        {
+          error: "Erro ao finalizar pagamento da ordem de serviço.",
+          details:
+            error instanceof Error ? error.message : JSON.stringify(error),
+        },
+        {
+          status: 500,
+        }
+      );
+    }
   }
 
   const currentSale = await prisma.sale.findUnique({
-    where: { id },
+    where: {
+      id,
+    },
     include: saleStockInclude,
   });
 
   if (!currentSale) {
-    return Response.json({ error: "Venda não encontrada." }, { status: 404 });
-  }
-
-  if (currentSale.status === status) {
-    const sale = await prisma.sale.findUnique({
-      where: { id },
-      include: saleInclude,
-    });
-
-    return Response.json(sale);
+    return Response.json(
+      {
+        error: "Venda não encontrada.",
+      },
+      {
+        status: 404,
+      }
+    );
   }
 
   try {
@@ -227,8 +502,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         }
 
         const catalogItem = await tx.catalogItem.findUnique({
-          where: { id: item.catalogItemId },
-          select: { id: true, name: true, stockCurrent: true },
+          where: {
+            id: item.catalogItemId,
+          },
+          select: {
+            id: true,
+            name: true,
+            stockCurrent: true,
+          },
         });
 
         if (!catalogItem) {
@@ -238,108 +519,94 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         const quantity = new Prisma.Decimal(item.quantity);
         const currentStock = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
 
-        if (status === "CANCELADA") {
-          if (catalogItem.stockCurrent === null) {
-            await tx.catalogItem.update({
-              where: { id: catalogItem.id },
-              data: { stockCurrent: quantity },
-            });
-          } else {
-            await tx.catalogItem.update({
-              where: { id: catalogItem.id },
-              data: { stockCurrent: { increment: quantity } },
-            });
-          }
+        if (currentStock.lessThan(quantity)) {
+          throw new StockError(
+            `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
+              currentStock
+            )}. Solicitado: ${formatStock(quantity)}.`
+          );
+        }
 
-          const updatedItem = await tx.catalogItem.findUnique({
-            where: { id: catalogItem.id },
-            select: { stockCurrent: true },
-          });
+        const updateResult = await tx.catalogItem.updateMany({
+          where: {
+            id: catalogItem.id,
+            stockCurrent: {
+              not: null,
+              gte: quantity,
+            },
+          },
+          data: {
+            stockCurrent: {
+              decrement: quantity,
+            },
+          },
+        });
 
-          await createStockMovement(tx, {
-            type: "ESTORNO",
+        if (updateResult.count !== 1) {
+          throw new StockError(
+            `Estoque insuficiente para ${catalogItem.name}. Atualize a venda e tente novamente.`
+          );
+        }
+
+        const updatedItem = await tx.catalogItem.findUnique({
+          where: {
+            id: catalogItem.id,
+          },
+          select: {
+            stockCurrent: true,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            type: "SAIDA",
             catalogItemId: catalogItem.id,
             saleId: currentSale.id,
             saleItemId: item.id,
             quantity,
             stockBefore: currentStock,
             stockAfter: updatedItem?.stockCurrent ?? null,
-            reason: `Cancelamento da venda #${currentSale.code}`,
-          });
-
-          continue;
-        }
-
-        if (status === "CONCLUIDA") {
-          if (currentStock.lessThan(quantity)) {
-            throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`
-            );
-          }
-
-          const updateResult = await tx.catalogItem.updateMany({
-            where: {
-              id: catalogItem.id,
-              stockCurrent: { not: null, gte: quantity },
-            },
-            data: { stockCurrent: { decrement: quantity } },
-          });
-
-          if (updateResult.count !== 1) {
-            throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Atualize a venda e tente novamente.`
-            );
-          }
-
-          const updatedItem = await tx.catalogItem.findUnique({
-            where: { id: catalogItem.id },
-            select: { stockCurrent: true },
-          });
-
-          await createStockMovement(tx, {
-            type: "SAIDA",
-            catalogItemId: catalogItem.id,
-            saleId: currentSale.id,
-            saleItemId: item.id,
-            quantity,
-              stockBefore: currentStock,
-            stockAfter: updatedItem?.stockCurrent ?? null,
-            reason: `Reativação da venda #${currentSale.code}`,
-          });
-        }
+            reason: `Venda PDV #${currentSale.code}`,
+          },
+        });
       }
 
-      if (status === "CANCELADA") {
-        await createSaleCashMovement(
-          tx,
-          currentSale,
-          "SAIDA",
-          `Cancelamento da venda PDV #${currentSale.code}`
-        );
-      }
-
-      if (status === "CONCLUIDA") {
-        await createSaleCashMovement(
-          tx,
-          currentSale,
-          "ENTRADA",
-          `Reativação da venda PDV #${currentSale.code}`
-        );
-      }
-
-      return tx.sale.update({
-        where: { id },
-        data: { status },
+      const updatedSale = await tx.sale.update({
+        where: {
+          id,
+        },
+        data: {
+          status: "CONCLUIDA",
+          paymentMethod,
+        },
         include: saleInclude,
       });
+
+      await createSaleCashMovement(
+        tx,
+        {
+          id: updatedSale.id,
+          code: updatedSale.code,
+          total: updatedSale.total,
+          paymentMethod,
+        },
+        "ENTRADA",
+        `Venda PDV #${updatedSale.code}`
+      );
+
+      return updatedSale;
     });
 
     return Response.json(sale);
   } catch (error) {
-    if (error instanceof StockError) {
-      return Response.json({ error: error.message }, { status: 400 });
-    }
-
-    throw error;
+    return Response.json(
+      {
+        error: "Erro ao finalizar venda.",
+        details: error instanceof Error ? error.message : JSON.stringify(error),
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }
