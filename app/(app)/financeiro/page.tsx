@@ -644,6 +644,7 @@ export default function FinancialPage() {
                       <TableCell>{statusBadge(account.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+
                           <Button type="button" variant="ghost" size="icon-sm" title="Editar" onClick={() => openEditAccount(account)}>
                             <Edit2 className="size-3.5" />
                           </Button>

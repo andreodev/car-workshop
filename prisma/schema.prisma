@@ -612,25 +612,29 @@ model SupplierOrder {
 }
 
 model Sale {
-  id            String            @id @default(cuid())
-  code          Int               @unique @default(autoincrement())
-  status        SaleStatus        @default(CONCLUIDA)
-  clientId      String?
-  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  sectorId      String?
-  sector        Sector?           @relation(fields: [sectorId], references: [id], onDelete: SetNull)
-  responsible   String
-  sectorName    String?           @map("sector")
-  paymentMethod SalePaymentMethod @default(DINHEIRO)
-  notes         String?           @db.Text
-  subtotal      Decimal           @db.Decimal(10, 2)
-  discountTotal Decimal           @default(0) @db.Decimal(10, 2)
-  total         Decimal           @db.Decimal(10, 2)
-  items         SaleItem[]
+  id             String            @id @default(cuid())
+  code           Int               @unique @default(autoincrement())
+  status         SaleStatus        @default(CONCLUIDA)
+  clientId       String?
+  client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  sectorId       String?
+  sector         Sector?           @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  responsible    String
+  sectorName     String?           @map("sector")
+  paymentMethod  SalePaymentMethod @default(DINHEIRO)
+  notes          String?           @db.Text
+  subtotal       Decimal           @db.Decimal(10, 2)
+  discountTotal  Decimal           @default(0) @db.Decimal(10, 2)
+  feeTotal       Decimal           @default(0) @db.Decimal(10, 2)
+  total          Decimal           @db.Decimal(10, 2)
+
+  items          SaleItem[]
+  payments       SalePayment[]
   stockMovements StockMovement[]
   cashMovements  CashMovement[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([code])
   @@index([clientId])
@@ -800,4 +804,21 @@ model CompanySettings {
   @@index([legalName])
   @@index([tradeName])
   @@index([document])
+}
+
+model SalePayment {
+  id            String            @id @default(cuid())
+
+  saleId        String
+  sale          Sale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  paymentMethod SalePaymentMethod
+  amount        Decimal           @db.Decimal(10, 2)
+  feeAmount     Decimal           @default(0) @db.Decimal(10, 2)
+  netAmount     Decimal           @db.Decimal(10, 2)
+
+  createdAt     DateTime          @default(now())
+
+  @@index([saleId])
+  @@index([paymentMethod])
 }

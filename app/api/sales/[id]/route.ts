@@ -15,6 +15,12 @@ const paymentMethods = [
 
 type PdvPaymentMethod = (typeof paymentMethods)[number];
 
+type ParsedPayment = {
+  paymentMethod: PdvPaymentMethod;
+  amount: Prisma.Decimal;
+  feeAmount: Prisma.Decimal;
+};
+
 type RouteContext = {
   params: Promise<{
     id: string;
@@ -52,6 +58,96 @@ function normalizePaymentMethod(value: unknown): PdvPaymentMethod | null {
   return normalized;
 }
 
+function normalizeDecimal(value: unknown) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return new Prisma.Decimal(parsed);
+}
+
+function normalizePayments(value: unknown): ParsedPayment[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const payments: ParsedPayment[] = [];
+
+  for (const item of value) {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const record = item as Record<string, unknown>;
+
+    const paymentMethod = normalizePaymentMethod(record.paymentMethod);
+
+    if (!paymentMethod) {
+      return null;
+    }
+
+    const amount = normalizeDecimal(record.amount);
+    const feeAmount = normalizeDecimal(record.feeAmount ?? 0);
+
+    if (!amount || amount.lessThanOrEqualTo(0)) {
+      return null;
+    }
+
+    if (!feeAmount || feeAmount.lessThan(0)) {
+      return null;
+    }
+
+    payments.push({
+      paymentMethod,
+      amount,
+      feeAmount,
+    });
+  }
+
+  return payments;
+}
+
+function normalizePaymentsFromPayload(
+  payload: Record<string, unknown>,
+  fallbackTotal: Prisma.Decimal
+): ParsedPayment[] | null {
+  const payments = normalizePayments(payload.payments);
+
+  if (payments?.length) {
+    return payments;
+  }
+
+  const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
+
+  if (!paymentMethod) {
+    return null;
+  }
+
+  return [
+    {
+      paymentMethod,
+      amount: fallbackTotal,
+      feeAmount: new Prisma.Decimal(0),
+    },
+  ];
+}
+
+function sumPaymentAmounts(payments: ParsedPayment[]) {
+  return payments.reduce(
+    (acc, payment) => acc.plus(payment.amount),
+    new Prisma.Decimal(0)
+  );
+}
+
+function sumPaymentFees(payments: ParsedPayment[]) {
+  return payments.reduce(
+    (acc, payment) => acc.plus(payment.feeAmount),
+    new Prisma.Decimal(0)
+  );
+}
+
 function formatStock(value: unknown) {
   const parsed = Number(value);
 
@@ -83,6 +179,25 @@ async function ensureServiceOrderCategory(tx: Prisma.TransactionClient) {
   });
 }
 
+async function ensurePdvCategory(tx: Prisma.TransactionClient) {
+  return tx.financialCategory.upsert({
+    where: {
+      name: "Vendas PDV",
+    },
+    update: {
+      type: "RECEITA",
+      active: true,
+    },
+    create: {
+      name: "Vendas PDV",
+      type: "RECEITA",
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 const saleStockInclude = {
   items: {
     include: {
@@ -99,38 +214,45 @@ const saleInclude = {
     },
   },
   items: true,
+  payments: true,
 } satisfies Prisma.SaleInclude;
 
-async function createSaleCashMovement(
-  tx: Prisma.TransactionClient,
-  sale: {
-    id: string;
-    code: number | string;
-    total: Prisma.Decimal;
-    paymentMethod: PdvPaymentMethod | null;
-  },
-  type: "ENTRADA" | "SAIDA",
-  description: string
-) {
-  if (!sale.paymentMethod) {
-    throw new Error("Forma de pagamento não informada.");
+async function createPaymentCashMovements(params: {
+  tx: Prisma.TransactionClient;
+  saleId: string;
+  code: number | string;
+  payments: ParsedPayment[];
+  categoryId: string;
+  description: string;
+  documentNumber: string;
+  notes: string;
+}) {
+  const {
+    tx,
+    saleId,
+    code,
+    payments,
+    categoryId,
+    description,
+    documentNumber,
+    notes,
+  } = params;
+
+  for (const payment of payments) {
+    await tx.cashMovement.create({
+      data: {
+        type: "ENTRADA",
+        categoryId,
+        saleId,
+        description,
+        movementDate: new Date(),
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        documentNumber,
+        notes: `${notes} | Venda #${code}`,
+      },
+    });
   }
-
-  const category = await ensureServiceOrderCategory(tx);
-
-  return tx.cashMovement.create({
-    data: {
-      type,
-      categoryId: category.id,
-      saleId: sale.id,
-      description,
-      movementDate: new Date(),
-      amount: sale.total,
-      paymentMethod: sale.paymentMethod,
-      documentNumber: `PDV-${sale.code}`,
-      notes: "Movimento gerado automaticamente pelo PDV",
-    },
-  });
 }
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
@@ -201,27 +323,27 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 
   return Response.json({
-  id: serviceOrder.id,
-  code: serviceOrder.code,
-  status: serviceOrder.status,
-  client: serviceOrder.client,
-  vehicle: serviceOrder.vehicle,
-  mechanic: serviceOrder.mechanic,
-  items: serviceOrder.items.map((item) => ({
-    id: item.id,
-    catalogItemId: item.catalogItemId,
-    code: item.catalogItem?.code ?? null,
-    name: item.catalogItem?.name ?? item.description ?? "Item sem nome",
-    type: item.catalogItem?.type ?? "SERVICO",
-    quantity: item.quantity,
-    unitPrice: item.unitPrice,
-    total: Number(item.quantity) * Number(item.unitPrice),
-    stockCurrent: item.catalogItem?.stockCurrent ?? null,
-  })),
-  subtotal: serviceOrder.subtotal,
-  discount: serviceOrder.discountTotal,
-  total: serviceOrder.total,
-});
+    id: serviceOrder.id,
+    code: serviceOrder.code,
+    status: serviceOrder.status,
+    client: serviceOrder.client,
+    vehicle: serviceOrder.vehicle,
+    mechanic: serviceOrder.mechanic,
+    items: serviceOrder.items.map((item) => ({
+      id: item.id,
+      catalogItemId: item.catalogItemId,
+      code: item.catalogItem?.code ?? null,
+      name: item.catalogItem?.name ?? item.description ?? "Item sem nome",
+      type: item.catalogItem?.type ?? "SERVICO",
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: Number(item.quantity) * Number(item.unitPrice),
+      stockCurrent: item.catalogItem?.stockCurrent ?? null,
+    })),
+    subtotal: serviceOrder.subtotal,
+    discount: serviceOrder.discountTotal,
+    total: serviceOrder.total,
+  });
 }
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -234,71 +356,55 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   const payload = (await request.json()) as Record<string, unknown>;
 
-  const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-
-  if (!paymentMethod) {
-    return Response.json(
-      {
-        error: "Forma de pagamento inválida.",
-      },
-      {
-        status: 400,
-      }
-    );
-  }
-
   const serviceOrderId = normalizeString(payload.serviceOrderId);
 
   if (serviceOrderId) {
-   const serviceOrder = await prisma.serviceOrder.findUnique({
-  where: {
-    id,
-  },
-  include: {
-    client: {
-      select: {
-        id: true,
-        name: true,
-        phone1: true,
-      },
-    },
-
-    vehicle: {
-      select: {
-        id: true,
-        plate: true,
-        brand: true,
-        model: true,
-        modelYear: true,
-        color: true,
-      },
-    },
-
-    mechanic: {
-      select: {
-        id: true,
-        name: true,
-      },
-    },
-
-    items: {
-      orderBy: {
-        createdAt: "asc",
+    const serviceOrder = await prisma.serviceOrder.findUnique({
+      where: {
+        id: serviceOrderId,
       },
       include: {
-        catalogItem: {
+        client: {
           select: {
             id: true,
-            code: true,
             name: true,
-            type: true,
-            stockCurrent: true,
+            phone1: true,
+          },
+        },
+        vehicle: {
+          select: {
+            id: true,
+            plate: true,
+            brand: true,
+            model: true,
+            modelYear: true,
+            color: true,
+          },
+        },
+        mechanic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        items: {
+          orderBy: {
+            createdAt: "asc",
+          },
+          include: {
+            catalogItem: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                type: true,
+                stockCurrent: true,
+              },
+            },
           },
         },
       },
-    },
-  },
-});
+    });
 
     if (!serviceOrder) {
       return Response.json(
@@ -315,6 +421,40 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return Response.json(
         {
           error: "Esta ordem de serviço já foi paga.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const payments = normalizePaymentsFromPayload(
+      payload,
+      serviceOrder.total
+    );
+
+    if (!payments?.length) {
+      return Response.json(
+        {
+          error: "Nenhuma forma de pagamento válida foi informada.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const totalPaid = sumPaymentAmounts(payments);
+    const feeTotal = sumPaymentFees(payments);
+    const expectedTotal = new Prisma.Decimal(serviceOrder.total).plus(feeTotal);
+
+    if (!totalPaid.equals(expectedTotal)) {
+      return Response.json(
+        {
+          error: "Total pago inválido.",
+          details: `Total esperado: ${expectedTotal.toFixed(
+            2
+          )}. Total recebido: ${totalPaid.toFixed(2)}.`,
         },
         {
           status: 400,
@@ -391,6 +531,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             data: {
               type: "SAIDA",
               catalogItemId: catalogItem.id,
+              serviceOrderId: serviceOrder.id,
+              serviceOrderItemId: item.id,
               quantity,
               stockBefore: currentStock,
               stockAfter: updatedItem?.stockCurrent ?? null,
@@ -403,10 +545,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           data: {
             clientId: serviceOrder.clientId,
             status: "CONCLUIDA",
-            paymentMethod,
+            paymentMethod: payments[0].paymentMethod,
             subtotal: serviceOrder.subtotal,
             discountTotal: serviceOrder.discountTotal,
-            total: serviceOrder.total,
+            feeTotal,
+            total: totalPaid,
             responsible: serviceOrder.responsible ?? "PDV",
             notes: `Pagamento da ordem de serviço #${serviceOrder.code}`,
             items: {
@@ -415,35 +558,35 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
                 description: item.catalogItem?.name ?? item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
-                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice),
+                discount: item.discount,
+                total: new Prisma.Decimal(item.quantity)
+                  .mul(item.unitPrice)
+                  .minus(item.discount),
+              })),
+            },
+            payments: {
+              create: payments.map((payment) => ({
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                feeAmount: payment.feeAmount,
+                netAmount: payment.amount.minus(payment.feeAmount),
               })),
             },
           },
-          include: {
-            client: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            items: true,
-          },
+          include: saleInclude,
         });
 
         const category = await ensureServiceOrderCategory(tx);
 
-        await tx.cashMovement.create({
-          data: {
-            type: "ENTRADA",
-            categoryId: category.id,
-            saleId: sale.id,
-            description: `Pagamento da ordem de serviço #${serviceOrder.code}`,
-            movementDate: new Date(),
-            amount: serviceOrder.total,
-            paymentMethod,
-            documentNumber: `OS-${serviceOrder.code}`,
-            notes: "Pagamento realizado via PDV",
-          },
+        await createPaymentCashMovements({
+          tx,
+          saleId: sale.id,
+          code: sale.code,
+          payments,
+          categoryId: category.id,
+          description: `Pagamento da ordem de serviço #${serviceOrder.code}`,
+          documentNumber: `OS-${serviceOrder.code}`,
+          notes: "Pagamento realizado via PDV",
         });
 
         const updatedServiceOrder = await tx.serviceOrder.update({
@@ -490,6 +633,37 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       },
       {
         status: 404,
+      }
+    );
+  }
+
+  const payments = normalizePaymentsFromPayload(payload, currentSale.total);
+
+  if (!payments?.length) {
+    return Response.json(
+      {
+        error: "Nenhuma forma de pagamento válida foi informada.",
+      },
+      {
+        status: 400,
+      }
+    );
+  }
+
+  const totalPaid = sumPaymentAmounts(payments);
+  const feeTotal = sumPaymentFees(payments);
+  const expectedTotal = new Prisma.Decimal(currentSale.total).plus(feeTotal);
+
+  if (!totalPaid.equals(expectedTotal)) {
+    return Response.json(
+      {
+        error: "Total pago inválido.",
+        details: `Total esperado: ${expectedTotal.toFixed(
+          2
+        )}. Total recebido: ${totalPaid.toFixed(2)}.`,
+      },
+      {
+        status: 400,
       }
     );
   }
@@ -571,28 +745,45 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         });
       }
 
+      await tx.salePayment.deleteMany({
+        where: {
+          saleId: currentSale.id,
+        },
+      });
+
       const updatedSale = await tx.sale.update({
         where: {
           id,
         },
         data: {
           status: "CONCLUIDA",
-          paymentMethod,
+          paymentMethod: payments[0].paymentMethod,
+          feeTotal,
+          total: totalPaid,
+          payments: {
+            create: payments.map((payment) => ({
+              paymentMethod: payment.paymentMethod,
+              amount: payment.amount,
+              feeAmount: payment.feeAmount,
+              netAmount: payment.amount.minus(payment.feeAmount),
+            })),
+          },
         },
         include: saleInclude,
       });
 
-      await createSaleCashMovement(
+      const category = await ensurePdvCategory(tx);
+
+      await createPaymentCashMovements({
         tx,
-        {
-          id: updatedSale.id,
-          code: updatedSale.code,
-          total: updatedSale.total,
-          paymentMethod,
-        },
-        "ENTRADA",
-        `Venda PDV #${updatedSale.code}`
-      );
+        saleId: updatedSale.id,
+        code: updatedSale.code,
+        payments,
+        categoryId: category.id,
+        description: `Venda PDV #${updatedSale.code}`,
+        documentNumber: `PDV-${updatedSale.code}`,
+        notes: "Pagamento realizado via PDV",
+      });
 
       return updatedSale;
     });
