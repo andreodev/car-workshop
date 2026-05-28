@@ -1,10 +1,32 @@
 import type { NextRequest } from "next/server";
 import type { Prisma, VehicleFuel, VehicleStatus } from "@prisma/client";
-import { coerceNumber, normalizeString, parseYear } from "../utils/vehicle.normalizer";
+import {
+  coerceNumber,
+  normalizeString,
+  parseYear,
+} from "../utils/vehicle.normalizer";
 import { vehicleRepository } from "../repositories/vehicle.repository";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+
+function parseVehicleYears(payload: Record<string, unknown>) {
+  const rawManufactureYear = normalizeString(payload.manufactureYear);
+  const rawModelYear = normalizeString(payload.modelYear);
+
+  const [manufactureFromCombined, modelFromCombined] =
+    rawManufactureYear?.includes("/")
+      ? rawManufactureYear.split("/").map((value) => value.trim())
+      : [rawManufactureYear, rawModelYear];
+
+  const manufactureYear = parseYear(manufactureFromCombined);
+  const modelYear = parseYear(rawModelYear || modelFromCombined);
+
+  return {
+    manufactureYear,
+    modelYear,
+  };
+}
 
 export const vehicleService = {
   async list(request: NextRequest) {
@@ -86,23 +108,22 @@ export const vehicleService = {
       } as const;
     }
 
-    const manufactureYear = parseYear(payload.manufactureYear);
+    const { manufactureYear, modelYear } = parseVehicleYears(payload);
 
-if (manufactureYear && "error" in manufactureYear) {
-  return {
-    error: manufactureYear.error,
-    status: 400,
-  } as const;
-}
+    if (manufactureYear && "error" in manufactureYear) {
+      return {
+        error: manufactureYear.error,
+        status: 400,
+      } as const;
+    }
 
-    const modelYear = parseYear(payload.modelYear);
+    if (modelYear && "error" in modelYear) {
+      return {
+        error: modelYear.error,
+        status: 400,
+      } as const;
+    }
 
-if (modelYear && "error" in modelYear) {
-  return {
-    error: modelYear.error,
-    status: 400,
-  } as const;
-}
     const fuel = normalizeString(payload.fuel);
     const status = normalizeString(payload.status);
 
@@ -121,7 +142,7 @@ if (modelYear && "error" in modelYear) {
       city: normalizeString(payload.city),
       status: (status ?? "ATIVO") as VehicleStatus,
       manufactureYear: manufactureYear?.value ?? null,
-modelYear: modelYear?.value ?? null,
+      modelYear: modelYear?.value ?? null,
       notes: normalizeString(payload.notes),
     };
 
@@ -174,23 +195,21 @@ modelYear: modelYear?.value ?? null,
       } as const;
     }
 
-    const manufactureYear = parseYear(payload.manufactureYear);
+    const { manufactureYear, modelYear } = parseVehicleYears(payload);
 
-if (manufactureYear && "error" in manufactureYear) {
-  return {
-    error: manufactureYear.error,
-    status: 400,
-  } as const;
-}
+    if (manufactureYear && "error" in manufactureYear) {
+      return {
+        error: manufactureYear.error,
+        status: 400,
+      } as const;
+    }
 
-    const modelYear = parseYear(payload.modelYear);
-
-if (modelYear && "error" in modelYear) {
-  return {
-    error: modelYear.error,
-    status: 400,
-  } as const;
-}
+    if (modelYear && "error" in modelYear) {
+      return {
+        error: modelYear.error,
+        status: 400,
+      } as const;
+    }
 
     const fuel = normalizeString(payload.fuel);
     const status = normalizeString(payload.status);
@@ -209,8 +228,8 @@ if (modelYear && "error" in modelYear) {
       engine: normalizeString(payload.engine),
       city: normalizeString(payload.city),
       status: (status ?? "ATIVO") as VehicleStatus,
-manufactureYear: manufactureYear?.value ?? null,
-modelYear: modelYear?.value ?? null,
+      manufactureYear: manufactureYear?.value ?? null,
+      modelYear: modelYear?.value ?? null,
       notes: normalizeString(payload.notes),
     };
 
