@@ -77,7 +77,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import {
   Table,
@@ -88,16 +87,35 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 100;
 const NO_CATEGORY = "SEM_CATEGORIA";
 const NO_PAYMENT_METHOD = "SEM_FORMA";
+
+type StatementKind = "CONTA" | "CAIXA" | "CATEGORIA";
+type StatementKindFilter = "TODOS" | StatementKind;
 
 type AccountTypeFilter = FinancialAccountType | "TODOS";
 type AccountStatusFilter = FinancialAccountStatus | "TODOS";
 type MovementTypeFilter = CashMovementType | "TODOS";
 type CategoryTypeFilter = FinancialCategoryType | "TODOS";
 type ActiveFilter = "TODOS" | "ATIVAS" | "INATIVAS";
+
+type StatementRow = {
+  id: string;
+  kind: StatementKind;
+  code: string | number;
+  description: string;
+  typeLabel: string;
+  category: string;
+  date: string | null;
+  paymentMethod: string;
+  amount: string | number | null;
+  status: ReactNode;
+  notes: string;
+  actions: ReactNode;
+};
 
 const emptyAccountForm: FinancialAccountFormValues = {
   type: "RECEBER",
@@ -145,6 +163,7 @@ function toDateInput(value: string | null) {
 
 function formatCurrency(value: string | number | null | undefined) {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
+
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -153,8 +172,11 @@ function formatCurrency(value: string | number | null | undefined) {
 
 function formatDate(value: string | null) {
   if (!value) return "-";
+
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return "-";
+
   return date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -218,41 +240,41 @@ function statusBadge(status: FinancialAccountStatus) {
 export default function FinancialPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [accountPage, setAccountPage] = useState(1);
-  const [movementPage, setMovementPage] = useState(1);
-  const [accountSearchInput, setAccountSearchInput] = useState("");
-  const [accountSearch, setAccountSearch] = useState("");
-  const [movementSearchInput, setMovementSearchInput] = useState("");
-  const [movementSearch, setMovementSearch] = useState("");
-  const [categorySearchInput, setCategorySearchInput] = useState("");
-  const [categorySearch, setCategorySearch] = useState("");
+
+  const [statementKind, setStatementKind] = useState<StatementKindFilter>("TODOS");
+  const [statementSearchInput, setStatementSearchInput] = useState("");
+  const [statementSearch, setStatementSearch] = useState("");
+
   const [accountType, setAccountType] = useState<AccountTypeFilter>("TODOS");
   const [accountStatus, setAccountStatus] = useState<AccountStatusFilter>("TODOS");
   const [movementType, setMovementType] = useState<MovementTypeFilter>("TODOS");
   const [categoryType, setCategoryType] = useState<CategoryTypeFilter>("TODOS");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("TODOS");
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [movementFrom, setMovementFrom] = useState("");
-  const [movementTo, setMovementTo] = useState("");
+
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+
   const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
   const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinancialCategory | null>(null);
+
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
+
   const [errorMessage, setErrorMessage] = useState("");
 
   const accountsQuery = useQuery({
-    queryKey: ["financial-accounts", { accountPage, accountSearch, accountType, accountStatus, from, to }],
+    queryKey: ["financial-accounts", { accountType, accountStatus, from, to }],
     queryFn: () =>
       fetchFinancialAccounts({
-        page: accountPage,
+        page: 1,
         pageSize: PAGE_SIZE,
-        search: accountSearch,
+        search: "",
         type: accountType,
         status: accountStatus,
         from,
@@ -263,26 +285,26 @@ export default function FinancialPage() {
   });
 
   const movementsQuery = useQuery({
-    queryKey: ["cash-movements", { movementPage, movementSearch, movementType, movementFrom, movementTo }],
+    queryKey: ["cash-movements", { movementType, from, to }],
     queryFn: () =>
       fetchCashMovements({
-        page: movementPage,
+        page: 1,
         pageSize: PAGE_SIZE,
-        search: movementSearch,
+        search: "",
         type: movementType,
-        from: movementFrom,
-        to: movementTo,
+        from,
+        to,
       }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
 
   const categoriesQuery = useQuery({
-    queryKey: ["financial-categories", { categorySearch, categoryType, activeFilter }],
+    queryKey: ["financial-categories", { categoryType, activeFilter }],
     queryFn: () =>
       fetchFinancialCategories({
-        pageSize: 100,
-        search: categorySearch,
+        pageSize: PAGE_SIZE,
+        search: "",
         type: categoryType,
         active:
           activeFilter === "TODOS"
@@ -301,9 +323,14 @@ export default function FinancialPage() {
 
   const accountTotals = useMemo(() => {
     const summary = accountsQuery.data?.summary ?? [];
+
     return {
-      receivableOpen: sumAccount(summary, "RECEBER", "ABERTA") + sumAccount(summary, "RECEBER", "VENCIDA"),
-      payableOpen: sumAccount(summary, "PAGAR", "ABERTA") + sumAccount(summary, "PAGAR", "VENCIDA"),
+      receivableOpen:
+        sumAccount(summary, "RECEBER", "ABERTA") +
+        sumAccount(summary, "RECEBER", "VENCIDA"),
+      payableOpen:
+        sumAccount(summary, "PAGAR", "ABERTA") +
+        sumAccount(summary, "PAGAR", "VENCIDA"),
       received: sumAccountPaid(summary, "RECEBER", "PAGA"),
       paid: sumAccountPaid(summary, "PAGAR", "PAGA"),
     };
@@ -313,17 +340,13 @@ export default function FinancialPage() {
     const summary = movementsQuery.data?.summary ?? [];
     const entries = sumCash(summary, "ENTRADA");
     const exits = sumCash(summary, "SAIDA");
-    return { entries, exits, balance: entries - exits };
-  }, [movementsQuery.data]);
 
-  const accountTotalPages = Math.max(
-    1,
-    Math.ceil((accountsQuery.data?.total ?? 0) / (accountsQuery.data?.pageSize ?? PAGE_SIZE))
-  );
-  const movementTotalPages = Math.max(
-    1,
-    Math.ceil((movementsQuery.data?.total ?? 0) / (movementsQuery.data?.pageSize ?? PAGE_SIZE))
-  );
+    return {
+      entries,
+      exits,
+      balance: entries - exits,
+    };
+  }, [movementsQuery.data]);
 
   const saveAccountMutation = useMutation({
     mutationFn: (payload: FinancialAccountFormValues) =>
@@ -335,6 +358,7 @@ export default function FinancialPage() {
       setEditingAccount(null);
       setAccountForm(emptyAccountForm);
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: editingAccount ? "Conta atualizada" : "Conta criada",
         description: "Registro salvo com sucesso.",
@@ -354,6 +378,7 @@ export default function FinancialPage() {
       setEditingMovement(null);
       setMovementForm(emptyMovementForm);
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: editingMovement ? "Movimento atualizado" : "Movimento criado",
         description: "Registro salvo com sucesso.",
@@ -373,23 +398,10 @@ export default function FinancialPage() {
       setEditingCategory(null);
       setCategoryForm(emptyCategoryForm);
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: editingCategory ? "Categoria atualizada" : "Categoria criada",
         description: "Registro salvo com sucesso.",
-        variant: "success",
-      });
-    },
-    onError: showMutationError,
-  });
-
-  const accountStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: FinancialAccountStatus }) =>
-      updateFinancialAccountStatus(id, status),
-    onSuccess: () => {
-      invalidateFinancialQueries(queryClient);
-      toast({
-        title: "Status atualizado",
-        description: "A conta foi atualizada.",
         variant: "success",
       });
     },
@@ -401,6 +413,7 @@ export default function FinancialPage() {
       updateFinancialCategoryActive(id, active),
     onSuccess: () => {
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: "Categoria atualizada",
         description: "A categoria foi atualizada.",
@@ -414,6 +427,7 @@ export default function FinancialPage() {
     mutationFn: deleteFinancialAccount,
     onSuccess: () => {
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: "Conta removida",
         description: "O registro foi excluido.",
@@ -427,6 +441,7 @@ export default function FinancialPage() {
     mutationFn: deleteCashMovement,
     onSuccess: () => {
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: "Movimento removido",
         description: "O registro foi excluido.",
@@ -440,6 +455,7 @@ export default function FinancialPage() {
     mutationFn: deleteFinancialCategory,
     onSuccess: () => {
       invalidateFinancialQueries(queryClient);
+
       toast({
         title: "Categoria removida",
         description: "O registro foi excluido.",
@@ -449,10 +465,219 @@ export default function FinancialPage() {
     onError: showMutationError,
   });
 
+  const statementRows = useMemo<StatementRow[]>(() => {
+    const accountRows: StatementRow[] =
+      accountsQuery.data?.items.map((account) => ({
+        id: `account-${account.id}`,
+        kind: "CONTA",
+        code: account.code,
+        description: account.description,
+        typeLabel: getFinancialTypeLabel(account.type),
+        category: account.category ?? "-",
+        date: account.dueDate,
+        paymentMethod: getPaymentMethodLabel(account.paymentMethod),
+        amount: account.amount,
+        status: statusBadge(account.status),
+        notes: account.serviceOrder
+          ? `OS #${account.serviceOrder.code}`
+          : account.supplierOrder
+            ? `Pedido #${account.supplierOrder.code}`
+            : account.documentNumber || account.notes || "-",
+        actions: (
+          <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Editar"
+              onClick={() => openEditAccount(account)}
+            >
+              <Edit2 className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon-sm"
+              title="Cancelar"
+              onClick={() =>
+                confirm(
+                  "Cancelar esta conta? Se estiver paga, um estorno será lançado no caixa."
+                ) && deleteAccountMutation.mutate(account.id)
+              }
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ),
+      })) ?? [];
+
+    const movementRows: StatementRow[] =
+      movementsQuery.data?.items.map((movement) => ({
+        id: `movement-${movement.id}`,
+        kind: "CAIXA",
+        code: movement.code,
+        description: movement.description,
+        typeLabel: getCashMovementTypeLabel(movement.type),
+        category: movement.category?.name ?? "-",
+        date: movement.movementDate,
+        paymentMethod: getPaymentMethodLabel(movement.paymentMethod),
+        amount: movement.amount,
+        status: (
+          <Badge
+            className={
+              movement.type === "ENTRADA"
+                ? "bg-emerald-600/10 text-emerald-700"
+                : "bg-rose-600/10 text-rose-700"
+            }
+          >
+            {getCashMovementTypeLabel(movement.type)}
+          </Badge>
+        ),
+        notes: movement.sale
+          ? `PDV #${movement.sale.code}`
+          : movement.financialAccount
+            ? `Conta #${movement.financialAccount.code}`
+            : movement.documentNumber || movement.notes || "-",
+        actions: (
+          <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Editar"
+              onClick={() => openEditMovement(movement)}
+            >
+              <Edit2 className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon-sm"
+              title={
+                movement.sale || movement.financialAccount
+                  ? "Estorne pela origem"
+                  : "Estornar"
+              }
+              disabled={Boolean(movement.sale || movement.financialAccount)}
+              onClick={() =>
+                confirm(
+                  "Estornar este movimento? Um lançamento inverso será criado no caixa."
+                ) && deleteMovementMutation.mutate(movement.id)
+              }
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ),
+      })) ?? [];
+
+    const categoryRows: StatementRow[] =
+      categoriesQuery.data?.items.map((category) => ({
+        id: `category-${category.id}`,
+        kind: "CATEGORIA",
+        code: category.code,
+        description: category.name,
+        typeLabel: getFinancialCategoryTypeLabel(category.type),
+        category: "-",
+        date: null,
+        paymentMethod: "-",
+        amount: null,
+        status: (
+          <Badge
+            variant={category.active ? "default" : "secondary"}
+            className={category.active ? "bg-emerald-600/10 text-emerald-700" : ""}
+          >
+            {category.active ? "Ativa" : "Inativa"}
+          </Badge>
+        ),
+        notes: category.notes ?? "-",
+        actions: (
+          <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Editar"
+              onClick={() => openEditCategory(category)}
+            >
+              <Edit2 className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title={category.active ? "Inativar" : "Ativar"}
+              onClick={() =>
+                categoryActiveMutation.mutate({
+                  id: category.id,
+                  active: !category.active,
+                })
+              }
+            >
+              {category.active ? <X className="size-3.5" /> : <Check className="size-3.5" />}
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon-sm"
+              title="Excluir"
+              onClick={() =>
+                confirm("Excluir esta categoria?") &&
+                deleteCategoryMutation.mutate(category.id)
+              }
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ),
+      })) ?? [];
+
+    return [...accountRows, ...movementRows, ...categoryRows]
+      .filter((row) => statementKind === "TODOS" || row.kind === statementKind)
+      .filter((row) => {
+        if (!statementSearch) return true;
+
+        const search = statementSearch.toLowerCase();
+
+        return [
+          row.code,
+          row.description,
+          row.typeLabel,
+          row.category,
+          row.paymentMethod,
+          row.notes,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search);
+      })
+      .sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+
+        return dateB - dateA;
+      });
+  }, [
+    accountsQuery.data,
+    movementsQuery.data,
+    categoriesQuery.data,
+    statementKind,
+    statementSearch,
+  ]);
+
+  const isLoadingStatement =
+    accountsQuery.isLoading || movementsQuery.isLoading || categoriesQuery.isLoading;
+
   function showMutationError(error: unknown) {
     const message =
       error instanceof Error ? error.message : "Nao foi possivel concluir a operacao.";
+
     setErrorMessage(message);
+
     toast({
       title: "Erro na operacao",
       description: message,
@@ -502,21 +727,9 @@ export default function FinancialPage() {
     setCategorySheetOpen(true);
   }
 
-  function handleAccountSearch(event: FormEvent<HTMLFormElement>) {
+  function handleStatementSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAccountPage(1);
-    setAccountSearch(accountSearchInput.trim());
-  }
-
-  function handleMovementSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMovementPage(1);
-    setMovementSearch(movementSearchInput.trim());
-  }
-
-  function handleCategorySearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setCategorySearch(categorySearchInput.trim());
+    setStatementSearch(statementSearchInput.trim());
   }
 
   function handleAccountSubmit(event: FormEvent<HTMLFormElement>) {
@@ -542,26 +755,47 @@ export default function FinancialPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Header
           title="Financeiro"
-          description="Controle contas a receber, contas a pagar, caixa e categorias financeiras."
+          description="Extrato financeiro unificado com contas, caixa e categorias."
         />
+
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={() => openNewAccount("RECEBER")} className="gap-1.5">
             <Plus className="size-4" />
             Conta a receber
           </Button>
+
+          <Button type="button" variant="outline" onClick={() => openNewAccount("PAGAR")} className="gap-1.5">
+            <Plus className="size-4" />
+            Conta a pagar
+          </Button>
+
           <Button type="button" variant="outline" onClick={() => openNewMovement("ENTRADA")} className="gap-1.5">
             <ArrowDownLeft className="size-4" />
             Entrada caixa
+          </Button>
+
+          <Button type="button" variant="outline" onClick={() => openNewMovement("SAIDA")} className="gap-1.5">
+            <ArrowUpRight className="size-4" />
+            Saída caixa
+          </Button>
+
+          <Button type="button" variant="outline" onClick={openNewCategory} className="gap-1.5">
+            <FolderTree className="size-4" />
+            Categoria
           </Button>
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard icon={ArrowDownLeft} label="A receber aberto" value={formatCurrency(accountTotals.receivableOpen)} tone="text-emerald-700" />
+        <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
         <SummaryCard icon={ArrowUpRight} label="A pagar aberto" value={formatCurrency(accountTotals.payableOpen)} tone="text-rose-700" />
+        </Link>
         <SummaryCard icon={Banknote} label="Caixa filtrado" value={formatCurrency(cashTotals.balance)} tone={cashTotals.balance >= 0 ? "text-emerald-700" : "text-rose-700"} />
         <SummaryCard icon={Wallet} label="Recebido / pago" value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(accountTotals.paid)}`} tone="text-foreground" />
       </div>
+
+      p
 
       {errorMessage ? (
         <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -572,263 +806,117 @@ export default function FinancialPage() {
         </div>
       ) : null}
 
-      <Tabs defaultValue="contas" className="gap-4">
-        <TabsList className="h-9 w-full justify-start overflow-x-auto rounded-md md:w-fit">
-          <TabsTrigger value="contas" className="px-3">Contas</TabsTrigger>
-          <TabsTrigger value="caixa" className="px-3">Caixa</TabsTrigger>
-          <TabsTrigger value="categorias" className="px-3">Categorias</TabsTrigger>
-        </TabsList>
+      <form
+        onSubmit={handleStatementSearch}
+        className="grid gap-3 rounded-md border bg-card p-4 shadow-sm xl:grid-cols-[170px_minmax(0,1fr)_150px_150px_150px_150px_150px_150px_auto]"
+      >
+        <SelectFilter value={statementKind} onValueChange={(value) => setStatementKind(value as StatementKindFilter)}>
+          <SelectItem value="TODOS">Extrato completo</SelectItem>
+          <SelectItem value="CONTA">Contas</SelectItem>
+          <SelectItem value="CAIXA">Caixa</SelectItem>
+          <SelectItem value="CATEGORIA">Categorias</SelectItem>
+        </SelectFilter>
 
-        <TabsContent value="contas" className="space-y-4">
-          <form
-            onSubmit={handleAccountSearch}
-            className="grid gap-3 rounded-md border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_150px_150px_150px_auto]"
-          >
-            <SearchInput
-              value={accountSearchInput}
-              onChange={setAccountSearchInput}
-              placeholder="Buscar por conta, contraparte, categoria ou documento"
-            />
-            <SelectFilter value={accountType} onValueChange={(value) => { setAccountType(value as AccountTypeFilter); setAccountPage(1); }}>
-              <SelectItem value="TODOS">Todos os tipos</SelectItem>
-              {financialTypeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectFilter>
-            <SelectFilter value={accountStatus} onValueChange={(value) => { setAccountStatus(value as AccountStatusFilter); setAccountPage(1); }}>
-              <SelectItem value="TODOS">Todos status</SelectItem>
-              {financialStatusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectFilter>
-            <Input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setAccountPage(1); }} />
-            <Input type="date" value={to} onChange={(event) => { setTo(event.target.value); setAccountPage(1); }} />
-            <Button type="submit">Buscar</Button>
-          </form>
+        <SearchInput
+          value={statementSearchInput}
+          onChange={setStatementSearchInput}
+          placeholder="Buscar por descrição, categoria, documento, forma ou observação"
+        />
 
-          <div className="overflow-x-auto rounded-md border bg-card shadow-sm">
-            <Table className="min-w-[1060px]">
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Conta</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Contraparte</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+        <SelectFilter value={accountType} onValueChange={(value) => setAccountType(value as AccountTypeFilter)}>
+          <SelectItem value="TODOS">Todas contas</SelectItem>
+          {financialTypeOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectFilter>
+
+        <SelectFilter value={accountStatus} onValueChange={(value) => setAccountStatus(value as AccountStatusFilter)}>
+          <SelectItem value="TODOS">Todos status</SelectItem>
+          {financialStatusOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectFilter>
+
+        <SelectFilter value={movementType} onValueChange={(value) => setMovementType(value as MovementTypeFilter)}>
+          <SelectItem value="TODOS">Todo caixa</SelectItem>
+          {cashMovementTypeOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectFilter>
+
+        <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+        <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+
+        <SelectFilter value={activeFilter} onValueChange={(value) => setActiveFilter(value as ActiveFilter)}>
+          <SelectItem value="TODOS">Todas cat.</SelectItem>
+          <SelectItem value="ATIVAS">Ativas</SelectItem>
+          <SelectItem value="INATIVAS">Inativas</SelectItem>
+        </SelectFilter>
+
+        <Button type="submit">Buscar</Button>
+      </form>
+
+      <div className="overflow-x-auto rounded-md border bg-card shadow-sm">
+        <Table className="min-w-[1180px]">
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Origem</TableHead>
+              <TableHead>Registro</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Forma</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Observação</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {isLoadingStatement ? (
+              <TableMessage colSpan={10} message="Carregando extrato financeiro..." />
+            ) : statementRows.length ? (
+              statementRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {row.kind === "CONTA"
+                        ? "Conta"
+                        : row.kind === "CAIXA"
+                          ? "Caixa"
+                          : "Categoria"}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    <div className="font-medium">#{row.code} {row.description}</div>
+                  </TableCell>
+
+                  <TableCell>{row.typeLabel}</TableCell>
+                  <TableCell>{row.category}</TableCell>
+                  <TableCell>{formatDate(row.date)}</TableCell>
+                  <TableCell>{row.paymentMethod}</TableCell>
+
+                  <TableCell className="text-right font-semibold">
+                    {row.amount === null ? "-" : formatCurrency(row.amount)}
+                  </TableCell>
+
+                  <TableCell>{row.status}</TableCell>
+
+                  <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
+                    {row.notes}
+                  </TableCell>
+
+                  <TableCell className="text-right">{row.actions}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {accountsQuery.isLoading ? (
-                  <TableMessage colSpan={8} message="Carregando contas..." />
-                ) : accountsQuery.data?.items.length ? (
-                  accountsQuery.data.items.map((account) => (
-                    <TableRow key={account.id}>
-                      <TableCell>
-                        <div className="font-medium">#{account.code} {account.description}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {account.serviceOrder
-                            ? `OS #${account.serviceOrder.code}`
-                            : account.supplierOrder
-                              ? `Pedido #${account.supplierOrder.code}`
-                              : account.documentNumber || account.notes || ""}
-                        </div>
-                      </TableCell>
-                      <TableCell>{getFinancialTypeLabel(account.type)}</TableCell>
-                      <TableCell>{account.client?.name ?? account.counterparty ?? "-"}</TableCell>
-                      <TableCell>{account.category ?? "-"}</TableCell>
-                      <TableCell>{formatDate(account.dueDate)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(account.amount)}</TableCell>
-                      <TableCell>{statusBadge(account.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-
-                          <Button type="button" variant="ghost" size="icon-sm" title="Editar" onClick={() => openEditAccount(account)}>
-                            <Edit2 className="size-3.5" />
-                          </Button>
-                          <Button type="button" variant="destructive" size="icon-sm" title="Cancelar" onClick={() => confirm("Cancelar esta conta? Se estiver paga, um estorno será lançado no caixa.") && deleteAccountMutation.mutate(account.id)}>
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableMessage colSpan={8} message="Nenhuma conta encontrada." />
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <Pagination page={accountPage} totalPages={accountTotalPages} onPrevious={() => setAccountPage((page) => Math.max(1, page - 1))} onNext={() => setAccountPage((page) => Math.min(accountTotalPages, page + 1))} />
-        </TabsContent>
-
-        <TabsContent value="caixa" className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <SummaryCard icon={ArrowDownLeft} label="Entradas" value={formatCurrency(cashTotals.entries)} tone="text-emerald-700" />
-            <SummaryCard icon={ArrowUpRight} label="Saidas" value={formatCurrency(cashTotals.exits)} tone="text-rose-700" />
-            <SummaryCard icon={Banknote} label="Saldo" value={formatCurrency(cashTotals.balance)} tone={cashTotals.balance >= 0 ? "text-emerald-700" : "text-rose-700"} />
-          </div>
-
-          <form
-            onSubmit={handleMovementSearch}
-            className="grid gap-3 rounded-md border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_150px_150px_auto_auto]"
-          >
-            <SearchInput value={movementSearchInput} onChange={setMovementSearchInput} placeholder="Buscar por descrição, documento ou categoria" />
-            <SelectFilter value={movementType} onValueChange={(value) => { setMovementType(value as MovementTypeFilter); setMovementPage(1); }}>
-              <SelectItem value="TODOS">Todos tipos</SelectItem>
-              {cashMovementTypeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectFilter>
-            <Input type="date" value={movementFrom} onChange={(event) => { setMovementFrom(event.target.value); setMovementPage(1); }} />
-            <Input type="date" value={movementTo} onChange={(event) => { setMovementTo(event.target.value); setMovementPage(1); }} />
-            <Button type="submit">Buscar</Button>
-            <Button type="button" variant="outline" onClick={() => openNewMovement("SAIDA")}>
-              <Plus className="size-4" />
-              Saida
-            </Button>
-          </form>
-
-          <div className="overflow-x-auto rounded-md border bg-card shadow-sm">
-            <Table className="min-w-[920px]">
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Movimento</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Forma</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movementsQuery.isLoading ? (
-                  <TableMessage colSpan={7} message="Carregando movimentos..." />
-                ) : movementsQuery.data?.items.length ? (
-                  movementsQuery.data.items.map((movement) => (
-                    <TableRow key={movement.id}>
-                      <TableCell>
-                        <div className="font-medium">#{movement.code} {movement.description}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {movement.sale
-                            ? `PDV #${movement.sale.code}`
-                            : movement.financialAccount
-                              ? `Conta #${movement.financialAccount.code}`
-                              : movement.documentNumber || movement.notes || ""}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={movement.type === "ENTRADA" ? "bg-emerald-600/10 text-emerald-700" : "bg-rose-600/10 text-rose-700"}>
-                          {getCashMovementTypeLabel(movement.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{movement.category?.name ?? "-"}</TableCell>
-                      <TableCell>{formatDate(movement.movementDate)}</TableCell>
-                      <TableCell>{getPaymentMethodLabel(movement.paymentMethod)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(movement.amount)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button type="button" variant="ghost" size="icon-sm" title="Editar" onClick={() => openEditMovement(movement)}>
-                            <Edit2 className="size-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon-sm"
-                            title={movement.sale || movement.financialAccount ? "Estorne pela origem" : "Estornar"}
-                            disabled={Boolean(movement.sale || movement.financialAccount)}
-                            onClick={() => confirm("Estornar este movimento? Um lançamento inverso será criado no caixa.") && deleteMovementMutation.mutate(movement.id)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableMessage colSpan={7} message="Nenhum movimento encontrado." />
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <Pagination page={movementPage} totalPages={movementTotalPages} onPrevious={() => setMovementPage((page) => Math.max(1, page - 1))} onNext={() => setMovementPage((page) => Math.min(movementTotalPages, page + 1))} />
-        </TabsContent>
-
-        <TabsContent value="categorias" className="space-y-4">
-          <form
-            onSubmit={handleCategorySearch}
-            className="grid gap-3 rounded-md border bg-card p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_150px_auto_auto]"
-          >
-            <SearchInput value={categorySearchInput} onChange={setCategorySearchInput} placeholder="Buscar categoria financeira" />
-            <SelectFilter value={categoryType} onValueChange={(value) => setCategoryType(value as CategoryTypeFilter)}>
-              <SelectItem value="TODOS">Todos tipos</SelectItem>
-              {financialCategoryTypeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectFilter>
-            <SelectFilter value={activeFilter} onValueChange={(value) => setActiveFilter(value as ActiveFilter)}>
-              <SelectItem value="TODOS">Todas</SelectItem>
-              <SelectItem value="ATIVAS">Ativas</SelectItem>
-              <SelectItem value="INATIVAS">Inativas</SelectItem>
-            </SelectFilter>
-            <Button type="submit">Buscar</Button>
-            <Button type="button" variant="outline" onClick={openNewCategory}>
-              <FolderTree className="size-4" />
-              Nova categoria
-            </Button>
-          </form>
-
-          <div className="overflow-x-auto rounded-md border bg-card shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Situação</TableHead>
-                  <TableHead>Observação</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categoriesQuery.isLoading ? (
-                  <TableMessage colSpan={5} message="Carregando categorias..." />
-                ) : categoriesQuery.data?.items.length ? (
-                  categoriesQuery.data.items.map((category) => (
-                    <TableRow key={category.id}>
-                      <TableCell className="font-medium">#{category.code} {category.name}</TableCell>
-                      <TableCell>{getFinancialCategoryTypeLabel(category.type)}</TableCell>
-                      <TableCell>
-                        <Badge variant={category.active ? "default" : "secondary"} className={category.active ? "bg-emerald-600/10 text-emerald-700" : ""}>
-                          {category.active ? "Ativa" : "Inativa"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{category.notes ?? "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button type="button" variant="ghost" size="icon-sm" title="Editar" onClick={() => openEditCategory(category)}>
-                            <Edit2 className="size-3.5" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon-sm" title={category.active ? "Inativar" : "Ativar"} onClick={() => categoryActiveMutation.mutate({ id: category.id, active: !category.active })}>
-                            {category.active ? <X className="size-3.5" /> : <Check className="size-3.5" />}
-                          </Button>
-                          <Button type="button" variant="destructive" size="icon-sm" title="Excluir" onClick={() => confirm("Excluir esta categoria?") && deleteCategoryMutation.mutate(category.id)}>
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableMessage colSpan={5} message="Nenhuma categoria encontrada." />
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-      </Tabs>
+              ))
+            ) : (
+              <TableMessage colSpan={10} message="Nenhum registro encontrado no extrato." />
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       <Sheet open={accountSheetOpen} onOpenChange={setAccountSheetOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
@@ -837,6 +925,7 @@ export default function FinancialPage() {
               <SheetTitle>{editingAccount ? "Editar conta" : "Nova conta financeira"}</SheetTitle>
               <SheetDescription>Registre contas a receber ou contas a pagar.</SheetDescription>
             </SheetHeader>
+
             <div className="grid gap-4 px-6 pb-6 md:grid-cols-2">
               <Field label="Tipo">
                 <Select value={accountForm.type} onValueChange={(value) => setAccountForm((form) => ({ ...form, type: value as FinancialAccountType }))}>
@@ -844,18 +933,22 @@ export default function FinancialPage() {
                   <SelectContent>{financialTypeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
+
               <Field label="Status">
                 <Select value={accountForm.status} onValueChange={(value) => setAccountForm((form) => ({ ...form, status: value as FinancialAccountStatus }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{financialStatusOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
+
               <Field label="Descrição" className="md:col-span-2">
                 <Input value={accountForm.description} onChange={(event) => setAccountForm((form) => ({ ...form, description: event.target.value }))} required />
               </Field>
+
               <Field label="Contraparte">
                 <Input value={accountForm.counterparty} onChange={(event) => setAccountForm((form) => ({ ...form, counterparty: event.target.value }))} placeholder="Cliente, fornecedor ou pessoa" />
               </Field>
+
               <Field label="Categoria">
                 <Select value={accountForm.category || NO_CATEGORY} onValueChange={(value) => setAccountForm((form) => ({ ...form, category: value === NO_CATEGORY ? "" : value }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -867,18 +960,23 @@ export default function FinancialPage() {
                   </SelectContent>
                 </Select>
               </Field>
+
               <Field label="Vencimento">
                 <Input type="date" value={accountForm.dueDate} onChange={(event) => setAccountForm((form) => ({ ...form, dueDate: event.target.value }))} required />
               </Field>
+
               <Field label="Pagamento">
                 <Input type="date" value={accountForm.paymentDate} onChange={(event) => setAccountForm((form) => ({ ...form, paymentDate: event.target.value }))} />
               </Field>
+
               <Field label="Valor">
                 <Input type="number" step="0.01" min="0" value={accountForm.amount} onChange={(event) => setAccountForm((form) => ({ ...form, amount: event.target.value }))} required />
               </Field>
+
               <Field label="Valor pago">
                 <Input type="number" step="0.01" min="0" value={accountForm.paidAmount} onChange={(event) => setAccountForm((form) => ({ ...form, paidAmount: event.target.value }))} />
               </Field>
+
               <Field label="Forma">
                 <Select value={accountForm.paymentMethod || NO_PAYMENT_METHOD} onValueChange={(value) => setAccountForm((form) => ({ ...form, paymentMethod: value === NO_PAYMENT_METHOD ? "" : value as FinancialAccountFormValues["paymentMethod"] }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -888,15 +986,20 @@ export default function FinancialPage() {
                   </SelectContent>
                 </Select>
               </Field>
+
               <Field label="Documento">
                 <Input value={accountForm.documentNumber} onChange={(event) => setAccountForm((form) => ({ ...form, documentNumber: event.target.value }))} />
               </Field>
+
               <Field label="Observações" className="md:col-span-2">
                 <Textarea value={accountForm.notes} onChange={(event) => setAccountForm((form) => ({ ...form, notes: event.target.value }))} />
               </Field>
             </div>
+
             <SheetFooter>
-              <Button type="submit" disabled={saveAccountMutation.isPending}>{saveAccountMutation.isPending ? "Salvando..." : "Salvar conta"}</Button>
+              <Button type="submit" disabled={saveAccountMutation.isPending}>
+                {saveAccountMutation.isPending ? "Salvando..." : "Salvar conta"}
+              </Button>
             </SheetFooter>
           </form>
         </SheetContent>
@@ -909,6 +1012,7 @@ export default function FinancialPage() {
               <SheetTitle>{editingMovement ? "Editar movimento" : "Novo movimento de caixa"}</SheetTitle>
               <SheetDescription>Registre entradas e saídas manuais do caixa.</SheetDescription>
             </SheetHeader>
+
             <div className="grid gap-4 px-6 pb-6 md:grid-cols-2">
               <Field label="Tipo">
                 <Select value={movementForm.type} onValueChange={(value) => setMovementForm((form) => ({ ...form, type: value as CashMovementType }))}>
@@ -916,6 +1020,7 @@ export default function FinancialPage() {
                   <SelectContent>{cashMovementTypeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
+
               <Field label="Categoria">
                 <Select value={movementForm.categoryId || NO_CATEGORY} onValueChange={(value) => setMovementForm((form) => ({ ...form, categoryId: value === NO_CATEGORY ? "" : value }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -927,15 +1032,19 @@ export default function FinancialPage() {
                   </SelectContent>
                 </Select>
               </Field>
+
               <Field label="Descrição" className="md:col-span-2">
                 <Input value={movementForm.description} onChange={(event) => setMovementForm((form) => ({ ...form, description: event.target.value }))} required />
               </Field>
+
               <Field label="Data">
                 <Input type="date" value={movementForm.movementDate} onChange={(event) => setMovementForm((form) => ({ ...form, movementDate: event.target.value }))} required />
               </Field>
+
               <Field label="Valor">
                 <Input type="number" step="0.01" min="0" value={movementForm.amount} onChange={(event) => setMovementForm((form) => ({ ...form, amount: event.target.value }))} required />
               </Field>
+
               <Field label="Forma">
                 <Select value={movementForm.paymentMethod || NO_PAYMENT_METHOD} onValueChange={(value) => setMovementForm((form) => ({ ...form, paymentMethod: value === NO_PAYMENT_METHOD ? "" : value as CashMovementFormValues["paymentMethod"] }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -945,15 +1054,20 @@ export default function FinancialPage() {
                   </SelectContent>
                 </Select>
               </Field>
+
               <Field label="Documento">
                 <Input value={movementForm.documentNumber} onChange={(event) => setMovementForm((form) => ({ ...form, documentNumber: event.target.value }))} />
               </Field>
+
               <Field label="Observações" className="md:col-span-2">
                 <Textarea value={movementForm.notes} onChange={(event) => setMovementForm((form) => ({ ...form, notes: event.target.value }))} />
               </Field>
             </div>
+
             <SheetFooter>
-              <Button type="submit" disabled={saveMovementMutation.isPending}>{saveMovementMutation.isPending ? "Salvando..." : "Salvar movimento"}</Button>
+              <Button type="submit" disabled={saveMovementMutation.isPending}>
+                {saveMovementMutation.isPending ? "Salvando..." : "Salvar movimento"}
+              </Button>
             </SheetFooter>
           </form>
         </SheetContent>
@@ -966,16 +1080,19 @@ export default function FinancialPage() {
               <SheetTitle>{editingCategory ? "Editar categoria" : "Nova categoria financeira"}</SheetTitle>
               <SheetDescription>Classifique receitas, despesas ou categorias de uso geral.</SheetDescription>
             </SheetHeader>
+
             <div className="grid gap-4 px-6 pb-6">
               <Field label="Nome">
                 <Input value={categoryForm.name} onChange={(event) => setCategoryForm((form) => ({ ...form, name: event.target.value }))} required />
               </Field>
+
               <Field label="Tipo">
                 <Select value={categoryForm.type} onValueChange={(value) => setCategoryForm((form) => ({ ...form, type: value as FinancialCategoryType }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{financialCategoryTypeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
+
               <Field label="Situação">
                 <Select value={categoryForm.active ? "ATIVA" : "INATIVA"} onValueChange={(value) => setCategoryForm((form) => ({ ...form, active: value === "ATIVA" }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -985,12 +1102,16 @@ export default function FinancialPage() {
                   </SelectContent>
                 </Select>
               </Field>
+
               <Field label="Observações">
                 <Textarea value={categoryForm.notes} onChange={(event) => setCategoryForm((form) => ({ ...form, notes: event.target.value }))} />
               </Field>
             </div>
+
             <SheetFooter>
-              <Button type="submit" disabled={saveCategoryMutation.isPending}>{saveCategoryMutation.isPending ? "Salvando..." : "Salvar categoria"}</Button>
+              <Button type="submit" disabled={saveCategoryMutation.isPending}>
+                {saveCategoryMutation.isPending ? "Salvando..." : "Salvar categoria"}
+              </Button>
             </SheetFooter>
           </form>
         </SheetContent>
@@ -1094,30 +1215,6 @@ function TableMessage({ colSpan, message }: { colSpan: number; message: string }
         {message}
       </TableCell>
     </TableRow>
-  );
-}
-
-function Pagination({
-  page,
-  totalPages,
-  onPrevious,
-  onNext,
-}: {
-  page: number;
-  totalPages: number;
-  onPrevious: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-end gap-2">
-      <span className="text-xs text-muted-foreground">Página {page} de {totalPages}</span>
-      <Button type="button" variant="outline" disabled={page <= 1} onClick={onPrevious}>
-        Anterior
-      </Button>
-      <Button type="button" variant="outline" disabled={page >= totalPages} onClick={onNext}>
-        Próxima
-      </Button>
-    </div>
   );
 }
 

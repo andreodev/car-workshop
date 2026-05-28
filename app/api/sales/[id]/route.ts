@@ -158,6 +158,19 @@ function formatStock(value: unknown) {
     : "0";
 }
 
+function getNextWeeklyPaymentDate() {
+  const date = new Date();
+  const today = date.getDay();
+
+  const friday = 5;
+  const daysUntilFriday = (friday - today + 7) % 7 || 7;
+
+  date.setDate(date.getDate() + daysUntilFriday);
+  date.setHours(0, 0, 0, 0);
+
+  return date;
+}
+
 class StockError extends Error {}
 
 async function ensureServiceOrderCategory(tx: Prisma.TransactionClient) {
@@ -255,6 +268,108 @@ async function createPaymentCashMovements(params: {
   }
 }
 
+async function createMechanicCommissionPayable(params: {
+  tx: Prisma.TransactionClient;
+  serviceOrder: {
+    id: string;
+    code: number;
+    mechanic: {
+      id: string;
+      name: string;
+      commissionPercent: Prisma.Decimal;
+    } | null;
+    items: Array<{
+      type: "SERVICE" | "PRODUCT";
+      quantity: number;
+      unitPrice: Prisma.Decimal;
+      discount: Prisma.Decimal;
+      total: Prisma.Decimal;
+      catalogItem: {
+        type: "PRODUTO" | "SERVICO";
+      } | null;
+    }>;
+  };
+}) {
+  const { tx, serviceOrder } = params;
+
+  if (!serviceOrder.mechanic) {
+    return null;
+  }
+
+  const commissionPercent = new Prisma.Decimal(
+    serviceOrder.mechanic.commissionPercent ?? 0
+  );
+
+  if (commissionPercent.lessThanOrEqualTo(0)) {
+    return null;
+  }
+
+  const serviceItemsTotal = serviceOrder.items.reduce((acc, item) => {
+    const isService =
+      item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
+
+    if (!isService) {
+      return acc;
+    }
+
+    const itemTotal = new Prisma.Decimal(item.total);
+
+    return acc.plus(itemTotal);
+  }, new Prisma.Decimal(0));
+
+  if (serviceItemsTotal.lessThanOrEqualTo(0)) {
+    return null;
+  }
+
+  const commissionAmount = serviceItemsTotal
+    .mul(commissionPercent)
+    .div(100)
+    .toDecimalPlaces(2);
+
+  if (commissionAmount.lessThanOrEqualTo(0)) {
+    return null;
+  }
+
+  const existingCommission = await tx.financialAccount.findFirst({
+    where: {
+      type: "PAGAR",
+      documentNumber: `OS-${serviceOrder.code}`,
+      category: "Comissão mecânico",
+      counterparty: serviceOrder.mechanic.name,
+      status: {
+        not: "CANCELADA",
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingCommission) {
+    return null;
+  }
+
+  return tx.financialAccount.create({
+    data: {
+      type: "PAGAR",
+      status: "ABERTA",
+      description: `Comissão do mecânico - OS #${serviceOrder.code}`,
+      counterparty: serviceOrder.mechanic.name,
+      category: "Comissão mecânico",
+      documentNumber: `OS-${serviceOrder.code}`,
+      dueDate: getNextWeeklyPaymentDate(),
+      amount: commissionAmount,
+      paidAmount: null,
+      paymentMethod: null,
+      notes: `Comissão de ${commissionPercent.toFixed(
+        2
+      )}% sobre serviços da OS #${serviceOrder.code}. Base: ${serviceItemsTotal.toFixed(
+        2
+      )}.`,
+    },
+  });
+}
+
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
@@ -290,6 +405,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         select: {
           id: true,
           name: true,
+          commissionPercent: true,
         },
       },
       items: {
@@ -385,6 +501,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           select: {
             id: true,
             name: true,
+            commissionPercent: true,
           },
         },
         items: {
@@ -428,10 +545,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const payments = normalizePaymentsFromPayload(
-      payload,
-      serviceOrder.total
-    );
+    const payments = normalizePaymentsFromPayload(payload, serviceOrder.total);
 
     if (!payments?.length) {
       return Response.json(
@@ -589,6 +703,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           notes: "Pagamento realizado via PDV",
         });
 
+        const mechanicCommissionPayable =
+          await createMechanicCommissionPayable({
+            tx,
+            serviceOrder,
+          });
+
         const updatedServiceOrder = await tx.serviceOrder.update({
           where: {
             id: serviceOrder.id,
@@ -601,6 +721,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         return {
           sale,
           serviceOrder: updatedServiceOrder,
+          mechanicCommissionPayable,
         };
       });
 
