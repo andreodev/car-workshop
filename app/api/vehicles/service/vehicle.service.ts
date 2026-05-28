@@ -3,8 +3,6 @@ import type { Prisma, VehicleFuel, VehicleStatus } from "@prisma/client";
 import { coerceNumber, normalizeString, parseYear } from "../utils/vehicle.normalizer";
 import { vehicleRepository } from "../repositories/vehicle.repository";
 
-
-
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
@@ -90,22 +88,21 @@ export const vehicleService = {
 
     const manufactureYear = parseYear(payload.manufactureYear);
 
-    if (manufactureYear?.error) {
-      return {
-        error: manufactureYear.error,
-        status: 400,
-      } as const;
-    }
+if (manufactureYear && "error" in manufactureYear) {
+  return {
+    error: manufactureYear.error,
+    status: 400,
+  } as const;
+}
 
     const modelYear = parseYear(payload.modelYear);
 
-    if (modelYear?.error) {
-      return {
-        error: modelYear.error,
-        status: 400,
-      } as const;
-    }
-
+if (modelYear && "error" in modelYear) {
+  return {
+    error: modelYear.error,
+    status: 400,
+  } as const;
+}
     const fuel = normalizeString(payload.fuel);
     const status = normalizeString(payload.status);
 
@@ -124,7 +121,7 @@ export const vehicleService = {
       city: normalizeString(payload.city),
       status: (status ?? "ATIVO") as VehicleStatus,
       manufactureYear: manufactureYear?.value ?? null,
-      modelYear: modelYear?.value ?? null,
+modelYear: modelYear?.value ?? null,
       notes: normalizeString(payload.notes),
     };
 
@@ -136,101 +133,101 @@ export const vehicleService = {
   },
 
   async findById(id: string) {
-  const vehicle = await vehicleRepository.findById(id);
+    const vehicle = await vehicleRepository.findById(id);
 
-  if (!vehicle) {
+    if (!vehicle) {
+      return {
+        error: "Veículo não encontrado.",
+        status: 404,
+      } as const;
+    }
+
     return {
-      error: "Veículo não encontrado.",
-      status: 404,
-    } as const;
-  }
+      data: vehicle,
+    };
+  },
 
+  async update(id: string, payload: Record<string, unknown>) {
+    const plate = normalizeString(payload.plate);
+    const clientId = normalizeString(payload.clientId);
+
+    if (!plate) {
+      return {
+        error: "Placa é obrigatória.",
+        status: 400,
+      } as const;
+    }
+
+    if (!clientId) {
+      return {
+        error: "Cliente é obrigatório.",
+        status: 400,
+      } as const;
+    }
+
+    const client = await vehicleRepository.findClientById(clientId);
+
+    if (!client) {
+      return {
+        error: "Cliente não encontrado.",
+        status: 400,
+      } as const;
+    }
+
+    const manufactureYear = parseYear(payload.manufactureYear);
+
+if (manufactureYear && "error" in manufactureYear) {
   return {
-    data: vehicle,
-  };
-},
+    error: manufactureYear.error,
+    status: 400,
+  } as const;
+}
 
-async update(id: string, payload: Record<string, unknown>) {
-  const plate = normalizeString(payload.plate);
-  const clientId = normalizeString(payload.clientId);
+    const modelYear = parseYear(payload.modelYear);
 
-  if (!plate) {
-    return {
-      error: "Placa é obrigatória.",
-      status: 400,
-    } as const;
-  }
-
-  if (!clientId) {
-    return {
-      error: "Cliente é obrigatório.",
-      status: 400,
-    } as const;
-  }
-
-  const client = await vehicleRepository.findClientById(clientId);
-
-  if (!client) {
-    return {
-      error: "Cliente não encontrado.",
-      status: 400,
-    } as const;
-  }
-
-  const manufactureYear = parseYear(payload.manufactureYear);
-
-  if (manufactureYear?.error) {
-    return {
-      error: manufactureYear.error,
-      status: 400,
-    } as const;
-  }
-
-  const modelYear = parseYear(payload.modelYear);
-
-  if (modelYear?.error) {
-    return {
-      error: modelYear.error,
-      status: 400,
-    } as const;
-  }
-
-  const fuel = normalizeString(payload.fuel);
-  const status = normalizeString(payload.status);
-
-  const data: Prisma.VehicleUpdateInput = {
-    client: { connect: { id: clientId } },
-    plate,
-    brand: normalizeString(payload.brand),
-    model: normalizeString(payload.model),
-    version: normalizeString(payload.version),
-    fleet: normalizeString(payload.fleet),
-    fuel: fuel ? (fuel as VehicleFuel) : null,
-    color: normalizeString(payload.color),
-    chassis: normalizeString(payload.chassis),
-    renavam: normalizeString(payload.renavam),
-    engine: normalizeString(payload.engine),
-    city: normalizeString(payload.city),
-    status: (status ?? "ATIVO") as VehicleStatus,
-    manufactureYear: manufactureYear?.value ?? null,
-    modelYear: modelYear?.value ?? null,
-    notes: normalizeString(payload.notes),
-  };
-
-  const vehicle = await vehicleRepository.update(id, data);
-
+if (modelYear && "error" in modelYear) {
   return {
-    data: vehicle,
-  };
-},
+    error: modelYear.error,
+    status: 400,
+  } as const;
+}
 
-async remove(id: string) {
-  await vehicleRepository.remove(id);
+    const fuel = normalizeString(payload.fuel);
+    const status = normalizeString(payload.status);
 
-  return {
-    data: {
-      ok: true,
-    },
-  };
-},
+    const data: Prisma.VehicleUpdateInput = {
+      client: { connect: { id: clientId } },
+      plate,
+      brand: normalizeString(payload.brand),
+      model: normalizeString(payload.model),
+      version: normalizeString(payload.version),
+      fleet: normalizeString(payload.fleet),
+      fuel: fuel ? (fuel as VehicleFuel) : null,
+      color: normalizeString(payload.color),
+      chassis: normalizeString(payload.chassis),
+      renavam: normalizeString(payload.renavam),
+      engine: normalizeString(payload.engine),
+      city: normalizeString(payload.city),
+      status: (status ?? "ATIVO") as VehicleStatus,
+manufactureYear: manufactureYear?.value ?? null,
+modelYear: modelYear?.value ?? null,
+      notes: normalizeString(payload.notes),
+    };
+
+    const vehicle = await vehicleRepository.update(id, data);
+
+    return {
+      data: vehicle,
+    };
+  },
+
+  async remove(id: string) {
+    await vehicleRepository.remove(id);
+
+    return {
+      data: {
+        ok: true,
+      },
+    };
+  },
 };
