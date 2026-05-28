@@ -23,11 +23,7 @@ export function parseYear(value: unknown) {
 
   const parsed = Number(normalized);
 
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return {
-      error: "Ano inválido.",
-    };
-  }
+
 
   return {
     value: parsed,
