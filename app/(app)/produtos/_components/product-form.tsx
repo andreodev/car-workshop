@@ -155,24 +155,56 @@ const defaultForm: CatalogItemFormValues = {
 };
 
 function decimalToString(value: string | number | null | undefined, fallback = "") {
-  if (value === null || value === undefined) {
-    return fallback;
-  }
-
+  if (value === null || value === undefined) return fallback;
   return String(value);
 }
 
 function dateToInput(value: string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-
+  if (!value) return "";
   return value.slice(0, 10);
 }
 
-function parseMoney(value: string) {
-  const parsed = Number(value.replace(",", "."));
+function parseMoney(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return Number.NaN;
+  const parsed = Number(String(value).replace(",", "."));
   return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function formatMoney(value: number) {
+  return value.toFixed(2);
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function calculateSalePrice(purchasePrice: string, profitPercent: string) {
+  const cost = parseMoney(purchasePrice);
+  const profit = parseMoney(profitPercent);
+
+  if (!Number.isFinite(cost) || !Number.isFinite(profit)) return null;
+
+  return cost + (cost * profit) / 100;
+}
+
+function calculateProfitPreview(purchasePrice: string, salePrice: string) {
+  const cost = parseMoney(purchasePrice);
+  const finalPrice = parseMoney(salePrice);
+
+  if (!Number.isFinite(cost) || !Number.isFinite(finalPrice) || cost <= 0) {
+    return null;
+  }
+
+  const profitValue = finalPrice - cost;
+  const profitPercent = (profitValue / cost) * 100;
+
+  return {
+    profitValue,
+    profitPercent,
+  };
 }
 
 function parseStringArray(value: unknown, size: number) {
@@ -187,11 +219,10 @@ function parseSupplierQuotes(value: unknown) {
   const items = Array.isArray(value)
     ? value
         .map((item) => {
-          if (!item || typeof item !== "object") {
-            return { ...emptyQuote };
-          }
+          if (!item || typeof item !== "object") return { ...emptyQuote };
 
           const quote = item as Partial<SupplierQuoteFormValues>;
+
           return {
             quotedAt: decimalToString(quote.quotedAt),
             quotedValue: decimalToString(quote.quotedValue),
@@ -202,13 +233,14 @@ function parseSupplierQuotes(value: unknown) {
         .slice(0, 3)
     : [];
 
-  return [...items, ...Array.from({ length: 3 - items.length }, () => ({ ...emptyQuote }))];
+  return [
+    ...items,
+    ...Array.from({ length: 3 - items.length }, () => ({ ...emptyQuote })),
+  ];
 }
 
 function mapItemToForm(item?: CatalogItem | null): CatalogItemFormValues {
-  if (!item) {
-    return defaultForm;
-  }
+  if (!item) return defaultForm;
 
   const salePrice = decimalToString(item.salePrice ?? item.unitPrice, "0");
 
@@ -318,11 +350,12 @@ function mapItemToForm(item?: CatalogItem | null): CatalogItemFormValues {
   };
 }
 
-
 export function ProductForm({ initialData }: ProductFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<CatalogItemFormValues>(() => mapItemToForm(initialData));
+  const [form, setForm] = useState<CatalogItemFormValues>(() =>
+    mapItemToForm(initialData)
+  );
   const [localError, setLocalError] = useState<string | null>(null);
   const mode = initialData ? "edit" : "create";
   const { toast } = useToast();
@@ -330,6 +363,11 @@ export function ProductForm({ initialData }: ProductFormProps) {
   const isService = form.type === "SERVICO";
   const itemLabel = isService ? "Serviço" : "Produto";
   const itemLabelLower = isService ? "serviço" : "produto";
+
+  const profitPreview = calculateProfitPreview(
+    form.purchasePrice,
+    form.salePrice || form.unitPrice
+  );
 
   const sectorsQuery = useQuery({
     queryKey: ["product-form-sectors"],
@@ -339,11 +377,22 @@ export function ProductForm({ initialData }: ProductFormProps) {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const salePrice = String(parseMoney(form.salePrice || form.unitPrice));
+      const salePriceNumber = parseMoney(form.salePrice || form.unitPrice);
+
+      const normalizedSalePrice = Number.isFinite(salePriceNumber)
+        ? formatMoney(salePriceNumber)
+        : "0";
+
+      const normalizedProfitPercent =
+        form.type === "PRODUTO" && profitPreview
+          ? formatMoney(profitPreview.profitPercent)
+          : form.profitPercent;
+
       const payload: CatalogItemFormValues = {
         ...form,
-        salePrice,
-        unitPrice: salePrice,
+        profitPercent: normalizedProfitPercent,
+        salePrice: normalizedSalePrice,
+        unitPrice: normalizedSalePrice,
         stockCurrent: isService ? "0" : form.stockCurrent,
         stockMinimum: isService ? "0" : form.stockMinimum,
         stockMaximum: isService ? "0" : form.stockMaximum,
@@ -359,17 +408,21 @@ export function ProductForm({ initialData }: ProductFormProps) {
       queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
       queryClient.invalidateQueries({ queryKey: ["catalog-item"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+
       toast({
         title: mode === "edit" ? `${itemLabel} atualizado` : `${itemLabel} cadastrado`,
         description: "Os dados foram salvos com sucesso.",
         variant: "success",
       });
+
       router.push("/produtos");
     },
     onError: (error) => {
       const message =
         error instanceof Error ? error.message : "Nao foi possivel salvar o cadastro.";
+
       setLocalError(message);
+
       toast({
         title: `Erro ao salvar ${itemLabelLower}`,
         description: message,
@@ -382,7 +435,44 @@ export function ProductForm({ initialData }: ProductFormProps) {
     key: Key,
     value: CatalogItemFormValues[Key]
   ) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+
+      if (next.type === "PRODUTO") {
+        if (key === "purchasePrice" || key === "salePrice") {
+          const preview = calculateProfitPreview(
+            String(next.purchasePrice),
+            String(next.salePrice)
+          );
+
+          if (preview) {
+            next.profitPercent = formatMoney(preview.profitPercent);
+          }
+
+          if (key === "salePrice") {
+            next.unitPrice = String(value);
+          }
+        }
+
+        if (key === "profitPercent") {
+          const calculatedSalePrice = calculateSalePrice(
+            String(next.purchasePrice),
+            String(next.profitPercent)
+          );
+
+          if (calculatedSalePrice !== null) {
+            next.salePrice = formatMoney(calculatedSalePrice);
+            next.unitPrice = formatMoney(calculatedSalePrice);
+          }
+        }
+      }
+
+      if (next.type === "SERVICO" && key === "salePrice") {
+        next.unitPrice = String(value);
+      }
+
+      return next;
+    });
   }
 
   function handleTypeChange(type: CatalogItemType) {
@@ -401,11 +491,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
     }));
   }
 
-  function updateQuote(
-    index: number,
-    key: keyof SupplierQuoteFormValues,
-    value: string
-  ) {
+  function updateQuote(index: number, key: keyof SupplierQuoteFormValues, value: string) {
     setForm((current) => ({
       ...current,
       supplierQuotes: current.supplierQuotes.map((quote, quoteIndex) =>
@@ -449,6 +535,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
       type?: string;
       placeholder?: string;
       className?: string;
+      disabled?: boolean;
     }
   ) {
     return (
@@ -457,6 +544,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
         <Input
           type={options?.type ?? "text"}
           placeholder={options?.placeholder}
+          disabled={options?.disabled}
           value={String(form[name] ?? "")}
           onChange={(event) => updateField(name, event.target.value as never)}
         />
@@ -505,16 +593,15 @@ export function ProductForm({ initialData }: ProductFormProps) {
       pis: "PIS",
       cofins: "COFINS",
     };
-    const fieldPrefix = prefix === "cofins" ? "cofins" : prefix;
 
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        {renderInput(`${fieldPrefix}TaxSituation` as TextFieldName, "Situação Tributária")}
-        {renderCalculationSelect(`${fieldPrefix}CalculationType` as TextFieldName, "Tipo de cálculo")}
-        {renderInput(`${fieldPrefix}Base` as TextFieldName, `Base Calc ${labels[prefix]}`)}
-        {renderInput(`${fieldPrefix}Rate` as TextFieldName, `Alíquota ${labels[prefix]}`)}
-        {renderInput(`${fieldPrefix}Value` as TextFieldName, `Valor ${labels[prefix]}`)}
-        {renderTextarea(`${fieldPrefix}Notes` as TextFieldName, "Observações")}
+        {renderInput(`${prefix}TaxSituation` as TextFieldName, "Situação Tributária")}
+        {renderCalculationSelect(`${prefix}CalculationType` as TextFieldName, "Tipo de cálculo")}
+        {renderInput(`${prefix}Base` as TextFieldName, `Base Calc ${labels[prefix]}`)}
+        {renderInput(`${prefix}Rate` as TextFieldName, `Alíquota ${labels[prefix]}`)}
+        {renderInput(`${prefix}Value` as TextFieldName, `Valor ${labels[prefix]}`)}
+        {renderTextarea(`${prefix}Notes` as TextFieldName, "Observações")}
       </div>
     );
   }
@@ -530,7 +617,9 @@ export function ProductForm({ initialData }: ProductFormProps) {
           }
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder={sectorsQuery.isLoading ? "Carregando setores..." : "Selecione"} />
+            <SelectValue
+              placeholder={sectorsQuery.isLoading ? "Carregando setores..." : "Selecione"}
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={noSelection}>Sem escolher setor</SelectItem>
@@ -541,6 +630,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
             ))}
           </SelectContent>
         </Select>
+
         {sectorsQuery.isError ? (
           <p className="text-xs text-destructive">Não foi possível carregar setores.</p>
         ) : null}
@@ -674,13 +764,32 @@ export function ProductForm({ initialData }: ProductFormProps) {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-base font-semibold">Valores</h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-base font-semibold">Valores</h2>
+
+              {profitPreview ? (
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    {profitPreview.profitValue >= 0 ? "Lucro estimado: " : "Prejuízo estimado: "}
+                  </span>
+                  <strong className="text-foreground">
+                    {formatCurrency(profitPreview.profitValue)}
+                  </strong>
+                  <span className="mx-1">•</span>
+                  <span>Ganho: </span>
+                  <strong className="text-foreground">
+                    {profitPreview.profitPercent.toFixed(2)}%
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid gap-4 md:grid-cols-3">
-              {renderInput("tablePrice", "Preço de Tabela")}
-              {renderInput("supplierDiscountPercent", "% Desconto forn")}
               {renderInput("purchasePrice", "Preço de Compra")}
-              {renderInput("profitPercent", "% Lucro")}
               {renderInput("salePrice", "Preço de Venda")}
+              {renderInput("profitPercent", "% Lucro", {
+                disabled: true,
+              })}
             </div>
           </section>
 
@@ -690,7 +799,10 @@ export function ProductForm({ initialData }: ProductFormProps) {
               {form.substituteCodes.map((code, index) => (
                 <div className="space-y-2" key={index}>
                   <Label>Cod produto substituto</Label>
-                  <Input value={code} onChange={(event) => updateSubstitute(index, event.target.value)} />
+                  <Input
+                    value={code}
+                    onChange={(event) => updateSubstitute(index, event.target.value)}
+                  />
                 </div>
               ))}
             </div>
@@ -709,6 +821,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
                       onChange={(event) => updateQuote(index, "quotedAt", event.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label>Valor cotado</Label>
                     <Input
@@ -716,6 +829,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
                       onChange={(event) => updateQuote(index, "quotedValue", event.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label>Quantidade</Label>
                     <Input
@@ -723,6 +837,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
                       onChange={(event) => updateQuote(index, "quantity", event.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label>Fornecedor</Label>
                     <Input
@@ -778,6 +893,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
               {renderInput("unitPrice", "Valor unitário")}
               {renderInput("profitPercent", "% Margem/Lucro")}
             </div>
+
             <p className="text-xs text-muted-foreground">
               Serviço não movimenta estoque. Para peças usadas na OS, cadastre como produto.
             </p>
@@ -813,7 +929,10 @@ export function ProductForm({ initialData }: ProductFormProps) {
             {renderInput("taxNcm", kind === "serviço" ? "Código fiscal/NBS" : "NCM:*")}
             {kind === "produto" ? renderInput("taxCest", "CEST:") : null}
             {renderInput("taxCfop", "CFOP:*")}
-            {renderInput("taxCommercialUnit", kind === "serviço" ? "Unidade do serviço:*" : "Un Comercial:*")}
+            {renderInput(
+              "taxCommercialUnit",
+              kind === "serviço" ? "Unidade do serviço:*" : "Un Comercial:*"
+            )}
             {renderInput("taxCommercialQuantity", "Qtd Comercial:*")}
             {renderInput("taxCommercialUnitValue", "Valor Unit Comercial:*")}
             {kind === "produto" ? renderInput("taxTribUnit", "Un Trib:*") : null}
@@ -825,31 +944,15 @@ export function ProductForm({ initialData }: ProductFormProps) {
             {renderInput("taxOtherExpenses", "Outras Despesas:")}
             {renderInput("taxGrossTotal", "Valor Total Bruto:*")}
             {kind === "produto" ? renderInput("taxExTipi", "EX TIPI:") : null}
-            {kind === "produto" ? (
-              <div className="space-y-2">
-                <Label>Indicador de Escala Relevante</Label>
-                <Select
-                  value={form.taxScaleIndicator || noSelection}
-                  onValueChange={(value) =>
-                    updateField("taxScaleIndicator", value === noSelection ? "" : value)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={noSelection}>- Não usar -</SelectItem>
-                    <SelectItem value="S">Sim</SelectItem>
-                    <SelectItem value="N">Não</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
             {kind === "produto" ? renderInput("taxManufacturerCnpj", "CNPJ Fabricante") : null}
             {renderInput("taxBenefitCode", "Código Benefício Fiscal:")}
             {kind === "produto" ? renderInput("taxPurchaseOrder", "Pedido de Compra:*") : null}
-            {kind === "produto" ? renderInput("taxPurchaseOrderItem", "Número do Item do Pedido de Compra:*") : null}
-            {kind === "produto" ? renderInput("taxFciControlNumber", "Número de Controle da FCI:*") : null}
+            {kind === "produto"
+              ? renderInput("taxPurchaseOrderItem", "Número do Item do Pedido de Compra:*")
+              : null}
+            {kind === "produto"
+              ? renderInput("taxFciControlNumber", "Número de Controle da FCI:*")
+              : null}
             {renderInput("taxFederalApproxPercent", "Imposto Federal Aprox. (%)")}
             {renderInput("taxStateApproxPercent", "Imposto Estadual Aprox. (%)")}
           </div>
@@ -966,6 +1069,7 @@ export function ProductForm({ initialData }: ProductFormProps) {
               >
                 Cancelar
               </Button>
+
               <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
                 {isSaving ? <Spinner size="sm" /> : null}
                 {isSaving ? "Salvando..." : `Salvar ${itemLabelLower}`}

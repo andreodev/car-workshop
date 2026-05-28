@@ -83,24 +83,63 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
+
   const name = normalizeString(payload.name);
   const type = normalizeType(payload.type);
-  const unitPrice = normalizeMoney(payload.unitPrice);
 
   if (!name) {
-    return Response.json({ error: "Nome é obrigatório." }, { status: 400 });
+    return Response.json(
+      { error: "Nome é obrigatório." },
+      { status: 400 }
+    );
   }
 
   if (!type) {
-    return Response.json({ error: "Tipo inválido." }, { status: 400 });
+    return Response.json(
+      { error: "Tipo inválido." },
+      { status: 400 }
+    );
+  }
+
+  const purchasePrice = normalizeMoney(payload.purchasePrice);
+  const profitPercent = normalizeMoney(payload.profitPercent);
+
+  let salePrice: number | null = null;
+  let unitPrice: number | null = null;
+
+  if (
+    purchasePrice !== null &&
+    profitPercent !== null
+  ) {
+    salePrice =
+      purchasePrice +
+      (purchasePrice * profitPercent) / 100;
+
+    unitPrice = salePrice;
+  } else {
+    unitPrice = normalizeMoney(payload.unitPrice);
   }
 
   if (unitPrice === null) {
-    return Response.json({ error: "Valor unitário inválido." }, { status: 400 });
+    return Response.json(
+      {
+        error:
+          "Valor unitário inválido.",
+      },
+      { status: 400 }
+    );
   }
 
   const item = await prisma.catalogItem.create({
-    data: buildCatalogItemData({ ...payload, type, name, unitPrice }),
+    data: buildCatalogItemData({
+      ...payload,
+      type,
+      name,
+      purchasePrice,
+      profitPercent,
+      salePrice,
+      unitPrice,
+    }),
   });
 
   return Response.json(item, { status: 201 });
