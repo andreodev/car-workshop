@@ -644,11 +644,6 @@ export default function FinancialPage() {
                       <TableCell>{statusBadge(account.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {account.status !== "PAGA" ? (
-                            <Button type="button" variant="ghost" size="icon-sm" title="Marcar como paga" onClick={() => accountStatusMutation.mutate({ id: account.id, status: "PAGA" })}>
-                              <Check className="size-3.5" />
-                            </Button>
-                          ) : null}
                           <Button type="button" variant="ghost" size="icon-sm" title="Editar" onClick={() => openEditAccount(account)}>
                             <Edit2 className="size-3.5" />
                           </Button>
