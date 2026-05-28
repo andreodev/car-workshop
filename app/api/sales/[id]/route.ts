@@ -28,9 +28,7 @@ type RouteContext = {
 };
 
 function normalizeString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
+  if (typeof value !== "string") return null;
 
   const trimmed = value.trim();
 
@@ -47,13 +45,8 @@ function isPdvPaymentMethod(method: unknown): method is PdvPaymentMethod {
 function normalizePaymentMethod(value: unknown): PdvPaymentMethod | null {
   const normalized = normalizeString(value);
 
-  if (!normalized) {
-    return null;
-  }
-
-  if (!isPdvPaymentMethod(normalized)) {
-    return null;
-  }
+  if (!normalized) return null;
+  if (!isPdvPaymentMethod(normalized)) return null;
 
   return normalized;
 }
@@ -61,43 +54,29 @@ function normalizePaymentMethod(value: unknown): PdvPaymentMethod | null {
 function normalizeDecimal(value: unknown) {
   const parsed = Number(value);
 
-  if (!Number.isFinite(parsed)) {
-    return null;
-  }
+  if (!Number.isFinite(parsed)) return null;
 
   return new Prisma.Decimal(parsed);
 }
 
 function normalizePayments(value: unknown): ParsedPayment[] | null {
-  if (!Array.isArray(value)) {
-    return null;
-  }
+  if (!Array.isArray(value)) return null;
 
   const payments: ParsedPayment[] = [];
 
   for (const item of value) {
-    if (!item || typeof item !== "object") {
-      return null;
-    }
+    if (!item || typeof item !== "object") return null;
 
     const record = item as Record<string, unknown>;
 
     const paymentMethod = normalizePaymentMethod(record.paymentMethod);
-
-    if (!paymentMethod) {
-      return null;
-    }
+    if (!paymentMethod) return null;
 
     const amount = normalizeDecimal(record.amount);
     const feeAmount = normalizeDecimal(record.feeAmount ?? 0);
 
-    if (!amount || amount.lessThanOrEqualTo(0)) {
-      return null;
-    }
-
-    if (!feeAmount || feeAmount.lessThan(0)) {
-      return null;
-    }
+    if (!amount || amount.lessThanOrEqualTo(0)) return null;
+    if (!feeAmount || feeAmount.lessThan(0)) return null;
 
     payments.push({
       paymentMethod,
@@ -115,15 +94,11 @@ function normalizePaymentsFromPayload(
 ): ParsedPayment[] | null {
   const payments = normalizePayments(payload.payments);
 
-  if (payments?.length) {
-    return payments;
-  }
+  if (payments?.length) return payments;
 
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
 
-  if (!paymentMethod) {
-    return null;
-  }
+  if (!paymentMethod) return null;
 
   return [
     {
@@ -292,43 +267,31 @@ async function createMechanicCommissionPayable(params: {
 }) {
   const { tx, serviceOrder } = params;
 
-  if (!serviceOrder.mechanic) {
-    return null;
-  }
+  if (!serviceOrder.mechanic) return null;
 
   const commissionPercent = new Prisma.Decimal(
     serviceOrder.mechanic.commissionPercent ?? 0
   );
 
-  if (commissionPercent.lessThanOrEqualTo(0)) {
-    return null;
-  }
+  if (commissionPercent.lessThanOrEqualTo(0)) return null;
 
   const serviceItemsTotal = serviceOrder.items.reduce((acc, item) => {
     const isService =
       item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
 
-    if (!isService) {
-      return acc;
-    }
+    if (!isService) return acc;
 
-    const itemTotal = new Prisma.Decimal(item.total);
-
-    return acc.plus(itemTotal);
+    return acc.plus(new Prisma.Decimal(item.total));
   }, new Prisma.Decimal(0));
 
-  if (serviceItemsTotal.lessThanOrEqualTo(0)) {
-    return null;
-  }
+  if (serviceItemsTotal.lessThanOrEqualTo(0)) return null;
 
   const commissionAmount = serviceItemsTotal
     .mul(commissionPercent)
     .div(100)
     .toDecimalPlaces(2);
 
-  if (commissionAmount.lessThanOrEqualTo(0)) {
-    return null;
-  }
+  if (commissionAmount.lessThanOrEqualTo(0)) return null;
 
   const existingCommission = await tx.financialAccount.findFirst({
     where: {
@@ -345,9 +308,7 @@ async function createMechanicCommissionPayable(params: {
     },
   });
 
-  if (existingCommission) {
-    return null;
-  }
+  if (existingCommission) return null;
 
   return tx.financialAccount.create({
     data: {
@@ -594,9 +555,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             },
           });
 
-          if (!catalogItem) {
-            continue;
-          }
+          if (!catalogItem) continue;
 
           const quantity = new Prisma.Decimal(item.quantity);
           const currentStock = new Prisma.Decimal(
@@ -703,6 +662,42 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           notes: "Pagamento realizado via PDV",
         });
 
+        const updatedFinancialAccounts = await tx.financialAccount.updateMany({
+          where: {
+            type: "RECEBER",
+            status: {
+              in: ["ABERTA", "VENCIDA"],
+            },
+            OR: [
+              {
+                serviceOrderId: serviceOrder.id,
+              },
+              {
+                documentNumber: `OS-${serviceOrder.code}`,
+              },
+              {
+                documentNumber: `OS #${serviceOrder.code}`,
+              },
+              {
+                description: `OS #${serviceOrder.code}`,
+              },
+            ],
+          },
+          data: {
+            status: "PAGA",
+            paymentDate: new Date(),
+            paidAmount: serviceOrder.total,
+            paymentMethod: payments[0].paymentMethod,
+            notes: `Conta baixada automaticamente pelo pagamento da OS #${serviceOrder.code} via PDV.`,
+          },
+        });
+
+        console.log("[PDV_OS_PAYMENT] Contas financeiras baixadas:", {
+          serviceOrderId: serviceOrder.id,
+          serviceOrderCode: serviceOrder.code,
+          count: updatedFinancialAccounts.count,
+        });
+
         const mechanicCommissionPayable =
           await createMechanicCommissionPayable({
             tx,
@@ -722,6 +717,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           sale,
           serviceOrder: updatedServiceOrder,
           mechanicCommissionPayable,
+          updatedFinancialAccountsCount: updatedFinancialAccounts.count,
         };
       });
 
@@ -807,9 +803,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           },
         });
 
-        if (!catalogItem) {
-          continue;
-        }
+        if (!catalogItem) continue;
 
         const quantity = new Prisma.Decimal(item.quantity);
         const currentStock = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
