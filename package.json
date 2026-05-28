@@ -50,6 +50,7 @@
     "@tanstack/react-router": "^1.170.7",
     "@tanstack/react-table": "^8.21.3",
     "@types/react-modal": "^3.16.3",
+    "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -19,7 +19,6 @@ import Modal from "react-modal";
 import { fetchClients } from "../../clientes/client-api";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import { fetchCatalogItems, fetchSectors } from "../../pdv/pdv-api";
-import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { createEstimate, updateEstimate } from "../estimate-api";
 import { estimateStatusOptions } from "../status";
@@ -43,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import { vehiclesService } from "@/modules/vehicle/api/vehicle.service";
 
 const noSelection = "__none__";
 
@@ -175,7 +175,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
   const vehiclesQuery = useQuery({
     queryKey: ["estimate-vehicles"],
-    queryFn: () => fetchVehicles({ page: 1, pageSize: 50 }),
+    queryFn: () => vehiclesService.list({ page: 1, pageSize: 50 }),
     staleTime: 60_000,
   });
 

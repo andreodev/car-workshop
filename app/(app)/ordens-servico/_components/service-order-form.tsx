@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { fetchClients } from "../../clientes/client-api";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import { fetchCatalogItems } from "../../pdv/pdv-api";
-import { fetchVehicles } from "../../veiculos/vehicle-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";
@@ -40,6 +39,7 @@ import {
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import { vehiclesService } from "@/modules/vehicle/api/vehicle.service";
 
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
@@ -178,13 +178,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
   const vehiclesQuery = useQuery({
     queryKey: ["service-order-vehicles"],
-    queryFn: () => fetchVehicles({ page: 1, pageSize: 50 }),
-    staleTime: 60_000,
-  });
-
-  const mechanicsQuery = useQuery({
-    queryKey: ["service-order-mechanics"],
-    queryFn: () => fetchMechanics({ page: 1, pageSize: 50 }),
+    queryFn: () => vehiclesService.list({ page: 1, pageSize: 50 }),
     staleTime: 60_000,
   });
 

@@ -1,4 +1,4 @@
-export default function Header({ title, description }: { title: string; description: string }) {
+export default function Header({ title, description }: { title: string; description?: string }) {
     return (
         <div className="flex items-start gap-3">
             <div className="flex flex-col gap-0.5">

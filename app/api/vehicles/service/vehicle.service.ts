@@ -1,0 +1,236 @@
+import type { NextRequest } from "next/server";
+import type { Prisma, VehicleFuel, VehicleStatus } from "@prisma/client";
+import { coerceNumber, normalizeString, parseYear } from "../utils/vehicle.normalizer";
+import { vehicleRepository } from "../repositories/vehicle.repository";
+
+
+
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 50;
+
+export const vehicleService = {
+  async list(request: NextRequest) {
+    const { searchParams } = new URL(request.url);
+
+    const page = coerceNumber(searchParams.get("page"), 1);
+    const pageSize = Math.min(
+      coerceNumber(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE),
+      MAX_PAGE_SIZE,
+    );
+
+    const search = normalizeString(searchParams.get("search")) ?? "";
+    const status = normalizeString(searchParams.get("status"));
+
+    const where: Prisma.VehicleWhereInput = {};
+
+    if (status && status !== "TODOS") {
+      where.status = status as VehicleStatus;
+    }
+
+    if (search) {
+      const parsedCode = Number(search);
+      const isValidCode = Number.isInteger(parsedCode);
+
+      where.OR = [
+        { plate: { contains: search, mode: "insensitive" } },
+        { brand: { contains: search, mode: "insensitive" } },
+        { model: { contains: search, mode: "insensitive" } },
+        { version: { contains: search, mode: "insensitive" } },
+        { fleet: { contains: search, mode: "insensitive" } },
+        { color: { contains: search, mode: "insensitive" } },
+        { chassis: { contains: search, mode: "insensitive" } },
+        { renavam: { contains: search, mode: "insensitive" } },
+        { engine: { contains: search, mode: "insensitive" } },
+        { city: { contains: search, mode: "insensitive" } },
+        { client: { name: { contains: search, mode: "insensitive" } } },
+        ...(isValidCode ? [{ code: parsedCode }] : []),
+      ];
+    }
+
+    const { total, items } = await vehicleRepository.findPaginated({
+      where,
+      page,
+      pageSize,
+    });
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
+  },
+
+  async create(payload: Record<string, unknown>) {
+    const plate = normalizeString(payload.plate);
+    const clientId = normalizeString(payload.clientId);
+
+    if (!plate) {
+      return {
+        error: "Placa é obrigatória.",
+        status: 400,
+      } as const;
+    }
+
+    if (!clientId) {
+      return {
+        error: "Cliente é obrigatório.",
+        status: 400,
+      } as const;
+    }
+
+    const client = await vehicleRepository.findClientById(clientId);
+
+    if (!client) {
+      return {
+        error: "Cliente não encontrado.",
+        status: 400,
+      } as const;
+    }
+
+    const manufactureYear = parseYear(payload.manufactureYear);
+
+    if (manufactureYear?.error) {
+      return {
+        error: manufactureYear.error,
+        status: 400,
+      } as const;
+    }
+
+    const modelYear = parseYear(payload.modelYear);
+
+    if (modelYear?.error) {
+      return {
+        error: modelYear.error,
+        status: 400,
+      } as const;
+    }
+
+    const fuel = normalizeString(payload.fuel);
+    const status = normalizeString(payload.status);
+
+    const data: Prisma.VehicleCreateInput = {
+      client: { connect: { id: clientId } },
+      plate,
+      brand: normalizeString(payload.brand),
+      model: normalizeString(payload.model),
+      version: normalizeString(payload.version),
+      fleet: normalizeString(payload.fleet),
+      fuel: fuel ? (fuel as VehicleFuel) : null,
+      color: normalizeString(payload.color),
+      chassis: normalizeString(payload.chassis),
+      renavam: normalizeString(payload.renavam),
+      engine: normalizeString(payload.engine),
+      city: normalizeString(payload.city),
+      status: (status ?? "ATIVO") as VehicleStatus,
+      manufactureYear: manufactureYear?.value ?? null,
+      modelYear: modelYear?.value ?? null,
+      notes: normalizeString(payload.notes),
+    };
+
+    const vehicle = await vehicleRepository.create(data);
+
+    return {
+      data: vehicle,
+    };
+  },
+
+  async findById(id: string) {
+  const vehicle = await vehicleRepository.findById(id);
+
+  if (!vehicle) {
+    return {
+      error: "Veículo não encontrado.",
+      status: 404,
+    } as const;
+  }
+
+  return {
+    data: vehicle,
+  };
+},
+
+async update(id: string, payload: Record<string, unknown>) {
+  const plate = normalizeString(payload.plate);
+  const clientId = normalizeString(payload.clientId);
+
+  if (!plate) {
+    return {
+      error: "Placa é obrigatória.",
+      status: 400,
+    } as const;
+  }
+
+  if (!clientId) {
+    return {
+      error: "Cliente é obrigatório.",
+      status: 400,
+    } as const;
+  }
+
+  const client = await vehicleRepository.findClientById(clientId);
+
+  if (!client) {
+    return {
+      error: "Cliente não encontrado.",
+      status: 400,
+    } as const;
+  }
+
+  const manufactureYear = parseYear(payload.manufactureYear);
+
+  if (manufactureYear?.error) {
+    return {
+      error: manufactureYear.error,
+      status: 400,
+    } as const;
+  }
+
+  const modelYear = parseYear(payload.modelYear);
+
+  if (modelYear?.error) {
+    return {
+      error: modelYear.error,
+      status: 400,
+    } as const;
+  }
+
+  const fuel = normalizeString(payload.fuel);
+  const status = normalizeString(payload.status);
+
+  const data: Prisma.VehicleUpdateInput = {
+    client: { connect: { id: clientId } },
+    plate,
+    brand: normalizeString(payload.brand),
+    model: normalizeString(payload.model),
+    version: normalizeString(payload.version),
+    fleet: normalizeString(payload.fleet),
+    fuel: fuel ? (fuel as VehicleFuel) : null,
+    color: normalizeString(payload.color),
+    chassis: normalizeString(payload.chassis),
+    renavam: normalizeString(payload.renavam),
+    engine: normalizeString(payload.engine),
+    city: normalizeString(payload.city),
+    status: (status ?? "ATIVO") as VehicleStatus,
+    manufactureYear: manufactureYear?.value ?? null,
+    modelYear: modelYear?.value ?? null,
+    notes: normalizeString(payload.notes),
+  };
+
+  const vehicle = await vehicleRepository.update(id, data);
+
+  return {
+    data: vehicle,
+  };
+},
+
+async remove(id: string) {
+  await vehicleRepository.remove(id);
+
+  return {
+    data: {
+      ok: true,
+    },
+  };
+},
+};
