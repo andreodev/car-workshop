@@ -103,8 +103,6 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
     );
   }
 
-  const statusOption = getServiceOrderStatusOption(data.status);
-  const isChangingStatus = statusMutation.isPending;
   const inspectionPath = data.vehicleInspection
     ? `/vistoria/${data.vehicleInspection.token}`
     : null;
@@ -119,6 +117,8 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
     setCopiedInspectionLink(true);
     window.setTimeout(() => setCopiedInspectionLink(false), 1600);
   }
+
+  console.log(data)
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-8">
@@ -326,6 +326,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             <p className="text-sm font-semibold text-foreground">
               {data.notesClient ?? "-"}
             </p>
+            
           </div>
         </section>
     </section>

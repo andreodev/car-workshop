@@ -287,16 +287,24 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
   const { id } = await params;
 
+  console.log("[SERVICE_ORDER_UPDATE] ID:", id);
+
   if (!session?.user) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
+
+  console.log("[SERVICE_ORDER_UPDATE] PAYLOAD:", payload);
+
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
   const mechanicId = normalizeString(payload.mechanicId);
+
   const responsible =
-    normalizeString(payload.responsible) ?? session.user?.name ?? session.user?.email;
+    normalizeString(payload.responsible) ??
+    session.user?.name ??
+    session.user?.email;
 
   if (!clientId) {
     return Response.json({ error: "Cliente é obrigatório." }, { status: 400 });
@@ -315,32 +323,41 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   const entryAt = parseDateTime(payload.entryAt, "Data de entrada");
+
   if (entryAt.error) {
     return Response.json({ error: entryAt.error }, { status: 400 });
   }
 
   const estimatedAtRaw = normalizeString(payload.estimatedAt);
-  const estimatedAt = estimatedAtRaw ? parseDateTime(estimatedAtRaw, "Data prevista") : null;
+
+  const estimatedAt = estimatedAtRaw
+    ? parseDateTime(estimatedAtRaw, "Data prevista")
+    : null;
+
   if (estimatedAt?.error) {
     return Response.json({ error: estimatedAt.error }, { status: 400 });
   }
 
   const kmParsed = parsePositiveInt(payload.km, "Km");
+
   if (kmParsed?.error) {
     return Response.json({ error: kmParsed.error }, { status: 400 });
   }
 
   const itemsParsed = parseItems(payload.items);
+
   if ("error" in itemsParsed) {
     return Response.json({ error: itemsParsed.error }, { status: 400 });
   }
 
   const catalogItemsError = await validateCatalogItems(itemsParsed.items);
+
   if (catalogItemsError) {
     return Response.json({ error: catalogItemsError }, { status: 400 });
   }
 
   const status = parseServiceOrderStatus(payload.status);
+
   if (status.error) {
     return Response.json({ error: status.error }, { status: 400 });
   }
@@ -366,7 +383,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   if (vehicle.clientId !== clientId) {
-    return Response.json({ error: "Veículo nao pertence ao cliente." }, { status: 400 });
+    return Response.json(
+      { error: "Veículo nao pertence ao cliente." },
+      { status: 400 },
+    );
   }
 
   const mechanic = await prisma.mechanic.findUnique({
@@ -383,58 +403,91 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const order = await prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.serviceOrder.update({
-        where: { id },
-        data: {
-          client: { connect: { id: clientId } },
-          vehicle: { connect: { id: vehicleId } },
-          mechanic: { connect: { id: mechanicId } },
-          responsible,
-          status: status.value,
-          location,
-          km: kmParsed?.value ?? null,
-          entryAt: entryAt.value as Date,
-          estimatedAt: estimatedAt?.value ?? null,
-          notesInternal: normalizeString(payload.notesInternal),
-          notesClient: normalizeString(payload.notesClient),
-          subtotal: itemsParsed.subtotal,
-          discountTotal: itemsParsed.discountTotal,
-          total: itemsParsed.total,
-          items: {
-            deleteMany: {},
-            create: itemsParsed.items,
-          },
-        },
-        include: {
-          items: {
-            include: {
-              catalogItem: {
-                select: { id: true, code: true, name: true, type: true, stockCurrent: true },
-              },
+    const order = await prisma.$transaction(
+      async (tx) => {
+        console.log("[SERVICE_ORDER_UPDATE] START TRANSACTION");
+
+        const updatedOrder = await tx.serviceOrder.update({
+          where: { id },
+          data: {
+            client: { connect: { id: clientId } },
+            vehicle: { connect: { id: vehicleId } },
+            mechanic: { connect: { id: mechanicId } },
+            responsible,
+            status: status.value,
+            location,
+            km: kmParsed?.value ?? null,
+            entryAt: entryAt.value as Date,
+            estimatedAt: estimatedAt?.value ?? null,
+            notesInternal: normalizeString(payload.notesInternal),
+            notesClient: normalizeString(payload.notesClient),
+            subtotal: itemsParsed.subtotal,
+            discountTotal: itemsParsed.discountTotal,
+            total: itemsParsed.total,
+            items: {
+              deleteMany: {},
+              create: itemsParsed.items,
             },
           },
-          client: { select: { id: true, name: true } },
-          vehicle: { select: { id: true, plate: true, model: true } },
-          mechanic: { select: { id: true, name: true } },
-          estimateConversion: { select: { id: true, code: true, status: true } },
-          vehicleInspection: vehicleInspectionInclude,
-        },
-      });
+          include: {
+            items: {
+              include: {
+                catalogItem: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    type: true,
+                    stockCurrent: true,
+                  },
+                },
+              },
+            },
+            client: { select: { id: true, name: true } },
+            vehicle: { select: { id: true, plate: true, model: true } },
+            mechanic: { select: { id: true, name: true } },
+            estimateConversion: {
+              select: { id: true, code: true, status: true },
+            },
+            vehicleInspection: vehicleInspectionInclude,
+          },
+        });
 
-      await syncServiceOrderReceivable(tx, id);
-      await syncServiceOrderStockMovements(tx, id);
+        console.log("[SERVICE_ORDER_UPDATE] UPDATED ORDER:", updatedOrder.id);
 
-      return updatedOrder;
-    });
+        await syncServiceOrderReceivable(tx, id);
+
+        console.log("[SERVICE_ORDER_UPDATE] RECEIVABLE OK");
+
+        await syncServiceOrderStockMovements(tx, id);
+
+        console.log("[SERVICE_ORDER_UPDATE] STOCK OK");
+
+        return updatedOrder;
+      },
+      {
+        timeout: 15000,
+        maxWait: 15000,
+      },
+    );
+
+    console.log("[SERVICE_ORDER_UPDATE] SUCCESS");
 
     return Response.json(order);
   } catch (error) {
+    console.error("[SERVICE_ORDER_UPDATE] TRANSACTION ERROR:", error);
+
     if (error instanceof ServiceOrderStockError) {
       return Response.json({ error: error.message }, { status: 400 });
     }
 
-    throw error;
+    return Response.json(
+      {
+        error: "Erro ao atualizar ordem de serviço.",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
   }
 }
 

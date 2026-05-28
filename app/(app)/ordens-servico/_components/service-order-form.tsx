@@ -188,6 +188,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     staleTime: 60_000,
   });
 
+  const mechanicsQuery = useQuery({
+    queryKey: ["service-order-mechanics"],
+    queryFn: () => fetchMechanics({ page: 1, pageSize: 50 }),
+    staleTime: 60_000,
+  });
+
   const catalogItems = catalogItemsQuery.data?.items ?? [];
 
   const availableVehicles = useMemo(() => {
@@ -196,7 +202,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return vehicles;
     }
     return vehicles.filter((vehicle) => vehicle.clientId === form.clientId);
-  }, [vehiclesQuery.data, form.clientId]);
+  }, [vehiclesQuery.data, form.clientId, form.mechanicId]);
 
   const mutation = useMutation({
     mutationFn: async (payload: ServiceOrderPayload) => {
@@ -413,6 +419,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               </Badge>
             </div>
 
+
             <div className="pb-6">
               <ServiceOrderFormStepper activeStep={activeTab} />
             </div>
@@ -468,6 +475,41 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           ) : null}
                         </div>
                       </div>
+
+
+<div className="grid gap-2">
+  <Label>Mecânico</Label>
+
+  <Select
+    value={form.mechanicId}
+    onValueChange={(value) => {
+      setForm((prev) => ({ ...prev, mechanicId: value }));
+      setLocalError(null);
+    }}
+  >
+    <SelectTrigger className="w-full">
+      <SelectValue
+        placeholder={
+          mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
+        }
+      />
+    </SelectTrigger>
+
+    <SelectContent>
+      {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+        <SelectItem key={mechanic.id} value={mechanic.id}>
+          {mechanic.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {mechanicsQuery.isError ? (
+    <p className="text-xs text-destructive">
+      Não foi possível carregar mecânicos.
+    </p>
+  ) : null}
+</div>
 
                       <div className="grid gap-4 md:grid-cols-3">
                         <div className="grid gap-2 md:col-span-2">
