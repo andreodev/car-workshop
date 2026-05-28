@@ -288,4 +288,4 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
       </div>
     </aside>
   );
-}q
+}
