@@ -1,5 +1,5 @@
-import { LoadingState } from "@/components/ui/loading-state";
+import { AppBootLoading } from "@/components/ui/app-boot-loading";
 
 export default function Loading() {
-  return <LoadingState className="flex min-h-screen items-center justify-center px-4" />;
+  return <AppBootLoading />;
 }

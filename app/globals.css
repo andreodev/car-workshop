@@ -284,3 +284,15 @@
     background: white !important;
   }
 }
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+
+  to {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+}

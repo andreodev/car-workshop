@@ -24,6 +24,7 @@ import type {
 } from "@prisma/client";
 
 import { prisma } from "@/app/lib/prisma";
+import { DashboardWelcome } from "@/app/_components/dashboard-welcome";
 import Header from "@/components/ui/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -360,6 +361,8 @@ export default async function DashboardPage() {
 
   return (
     <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-6">
+      <DashboardWelcome />
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Header
           title="Dashboard"

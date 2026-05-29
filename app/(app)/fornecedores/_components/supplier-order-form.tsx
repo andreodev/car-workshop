@@ -17,6 +17,7 @@ import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormLoadingState } from "@/components/ui/form-loading-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -132,6 +133,14 @@ export function SupplierOrderForm({ initialData }: SupplierOrderFormProps) {
 
   const isSaving = mutation.isPending;
   const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+
+  if (suppliersQuery.isLoading) {
+    return (
+      <FormLoadingState
+        title="Carregando cadastro de pedido..."
+      />
+    );
+  }
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">

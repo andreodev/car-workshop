@@ -22,10 +22,10 @@ import type {
   ServiceOrderFormValues,
   ServiceOrderItemFormValues,
   ServiceOrderPayload,
-  ServiceOrderStatus,
 } from "../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FormLoadingState } from "@/components/ui/form-loading-state";
 import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -202,7 +202,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return vehicles;
     }
     return vehicles.filter((vehicle) => vehicle.clientId === form.clientId);
-  }, [vehiclesQuery.data, form.clientId, form.mechanicId]);
+  }, [vehiclesQuery.data, form.clientId]);
 
   const mutation = useMutation({
     mutationFn: async (payload: ServiceOrderPayload) => {
@@ -399,6 +399,19 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   );
   const previousStep = serviceOrderFormSteps[activeStepIndex - 1]?.value;
   const nextStep = serviceOrderFormSteps[activeStepIndex + 1]?.value;
+  const isLoadingOptions =
+    clientsQuery.isLoading ||
+    vehiclesQuery.isLoading ||
+    mechanicsQuery.isLoading ||
+    catalogItemsQuery.isLoading;
+
+  if (isLoadingOptions) {
+    return (
+      <FormLoadingState
+        title="Carregando ordem de serviço..."
+      />
+    );
+  }
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">

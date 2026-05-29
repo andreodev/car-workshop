@@ -30,6 +30,7 @@ import type {
 } from "../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FormLoadingState } from "@/components/ui/form-loading-state";
 import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -480,6 +481,20 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   const workflowProgress = Math.round(
     (completedWorkflowCount / workflowSteps.length) * 100,
   );
+  const isLoadingOptions =
+    clientsQuery.isLoading ||
+    vehiclesQuery.isLoading ||
+    mechanicsQuery.isLoading ||
+    sectorsQuery.isLoading ||
+    catalogItemsQuery.isLoading;
+
+  if (isLoadingOptions) {
+    return (
+      <FormLoadingState
+        title="Carregando orçamento..."
+      />
+    );
+  }
 
   return (
     <form
@@ -491,25 +506,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           title={mode === "edit" ? "Editar orçamento" : "Novo orçamento"}
           description="Crie a proposta com cliente, responsável, setor e itens do catálogo."
         />
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-10 px-4"
-            onClick={() => router.push("/orcamentos")}
-          >
-            Cancelar
-          </Button>
-          <Button
-  type="button"
-  className="h-12  text-base font-semibold"
-  disabled={isSaving}
-  onClick={() => setIsObservationModalOpen(true)}
->
-  {isSaving ? "Salvando..." : "Salvar orçamento"}
-</Button>
-        </div>
       </div>
 
       <section className="border-y border-border bg-card">

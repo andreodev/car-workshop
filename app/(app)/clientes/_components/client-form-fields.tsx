@@ -66,10 +66,13 @@ export function ClientInputField({
   helperText,
   helperTone = "muted",
   onChange,
+  onSelectChange: _onSelectChange,
   wrapperClassName = "grid gap-2",
   className = inputClassName,
   ...inputProps
 }: ClientInputFieldProps) {
+  void _onSelectChange;
+
   return (
     <Field className={wrapperClassName}>
       <Label htmlFor={field}>{label}</Label>

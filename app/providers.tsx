@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ToastProvider } from "@/components/ui/toast";
+import { BrowserSessionGuard } from "@/app/_components/browser-session-guard";
 
 const ReactQueryDevtools = dynamic(
   () =>
@@ -35,7 +36,7 @@ export default function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        {children}
+        <BrowserSessionGuard>{children}</BrowserSessionGuard>
       </ToastProvider>
       {process.env.NODE_ENV === "development" ? (
         <ReactQueryDevtools initialIsOpen={false} />

@@ -11,6 +11,7 @@ import {
   FieldDescription,
   FieldError,
 } from "@/components/ui/field";
+import { FormLoadingState } from "@/components/ui/form-loading-state";
 import Header from "@/components/ui/header";
 import { Label } from "@/components/ui/label";
 import {
@@ -67,6 +68,14 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     mode,
     initialData,
   });
+
+  if (clientsQuery.isLoading) {
+    return (
+      <FormLoadingState
+        title="Carregando cadastro de veículo..."
+      />
+    );
+  }
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">

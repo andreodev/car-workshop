@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { signOut } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
+import { clearBrowserSession } from "@/app/lib/browser-session";
 import { menuGroups } from "../data/sidebar";
 
 
@@ -138,7 +138,10 @@ export function AppSidebar() {
                         type="button"
                         variant="outline"
                         size="lg"
-                        onClick={() => signOut({ callbackUrl: "/login" })}
+                        onClick={() => {
+                            clearBrowserSession();
+                            void signOut({ callbackUrl: "/login" });
+                        }}
                         className="mt-3 w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
                     >
                         Sair

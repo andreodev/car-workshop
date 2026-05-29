@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { hasBrowserSession } from "@/app/lib/browser-session";
+
 type SessionUser = {
   id?: string;
   name?: string | null;
@@ -15,6 +17,10 @@ type SessionData = {
 } | null;
 
 async function fetchSession(): Promise<SessionData> {
+  if (!hasBrowserSession()) {
+    return null;
+  }
+
   const response = await fetch("/api/auth/session", {
     method: "GET",
     credentials: "include",
