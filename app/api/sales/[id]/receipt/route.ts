@@ -312,6 +312,89 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
 
+  paymentsWrapper: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 7,
+  },
+
+  paymentsHeader: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+
+  paymentRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.softBorder,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+
+  paymentRowLast: {
+    flexDirection: "row",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+
+  cellPaymentMethod: {
+    flex: 2,
+  },
+
+  cellPaymentAmount: {
+    flex: 1,
+    textAlign: "right",
+  },
+
+  cellPaymentFee: {
+    flex: 1,
+    textAlign: "right",
+  },
+
+  paymentMethodText: {
+    fontSize: 8,
+    color: colors.primary,
+    fontWeight: 700,
+  },
+
+  paymentAmountText: {
+    fontSize: 8,
+    color: colors.primary,
+    fontWeight: 700,
+  },
+
+  paymentFeeText: {
+    fontSize: 8,
+    color: colors.secondary,
+  },
+
+  signatureWrapper: {
+    marginTop: 16,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+
+  signatureBox: {
+    width: 270,
+    alignItems: "center",
+  },
+
+  signatureLine: {
+    width: "100%",
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginBottom: 5,
+  },
+
+  signatureText: {
+    fontSize: 8,
+    color: colors.secondary,
+  },
+
   footer: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -406,6 +489,13 @@ function paymentLabel(value: string) {
   return labels[value] ?? value;
 }
 
+type ReceiptPayment = {
+  id: string;
+  paymentMethod: string;
+  amount: unknown;
+  feeAmount?: unknown;
+};
+
 type RouteContext = {
   params: Promise<{
     id: string;
@@ -425,6 +515,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     include: {
       client: true,
       sector: true,
+      payments: true,
       items: {
         include: {
           catalogItem: true,
@@ -456,6 +547,28 @@ export async function GET(_request: Request, { params }: RouteContext) {
       logoSrc = null;
     }
   }
+
+  const receiptPayments: ReceiptPayment[] =
+    sale.payments && sale.payments.length > 0
+      ? sale.payments.map((payment) => ({
+          id: payment.id,
+          paymentMethod: payment.paymentMethod,
+          amount: payment.amount,
+          feeAmount: payment.feeAmount,
+        }))
+      : [
+          {
+            id: "single-payment",
+            paymentMethod: sale.paymentMethod,
+            amount: sale.total,
+            feeAmount: 0,
+          },
+        ];
+
+  const paymentSummaryLabel =
+    receiptPayments.length > 1
+      ? "Múltiplas formas"
+      : paymentLabel(receiptPayments[0]?.paymentMethod || sale.paymentMethod);
 
   const h = React.createElement;
 
@@ -545,7 +658,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           h(
             Text,
             { style: styles.receiptMeta },
-            `Pagamento: ${paymentLabel(sale.paymentMethod)}`
+            `Pagamento: ${paymentSummaryLabel}`
           )
         )
       ),
@@ -567,11 +680,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           View,
           { style: { alignItems: "flex-end" } },
 
-          h(
-            Text,
-            { style: styles.paymentPill },
-            paymentLabel(sale.paymentMethod)
-          ),
+          h(Text, { style: styles.paymentPill }, paymentSummaryLabel),
 
           h(
             Text,
@@ -811,6 +920,85 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
       h(
         View,
+        { style: styles.paymentsWrapper },
+
+        h(
+          View,
+          { style: styles.tableTitle },
+          h(Text, { style: styles.sectionTitle }, "Formas de pagamento")
+        ),
+
+        h(
+          View,
+          { style: styles.paymentsHeader },
+
+          h(
+            Text,
+            { style: [styles.cellPaymentMethod, styles.tableHeaderText] },
+            "Método"
+          ),
+
+          h(
+            Text,
+            { style: [styles.cellPaymentFee, styles.tableHeaderText] },
+            "Taxa"
+          ),
+
+          h(
+            Text,
+            { style: [styles.cellPaymentAmount, styles.tableHeaderText] },
+            "Valor"
+          )
+        ),
+
+        ...receiptPayments.map((payment, index, arr) =>
+          h(
+            View,
+            {
+              key: payment.id,
+              style:
+                index === arr.length - 1
+                  ? styles.paymentRowLast
+                  : styles.paymentRow,
+            },
+
+            h(
+              Text,
+              { style: [styles.cellPaymentMethod, styles.paymentMethodText] },
+              paymentLabel(payment.paymentMethod)
+            ),
+
+            h(
+              Text,
+              { style: [styles.cellPaymentFee, styles.paymentFeeText] },
+              formatCurrency(payment.feeAmount ?? 0)
+            ),
+
+            h(
+              Text,
+              { style: [styles.cellPaymentAmount, styles.paymentAmountText] },
+              formatCurrency(payment.amount)
+            )
+          )
+        )
+      ),
+
+      h(
+        View,
+        { style: styles.signatureWrapper },
+
+        h(
+          View,
+          { style: styles.signatureBox },
+
+          h(View, { style: styles.signatureLine }),
+
+          h(Text, { style: styles.signatureText }, "Assinatura do cliente")
+        )
+      ),
+
+      h(
+        View,
         { style: styles.footer },
 
         h(
@@ -825,13 +1013,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const pdfStream = await pdf(doc).toBuffer();
 
-const chunks: Uint8Array[] = [];
+  const chunks: Uint8Array[] = [];
 
-for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
-  chunks.push(chunk);
-}
+  for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
 
-const pdfBuffer = Buffer.concat(chunks);
+  const pdfBuffer = Buffer.concat(chunks);
 
   return new Response(pdfBuffer, {
     headers: {

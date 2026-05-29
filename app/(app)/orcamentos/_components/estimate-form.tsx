@@ -441,7 +441,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       items: form.items.map((item) => ({
         type: item.type,
         catalogItemId: item.catalogItemId,
-        description: item.description.trim(),
+        description: item.description.trim().toLocaleUpperCase(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
         discount: normalizeAmount(item.discount),
@@ -854,7 +854,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                   </div>
 
                   <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {item.description || "Nenhuma descrição"}
+                    {item.description.toLocaleUpperCase() || "Nenhuma descrição"}
                   </p>
                 </div>
 
@@ -960,7 +960,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                         updateItem(
                           item.id,
                           "description",
-                          event.target.value,
+                          event.target.value.toLocaleUpperCase(),
                         )
                       }
                       placeholder={`Item ${index + 1}`}
