@@ -12,12 +12,10 @@ import {
 } from "@react-pdf/renderer";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
-import { prisma } from "@/app/lib/prisma";
+import { estimateService } from "../../services/estimate.service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const COMPANY_SETTINGS_KEY = "company";
 
 const colors = {
   page: "#FFFFFF",
@@ -443,58 +441,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const estimate = await prisma.estimate.findUnique({
-    where: { id },
-    include: {
-      items: {
-        include: {
-          catalogItem: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      vehicle: {
-        select: {
-          plate: true,
-          brand: true,
-          model: true,
-          version: true,
-        },
-      },
-      mechanic: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      sector: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
+  const result = await estimateService.findPdfDataById(id);
 
-  if (!estimate) {
+  if ("error" in result) {
     return Response.json(
-      { error: "Orçamento não encontrado." },
-      { status: 404 }
+      { error: result.error },
+      { status: result.status }
     );
   }
 
-  const companySettings = await prisma.companySettings.findUnique({
-    where: { singletonKey: COMPANY_SETTINGS_KEY },
-  });
+  const { estimate, companySettings } = result.data;
 
   let logoSrc: string | null = companySettings?.logoUrl ?? null;
 
@@ -853,18 +809,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
     )
   );
 
-  const pdfBlob = await pdf(doc).toBlob();
-const pdfStream = await pdf(doc).toBuffer();
+  const pdfStream = await pdf(doc).toBuffer();
 
-const chunks: Uint8Array[] = [];
+  const chunks: Uint8Array[] = [];
 
-for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
-  chunks.push(chunk);
-}
+  for await (const chunk of pdfStream as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
 
-const pdfBuffer = Buffer.concat(chunks);
+  const pdfBuffer = Buffer.concat(chunks);
 
-return new Response(pdfBuffer, {
+  return new Response(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename=orcamento-${estimate.code}.pdf`,
