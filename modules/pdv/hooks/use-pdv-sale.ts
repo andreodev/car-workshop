@@ -5,18 +5,22 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { fetchClients } from "@/modules/client/api/client.service";
+import { pdvKeys } from "../api/pdv.keys";
 import {
   createCatalogItem,
   createSale,
   fetchCatalogItems,
+  fetchServiceOrderPdv,
   fetchSectors,
-} from "../pdv-api";
+  payServiceOrderPdv,
+} from "../api/pdv.service";
 import type {
   CatalogItem,
   CatalogItemListResponse,
+  SalePaymentPayload,
   SalePaymentMethod,
-} from "../types";
-import { NO_SECTOR_VALUE } from "./pdv-sale-constants";
+} from "../types/pdv.types";
+import { NO_SECTOR_VALUE } from "../utils/pdv-sale-constants";
 import {
   calculateTotals,
   createSaleLine,
@@ -25,9 +29,8 @@ import {
   parseDecimal,
   type ClientOption,
   type SaleLine,
-} from "./pdv-sale-utils";
+} from "../utils/pdv-sale-utils";
 import { useToast } from "@/components/ui/toast";
-import type { CatalogItemType } from "@prisma/client";
 
 type PdvMode = "PDV" | "SERVICE_ORDER";
 
@@ -39,49 +42,11 @@ type UsePdvSaleOptions = {
   serviceOrderId?: string;
 };
 
-type PaymentPayload = {
-  paymentMethod: SalePaymentMethod;
-  amount: number;
-  feeAmount: number;
-};
-
 type PaymentLine = {
   localId: string;
   paymentMethod: SalePaymentMethod;
   amount: string;
   feeAmount: string;
-};
-
-type ServiceOrderPdvResponse = {
-  id: string;
-  code: number;
-  status: string;
-  client?: ClientOption | null;
-  sector?: {
-    id: string;
-    name: string;
-  } | null;
-  items: Array<{
-    id: string;
-    catalogItemId?: string | null;
-    code?: number | string | null;
-    name: string;
-    type: CatalogItem["type"];
-    catalogItem?: {
-      id: string;
-      name: string;
-      type: CatalogItemType;
-      stockCurrent: string | null;
-    } | null;
-    quantity: string | number;
-    unitPrice: string | number;
-    discount?: string | number | null;
-    total: string | number;
-    stockCurrent?: string | number | null;
-  }>;
-  subtotal?: string | number;
-  discount?: string | number;
-  total?: string | number;
 };
 
 function createPaymentLine(
@@ -126,7 +91,7 @@ function normalizePaymentLines(
   paymentLines: PaymentLine[],
   fallbackPaymentMethod: SalePaymentMethod,
   fallbackAmount: number
-): PaymentPayload[] {
+): SalePaymentPayload[] {
   const validPayments = paymentLines
     .map((payment) => {
       const amount = toCurrencyNumber(parseDecimal(payment.amount));
@@ -153,77 +118,16 @@ function normalizePaymentLines(
   ];
 }
 
-function sumPaymentsAmount(payments: PaymentPayload[]) {
+function sumPaymentsAmount(payments: SalePaymentPayload[]) {
   return toCurrencyNumber(
     payments.reduce((acc, payment) => acc + payment.amount, 0)
   );
 }
 
-function sumPaymentsFee(payments: PaymentPayload[]) {
+function sumPaymentsFee(payments: SalePaymentPayload[]) {
   return toCurrencyNumber(
     payments.reduce((acc, payment) => acc + payment.feeAmount, 0)
   );
-}
-
-async function fetchServiceOrderPdv(serviceOrderId: string) {
-  const response = await fetch(`/api/service-orders/${serviceOrderId}`, {
-    method: "GET",
-    credentials: "include",
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error ?? "Erro ao buscar dados da ordem de serviço.");
-  }
-
-  return data as ServiceOrderPdvResponse;
-}
-
-async function payServiceOrderPdv({
-  serviceOrderId,
-  payments,
-}: {
-  serviceOrderId: string;
-  payments: PaymentPayload[];
-}) {
-  const payload = {
-    serviceOrderId,
-    payments,
-  };
-
-  console.log("[PDV_OS_PAYMENT] Payload enviado:", payload);
-
-  const response = await fetch(`/api/sales/${serviceOrderId}`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const text = await response.text();
-
-  console.log("[PDV_OS_PAYMENT] Status:", response.status);
-  console.log("[PDV_OS_PAYMENT] Resposta bruta:", text);
-
-  const data = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error ??
-        data?.details ??
-        "Erro ao efetuar pagamento da ordem de serviço."
-    );
-  }
-
-  return data as {
-    sale: {
-      id: string;
-      code: number;
-    };
-  };
 }
 
 export function usePdvSale({
@@ -289,7 +193,11 @@ export function usePdvSale({
   });
 
   const productsQuery = useQuery({
-    queryKey: ["pdv-catalog-items", productSearch],
+    queryKey: pdvKeys.catalogItemsList({
+      page: 1,
+      pageSize: 6,
+      search: productSearch,
+    }),
     queryFn: () =>
       fetchCatalogItems({
         page: 1,
@@ -301,7 +209,10 @@ export function usePdvSale({
   });
 
   const sectorsQuery = useQuery({
-    queryKey: ["pdv-sectors"],
+    queryKey: pdvKeys.sectorsList({
+      page: 1,
+      pageSize: 50,
+    }),
     queryFn: () =>
       fetchSectors({
         page: 1,
@@ -315,7 +226,7 @@ export function usePdvSale({
     mutationFn: createCatalogItem,
     onSuccess: (item) => {
       queryClient.setQueriesData<CatalogItemListResponse>(
-        { queryKey: ["pdv-catalog-items"] },
+        { queryKey: pdvKeys.catalogItems() },
         (current) => {
           if (
             !current ||
@@ -332,7 +243,7 @@ export function usePdvSale({
         }
       );
 
-      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.catalogItems() });
 
       setSelectedProduct(item);
       setProductSearch(item.name);
@@ -384,8 +295,8 @@ export function usePdvSale({
   const saleMutation = useMutation({
     mutationFn: createSale,
     onSuccess: (sale) => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.sales() });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.catalogItems() });
 
       resetDraft({ keepLastSale: true });
       setLastSale({ id: sale.id, code: sale.code });
@@ -416,9 +327,9 @@ export function usePdvSale({
   const serviceOrderPaymentMutation = useMutation({
     mutationFn: payServiceOrderPdv,
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
-      queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.sales() });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.catalogItems() });
+      queryClient.invalidateQueries({ queryKey: pdvKeys.serviceOrders() });
 
       resetDraft({ keepLastSale: true });
       setLastSale({
@@ -843,7 +754,7 @@ export function usePdvSale({
         discountPercent: line.discountPercent,
       })),
     } as Parameters<typeof createSale>[0] & {
-      payments: PaymentPayload[];
+      payments: SalePaymentPayload[];
     };
 
     saleMutation.mutate(payload);

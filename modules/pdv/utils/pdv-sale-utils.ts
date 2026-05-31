@@ -1,4 +1,4 @@
-import type { CatalogItem } from "../types";
+import type { CatalogItem } from "../types/pdv.types";
 
 export type ClientOption = {
   id: string;

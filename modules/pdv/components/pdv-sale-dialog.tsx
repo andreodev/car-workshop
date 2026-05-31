@@ -8,7 +8,7 @@ import { PdvSaleContextBar } from "./pdv-sale-context-bar";
 import { PdvSaleHeader } from "./pdv-sale-header";
 import { PdvSaleItemsTable } from "./pdv-sale-items-table";
 import { PdvSaleSummary } from "./pdv-sale-summary";
-import { usePdvSale } from "./use-pdv-sale";
+import { usePdvSale } from "../hooks/use-pdv-sale";
 import {
   Dialog,
   DialogContent,
@@ -47,8 +47,6 @@ export function PdvSaleDialog({
     mode,
   });
 
-  const [receiptOpen, setReceiptOpen] = useState(false);
-
   const [appElement] = useState<HTMLElement | null>(() => {
     if (typeof document === "undefined") {
       return null;
@@ -62,12 +60,6 @@ export function PdvSaleDialog({
       Modal.setAppElement(appElement);
     }
   }, [appElement]);
-
-  useEffect(() => {
-    if (controller.state.lastSale) {
-      setReceiptOpen(true);
-    }
-  }, [controller.state.lastSale]);
 
   if (!open || !appElement) {
     return null;
@@ -164,10 +156,8 @@ export function PdvSaleDialog({
       </div>
 
       <Dialog
-        open={receiptOpen && Boolean(controller.state.lastSale)}
+        open={Boolean(controller.state.lastSale)}
         onOpenChange={(nextOpen) => {
-          setReceiptOpen(nextOpen);
-
           if (!nextOpen) {
             controller.actions.clearLastSale();
           }
@@ -210,7 +200,6 @@ export function PdvSaleDialog({
               type="button"
               variant="outline"
               onClick={() => {
-                setReceiptOpen(false);
                 controller.actions.clearLastSale();
                 controller.actions.close();
               }}

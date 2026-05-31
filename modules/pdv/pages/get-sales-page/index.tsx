@@ -1,12 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { Fragment } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -17,9 +11,11 @@ import {
   Search,
 } from "lucide-react";
 
-import { fetchSales, updateSaleStatus } from "../../pdv-api";
-import type { Sale, SaleStatus } from "../../types";
-import { PdvSaleDialog } from "../../_components/pdv-sale-dialog";
+import { PdvSaleDialog } from "../../components/pdv-sale-dialog";
+import {
+  useSalesPage,
+  type SalesStatusFilter,
+} from "../../hooks/use-sales-page";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -45,50 +41,6 @@ import {
 
 type SalesListProps = {
   defaultResponsible: string;
-};
-
-const PAGE_SIZE = 10;
-
-type StatusFilter = SaleStatus | "TODOS";
-
-type ServiceOrderCompleted = {
-  id: string;
-  code: number;
-  status: string;
-  responsible: string;
-  total: string | number;
-  updatedAt: string;
-  client?: {
-    id: string;
-    name: string;
-  } | null;
-  vehicle?: {
-    id: string;
-    plate: string;
-    model: string;
-  } | null;
-  mechanic?: {
-    id: string;
-    name: string;
-  } | null;
-  financialAccount?: {
-    id: string;
-    code: number;
-    status: string;
-    amount: string | number;
-    dueDate: string;
-    paymentDate: string | null;
-    paidAmount: string | number | null;
-    paymentMethod: string | null;
-  } | null;
-  items: Array<{
-    id: string;
-    description: string;
-    quantity: number;
-    unitPrice: string | number;
-    discount: string | number;
-    total: string | number;
-  }>;
 };
 
 function formatCurrency(value: string | number) {
@@ -129,105 +81,39 @@ function paymentLabel(value: string) {
   return labels[value] ?? value;
 }
 
-export function SalesList({ defaultResponsible }: SalesListProps) {
-  const queryClient = useQueryClient();
-
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("TODOS");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedServiceOrderId, setExpandedServiceOrderId] = useState<string | null>(
-    null,
-  );
-
-  const [pdvOpen, setPdvOpen] = useState(false);
-  const [selectedServiceOrder, setSelectedServiceOrder] =
-    useState<ServiceOrderCompleted | null>(null);
-
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["sales", { page, search, status, from, to }],
-    queryFn: () =>
-      fetchSales({
-        page,
-        pageSize: PAGE_SIZE,
-        search,
-        status,
-        from,
-        to,
-      }),
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const serviceOrdersCompleted = useMemo(() => {
-    const response = data as unknown as
-      | { serviceOrdersCompleted?: ServiceOrderCompleted[] }
-      | undefined;
-
-    return response?.serviceOrdersCompleted ?? [];
-  }, [data]);
-
-  const cancelMutation = useMutation({
-    mutationFn: (sale: Sale) => updateSaleStatus(sale.id, "CANCELADA"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-    },
-  });
-
-  const totalPages = useMemo(() => {
-    if (!data) {
-      return 1;
-    }
-
-    return Math.max(1, Math.ceil(data.total / data.pageSize));
-  }, [data]);
-
-  const pageTotal = useMemo(() => {
-    return (
-      data?.items.reduce((sum, sale) => {
-        if (sale.status === "CANCELADA") {
-          return sum;
-        }
-
-        return sum + Number(sale.total);
-      }, 0) ?? 0
-    );
-  }, [data]);
-
-  const canceledCount = useMemo(() => {
-    return data?.items.filter((sale) => sale.status === "CANCELADA").length ?? 0;
-  }, [data]);
-
-  const serviceOrdersPendingPaymentTotal = useMemo(() => {
-    return serviceOrdersCompleted.reduce((sum, order) => {
-      return sum + Number(order.total);
-    }, 0);
-  }, [serviceOrdersCompleted]);
-
-  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPage(1);
-    setSearch(searchInput.trim());
-  }
-
-  function handleOpenNormalPdv() {
-    setSelectedServiceOrder(null);
-    setPdvOpen(true);
-  }
-
-  function handlePayServiceOrder(order: ServiceOrderCompleted) {
-    setSelectedServiceOrder(order);
-    setPdvOpen(true);
-  }
-
-  function handleClosePdv() {
-    setPdvOpen(false);
-    setSelectedServiceOrder(null);
-    queryClient.invalidateQueries({ queryKey: ["sales"] });
-  }
+export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    cancelMutation,
+    canceledCount,
+    expandedId,
+    expandedServiceOrderId,
+    from,
+    handleClosePdv,
+    handleOpenNormalPdv,
+    handlePayServiceOrder,
+    handleSearch,
+    page,
+    pageTotal,
+    pdvOpen,
+    searchInput,
+    selectedServiceOrder,
+    serviceOrdersCompleted,
+    serviceOrdersPendingPaymentTotal,
+    setExpandedId,
+    setExpandedServiceOrderId,
+    setFrom,
+    setPage,
+    setSearchInput,
+    setStatus,
+    setTo,
+    status,
+    to,
+    totalPages,
+  } = useSalesPage();
 
   return (
     <section className="flex flex-col gap-6">
@@ -264,7 +150,7 @@ export function SalesList({ defaultResponsible }: SalesListProps) {
         <Select
           value={status}
           onValueChange={(value) => {
-            setStatus(value as StatusFilter);
+            setStatus(value as SalesStatusFilter);
             setPage(1);
           }}
         >

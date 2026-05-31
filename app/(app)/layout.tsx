@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
-import { PdvLauncher } from "./pdv/_components/pdv-launcher";
+import { PdvLauncher } from "@/modules/pdv";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 

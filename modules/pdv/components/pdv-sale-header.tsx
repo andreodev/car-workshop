@@ -1,7 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon, CashierIcon } from "@hugeicons/core-free-icons";
 
-import { keyboardShortcuts } from "./pdv-sale-constants";
+import { keyboardShortcuts } from "../utils/pdv-sale-constants";
 import { Button } from "@/components/ui/button";
 
 type PdvSaleHeaderProps = {
@@ -9,7 +9,7 @@ type PdvSaleHeaderProps = {
   title?: string;
 };
 
-export function PdvSaleHeader({ onClose, title  }: PdvSaleHeaderProps) {
+export function PdvSaleHeader({ onClose, title = "PDV Caixa" }: PdvSaleHeaderProps) {
   return (
     <header className="grid gap-3 border-b border-border bg-card px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
       <div className="flex min-w-0 items-center gap-4">
@@ -20,8 +20,8 @@ export function PdvSaleHeader({ onClose, title  }: PdvSaleHeaderProps) {
           <p className="font-heading text-xs font-700 uppercase tracking-wide text-muted-foreground">
             Venda balcao
           </p>
-          <h2 className="truncate font-heading text-2xl font-800 uppercase text-foreground">
-            PDV Caixa
+          <h2 className="truncate font-heading text-2xl font-800 text-foreground">
+            {title}
           </h2>
         </div>
       </div>

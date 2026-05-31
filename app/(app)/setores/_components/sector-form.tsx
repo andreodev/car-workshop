@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import { createSector, updateSector } from "../../pdv/pdv-api";
-import type { Sector, SectorFormValues } from "../../pdv/types";
+import { createSector, updateSector } from "@/modules/pdv/api/pdv.service";
+import type { Sector, SectorFormValues } from "@/modules/pdv/types/pdv.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

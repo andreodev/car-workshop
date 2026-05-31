@@ -1,4 +1,4 @@
-import type { SalePaymentMethod } from "../types";
+import type { SalePaymentMethod } from "../types/pdv.types";
 
 export const NO_SECTOR_VALUE = "SEM_SETOR";
 

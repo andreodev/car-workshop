@@ -3,7 +3,7 @@
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchSector } from "../../pdv/pdv-api";
+import { fetchSector } from "@/modules/pdv/api/pdv.service";
 import { SectorForm } from "../_components/sector-form";
 
 type EditSectorPageProps = {

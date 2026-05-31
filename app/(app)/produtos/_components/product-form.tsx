@@ -8,13 +8,13 @@ import {
   createCatalogItem,
   fetchSectors,
   updateCatalogItem,
-} from "../../pdv/pdv-api";
+} from "@/modules/pdv/api/pdv.service";
 import type {
   CatalogItem,
   CatalogItemFormValues,
   CatalogItemType,
   SupplierQuoteFormValues,
-} from "../../pdv/types";
+} from "@/modules/pdv/types/pdv.types";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

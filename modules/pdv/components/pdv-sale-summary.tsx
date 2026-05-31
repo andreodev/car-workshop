@@ -7,8 +7,8 @@ import {
   PaymentSuccess01Icon,
 } from "@hugeicons/core-free-icons";
 
-import { formatCurrency } from "./pdv-sale-utils";
-import type { PdvSaleController } from "./use-pdv-sale";
+import { formatCurrency } from "../utils/pdv-sale-utils";
+import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

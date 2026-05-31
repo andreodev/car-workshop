@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchCatalogItems } from "../../pdv/pdv-api";
+import { fetchCatalogItems } from "@/modules/pdv/api/pdv.service";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";

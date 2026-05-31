@@ -18,7 +18,7 @@ import Modal from "react-modal";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchCatalogItems, fetchSectors } from "../../pdv/pdv-api";
+import { fetchCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { createEstimate, updateEstimate } from "../estimate-api";
 import { estimateStatusOptions } from "../status";

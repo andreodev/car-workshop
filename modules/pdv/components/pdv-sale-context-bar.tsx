@@ -1,9 +1,9 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 
-import type { SalePaymentMethod } from "../types";
-import { NO_SECTOR_VALUE, paymentOptions } from "./pdv-sale-constants";
-import type { PdvSaleController } from "./use-pdv-sale";
+import type { SalePaymentMethod } from "../types/pdv.types";
+import { NO_SECTOR_VALUE, paymentOptions } from "../utils/pdv-sale-constants";
+import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

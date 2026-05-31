@@ -3,7 +3,7 @@
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchCatalogItem } from "../../pdv/pdv-api";
+import { fetchCatalogItem } from "@/modules/pdv/api/pdv.service";
 import { ProductForm } from "../_components/product-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";

@@ -302,11 +302,52 @@ export type Sale = {
   items: SaleItem[];
 };
 
+export type ServiceOrderCompleted = {
+  id: string;
+  code: number;
+  status: string;
+  responsible: string;
+  total: string | number;
+  updatedAt: string;
+  client?: {
+    id: string;
+    name: string;
+  } | null;
+  vehicle?: {
+    id: string;
+    plate: string;
+    model: string;
+  } | null;
+  mechanic?: {
+    id: string;
+    name: string;
+  } | null;
+  financialAccount?: {
+    id: string;
+    code: number;
+    status: string;
+    amount: string | number;
+    dueDate: string;
+    paymentDate: string | null;
+    paidAmount: string | number | null;
+    paymentMethod: string | null;
+  } | null;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: string | number;
+    discount: string | number;
+    total: string | number;
+  }>;
+};
+
 export type SaleListResponse = {
   items: Sale[];
   total: number;
   page: number;
   pageSize: number;
+  serviceOrdersCompleted?: ServiceOrderCompleted[];
 };
 
 export type SalePayloadItem = {
@@ -322,6 +363,48 @@ export type SalePayload = {
   sectorId: string | null;
   responsible: string;
   paymentMethod: SalePaymentMethod;
+  payments?: SalePaymentPayload[];
   notes: string | null;
   items: SalePayloadItem[];
+};
+
+export type SalePaymentPayload = {
+  paymentMethod: SalePaymentMethod;
+  amount: number;
+  feeAmount: number;
+};
+
+export type ServiceOrderPdvResponse = {
+  id: string;
+  code: number;
+  status: string;
+  client?: {
+    id: string;
+    name: string;
+  } | null;
+  sector?: {
+    id: string;
+    name: string;
+  } | null;
+  items: Array<{
+    id: string;
+    catalogItemId?: string | null;
+    code?: number | string | null;
+    name: string;
+    type: CatalogItem["type"];
+    catalogItem?: {
+      id: string;
+      name: string;
+      type: CatalogItemType;
+      stockCurrent: string | null;
+    } | null;
+    quantity: string | number;
+    unitPrice: string | number;
+    discount?: string | number | null;
+    total: string | number;
+    stockCurrent?: string | number | null;
+  }>;
+  subtotal?: string | number;
+  discount?: string | number;
+  total?: string | number;
 };

@@ -1,8 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, BarcodeScanIcon, Search01Icon } from "@hugeicons/core-free-icons";
 
-import { formatCurrency, formatStock } from "./pdv-sale-utils";
-import type { PdvSaleController } from "./use-pdv-sale";
+import { formatCurrency, formatStock } from "../utils/pdv-sale-utils";
+import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

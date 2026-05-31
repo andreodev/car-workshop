@@ -5,8 +5,8 @@ import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 
-import { deleteCatalogItem, fetchCatalogItems } from "../pdv/pdv-api";
-import type { CatalogItemType } from "../pdv/types";
+import { deleteCatalogItem, fetchCatalogItems } from "@/modules/pdv/api/pdv.service";
+import type { CatalogItemType } from "@/modules/pdv/types/pdv.types";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";

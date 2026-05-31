@@ -6,13 +6,39 @@ import type {
   Sale,
   SaleListResponse,
   SalePayload,
+  SalePaymentPayload,
   SaleStatus,
   Sector,
   SectorFormValues,
   SectorListResponse,
-} from "./types";
+  ServiceOrderPdvResponse,
+} from "../types/pdv.types";
 
 const DEFAULT_PAGE_SIZE = 10;
+
+export type CatalogItemsParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: CatalogItemType | "TODOS";
+  includeInactive?: boolean;
+};
+
+export type SectorsParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  includeInactive?: boolean;
+};
+
+export type SalesParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: SaleStatus | "TODOS";
+  from?: string;
+  to?: string;
+};
 
 function toQuery(params: Record<string, string | number | boolean | undefined>) {
   const searchParams = new URLSearchParams();
@@ -48,13 +74,7 @@ function safeJsonParse<T>(text: string): T | null {
   }
 }
 
-export async function fetchCatalogItems(params: {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  type?: CatalogItemType | "TODOS";
-  includeInactive?: boolean;
-}) {
+export async function fetchCatalogItems(params: CatalogItemsParams) {
   const query = toQuery({
     page: params.page ?? 1,
     pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
@@ -112,12 +132,7 @@ export async function deleteCatalogItem(id: string) {
   return parseResponse<{ ok: boolean }>(response);
 }
 
-export async function fetchSectors(params: {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  includeInactive?: boolean;
-}) {
+export async function fetchSectors(params: SectorsParams) {
   const query = toQuery({
     page: params.page ?? 1,
     pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
@@ -168,14 +183,7 @@ export async function deleteSector(id: string) {
   return parseResponse<{ ok: boolean }>(response);
 }
 
-export async function fetchSales(params: {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  status?: SaleStatus | "TODOS";
-  from?: string;
-  to?: string;
-}) {
+export async function fetchSales(params: SalesParams) {
   const query = toQuery({
     page: params.page ?? 1,
     pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
@@ -211,3 +219,57 @@ export async function updateSaleStatus(id: string, status: SaleStatus) {
 
   return parseResponse<Sale>(response);
 }
+
+export async function fetchServiceOrderPdv(serviceOrderId: string) {
+  const response = await fetch(`/api/service-orders/${serviceOrderId}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  return parseResponse<ServiceOrderPdvResponse>(response);
+}
+
+export async function payServiceOrderPdv({
+  serviceOrderId,
+  payments,
+}: {
+  serviceOrderId: string;
+  payments: SalePaymentPayload[];
+}) {
+  const response = await fetch(`/api/sales/${serviceOrderId}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      serviceOrderId,
+      payments,
+    }),
+  });
+
+  return parseResponse<{
+    sale: {
+      id: string;
+      code: number;
+    };
+  }>(response);
+}
+
+export const pdvService = {
+  listCatalogItems: fetchCatalogItems,
+  createCatalogItem,
+  findCatalogItemById: fetchCatalogItem,
+  updateCatalogItem,
+  deleteCatalogItem,
+  listSectors: fetchSectors,
+  findSectorById: fetchSector,
+  createSector,
+  updateSector,
+  deleteSector,
+  listSales: fetchSales,
+  createSale,
+  updateSaleStatus,
+  fetchServiceOrderPdv,
+  payServiceOrderPdv,
+};

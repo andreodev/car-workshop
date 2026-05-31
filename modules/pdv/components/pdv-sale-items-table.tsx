@@ -1,7 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 
-import { formatCurrency, type SaleLine } from "./pdv-sale-utils";
+import { formatCurrency, type SaleLine } from "../utils/pdv-sale-utils";
 import { Button } from "@/components/ui/button";
 import {
   Table,
