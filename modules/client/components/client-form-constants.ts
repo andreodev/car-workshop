@@ -3,7 +3,7 @@ import type {
   ClientIcms,
   ClientPersonType,
   ClientStatus,
-} from "../types";
+} from "../types/client.types";
 import type { ClientFormStepValue } from "./client-form-stepper";
 
 export const emptyClientForm: ClientFormValues = {

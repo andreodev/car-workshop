@@ -1,4 +1,4 @@
-import type { Client, ClientFormValues } from "./types";
+import type { Client, ClientFormValues } from "../types/client.types";
 import {
   maskCep,
   maskCpf,

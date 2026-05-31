@@ -4,7 +4,7 @@ import {
   maskPhone,
   maskRg,
   maskState,
-} from "../clientes/client-input-masks";
+} from "@/modules/client/utils/client-input-masks";
 import type { SupplierFormValues } from "./types";
 
 type SupplierInputMask = (value: string) => string;

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/ui/toast";
-import { fetchClients } from "@/app/(app)/clientes/client-api";
+import { fetchClients } from "@/modules/client/api/client.service";
 
 import type { Vehicle, VehicleFormValues } from "../types/vehicle.types";
 import { vehiclesService } from "../api/vehicle.service";

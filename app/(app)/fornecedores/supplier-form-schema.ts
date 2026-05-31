@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { onlyDigits } from "../clientes/client-input-masks";
+import { onlyDigits } from "@/modules/client/utils/client-input-masks";
 import type { SupplierPersonType } from "./types";
 
 const personTypeSchema = z.enum(["FISICA", "JURIDICA"] satisfies [

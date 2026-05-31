@@ -5,7 +5,7 @@ import {
   clientFormSchema,
   toNullableString,
   type ClientFormSchemaOutput,
-} from "@/app/(app)/clientes/client-form-schema";
+} from "@/modules/client/utils/client-form-schema";
 import { clientRepository } from "../repositories/client.repository";
 
 const DEFAULT_PAGE_SIZE = 10;

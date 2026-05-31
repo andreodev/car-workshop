@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
-import { fetchClients } from "../../clientes/client-api";
+import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import { fetchCatalogItems } from "../../pdv/pdv-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";

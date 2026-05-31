@@ -1,4 +1,4 @@
-import type { ClientFormValues } from "./types";
+import type { ClientFormValues } from "../types/client.types";
 
 type ClientInputMask = (value: string) => string;
 

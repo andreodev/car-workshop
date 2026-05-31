@@ -16,7 +16,7 @@ import {
 import { useRouter } from "next/navigation";
 import Modal from "react-modal";
 
-import { fetchClients } from "../../clientes/client-api";
+import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import { fetchCatalogItems, fetchSectors } from "../../pdv/pdv-api";
 import { useAuthSession } from "@/app/hooks/useAuthSession";

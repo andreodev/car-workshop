@@ -13,8 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { fetchAddressByCep } from "@/app/(app)/clientes/client-cep-api";
-import { onlyDigits } from "@/app/(app)/clientes/client-input-masks";
+import { fetchAddressByCep } from "@/modules/client/api/client-cep.service";
+import { onlyDigits } from "@/modules/client/utils/client-input-masks";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

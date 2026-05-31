@@ -1,4 +1,4 @@
-import { maskCep, maskPhone, onlyDigits } from "@/app/(app)/clientes/client-input-masks";
+import { maskCep, maskPhone, onlyDigits } from "@/modules/client/utils/client-input-masks";
 
 import type { CompanySettingsFormValues } from "./types";
 

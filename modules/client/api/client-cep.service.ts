@@ -1,4 +1,4 @@
-import { onlyDigits } from "./client-input-masks";
+import { onlyDigits } from "../utils/client-input-masks";
 
 export type ViaCepAddress = {
   cep: string;

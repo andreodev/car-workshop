@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchClients } from "../../clientes/client-api";
+import { fetchClients } from "@/modules/client/api/client.service";
 import {
   createCatalogItem,
   createSale,

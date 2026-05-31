@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { onlyDigits } from "./client-input-masks";
-import type { ClientIcms, ClientPersonType, ClientStatus } from "./types";
+import type {
+  ClientIcms,
+  ClientPersonType,
+  ClientStatus,
+} from "../types/client.types";
 
 const personTypeSchema = z.enum(["FISICA", "JURIDICA"] satisfies [ClientPersonType, ...ClientPersonType[]]);
 const statusSchema = z.enum(["ATIVO", "INATIVO"] satisfies [ClientStatus, ...ClientStatus[]]);

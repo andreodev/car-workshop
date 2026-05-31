@@ -1,6 +1,6 @@
 "use client";
 
-import type { ClientFormValues } from "../types";
+import type { ClientFormValues } from "../types/client.types";
 import { ClientFormSection } from "./client-form-section";
 import {
   ClientInputField,

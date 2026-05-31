@@ -2,8 +2,8 @@
 
 import type { ChangeEventHandler, ComponentProps } from "react";
 
-import type { ClientFormErrors } from "../client-form-utils";
-import type { ClientFormValues } from "../types";
+import type { ClientFormErrors } from "../utils/client-form-utils";
+import type { ClientFormValues } from "../types/client.types";
 import { inputClassName, textareaClassName } from "./client-form-constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

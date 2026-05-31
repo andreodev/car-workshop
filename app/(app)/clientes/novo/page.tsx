@@ -1,7 +1,5 @@
-"use client";
+import { ClientCreatePage } from "@/modules/client";
 
-import { ClientForm } from "../_components/client-form";
-
-export default function NewClientPage() {
-  return <ClientForm mode="create" />;
+export default function Page() {
+  return <ClientCreatePage />;
 }
