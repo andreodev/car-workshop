@@ -1,4 +1,4 @@
-import VehicleEditPage from "@/modules/vehicle/edit";
+import { VehicleEditPage } from "@/modules/vehicle";
 
 type PageProps = {
   params: Promise<{

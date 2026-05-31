@@ -13,9 +13,21 @@ const inter = Inter({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Rikinho Auto Center",
-  description: "Gestão de Orçamentos e Serviços",
+export const metadata = {
+  title: "Rikinho Auto Center | Oficina Mecânica",
+  description:
+    "Oficina mecânica especializada em Manaus. Revisão, troca de óleo, suspensão, freios, alinhamento e balanceamento.",
+  keywords: [
+    "oficina mecânica",
+    "auto center",
+    "mecânico",
+    "troca de óleo",
+    "alinhamento",
+    "balanceamento",
+    "Manaus",
+    "Rikinho Auto Center",
+    "Caixa de marcha"
+  ],
 };
 
 export default function RootLayout({

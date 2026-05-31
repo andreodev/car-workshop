@@ -2,6 +2,7 @@ import type { CompanySettings } from "../../configuracoes/dados-empresa/types";
 import type { Estimate } from "../types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import logo from "@/assets/logo/logo.png";
+import Image from "next/image";
 
 function formatCurrency(value: string) {
   const parsed = Number(value);
@@ -93,7 +94,7 @@ export function EstimatePrint({ estimate, companySettings }: EstimatePrintProps)
       <header className="flex flex-col gap-6 border-b border-border pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-4">
-            <img src={logoSrc} alt={companyName} className="h-14 w-14 rounded-md object-contain" />
+            <Image src={logoSrc} alt={companyName} className="h-14 w-14 rounded-md object-contain" />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Orçamento

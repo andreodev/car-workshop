@@ -1,5 +1,5 @@
-import VehicleCreatePage from "@/modules/vehicle/create";
+import { VehicleCreatePage } from "@/modules/vehicle";
 
 export default function Page() {
-  return <VehicleCreatePage  />;
+  return <VehicleCreatePage />;
 }

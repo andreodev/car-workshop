@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { VehicleForm } from "../components/vehicle-form";
-import { vehiclesService } from "../api/vehicle.service";
+
+import { vehiclesService } from "../../api/vehicle.service";
+import { VehicleForm } from "../../components/vehicle-form";
 
 type VehicleEditPageProps = {
   id: string;

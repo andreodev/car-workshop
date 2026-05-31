@@ -208,7 +208,7 @@ export default function ClientsPage() {
                         variant="ghost"
                         size="sm"
                         asChild
-                        className="h-7 px-3 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100"
+                        className="h-7 px-3 text-xs font-medium"
                       >
                         <Link href={`/clientes/${client.id}`}>Editar</Link>
                       </Button>

@@ -115,9 +115,12 @@ export function ClientTextareaField({
   fieldErrors,
   getInputState,
   onChange,
+  onSelectChange: _onSelectChange,
   className = textareaClassName,
   ...textareaProps
 }: ClientTextareaFieldProps) {
+  void _onSelectChange;
+
   return (
     <Field>
       <Label htmlFor={field}>{label}</Label>

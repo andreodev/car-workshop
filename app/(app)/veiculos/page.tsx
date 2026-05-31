@@ -1,7 +1,5 @@
-import VehiclesPage from "@/modules/vehicle";
+import { VehiclesPage } from "@/modules/vehicle";
 
 export default function Page() {
-  return(
-    <VehiclesPage />
-  )
+  return <VehiclesPage />;
 }
