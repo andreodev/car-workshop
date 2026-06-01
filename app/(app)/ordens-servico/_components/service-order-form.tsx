@@ -122,7 +122,11 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: String(item.unitPrice ?? ""),
-            discount: String(item.discount ?? "0"),
+            discount: calculateDiscountPercent(
+              Number(item.quantity),
+              Number(item.unitPrice ?? 0),
+              item.discount ?? "0"
+            ),
           }))
         : [createEmptyItem()],
   };
@@ -132,6 +136,37 @@ function normalizeAmount(value: string) {
   const normalized = value.replace(",", ".");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function calculateDiscountValue(
+  quantity: number,
+  unitPrice: number,
+  discountPercent: number,
+) {
+  const subtotal = quantity * unitPrice;
+  return roundCurrency(subtotal * (discountPercent / 100));
+}
+
+function calculateDiscountPercent(
+  quantity: number,
+  unitPrice: number,
+  discountValue: string | number,
+) {
+  const subtotal = quantity * unitPrice;
+  const parsedDiscount =
+    typeof discountValue === "number"
+      ? discountValue
+      : normalizeAmount(String(discountValue));
+
+  if (subtotal <= 0 || parsedDiscount <= 0) {
+    return "0";
+  }
+
+  return String(roundCurrency((parsedDiscount / subtotal) * 100));
 }
 
 function combineDateTime(date: string, time: string) {
@@ -243,7 +278,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     form.items.forEach((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
-      const discount = normalizeAmount(item.discount);
+      const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       subtotal += quantity * unitPrice;
       discountTotal += discount;
     });
@@ -353,16 +389,19 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
+      const discountPercent = normalizeAmount(item.discount);
       return (
         !item.description.trim() ||
         (item.type === "PRODUCT" && !item.catalogItemId) ||
         quantity <= 0 ||
-        unitPrice <= 0
+        unitPrice <= 0 ||
+        discountPercent < 0 ||
+        discountPercent > 100
       );
     });
 
     if (invalidItem) {
-      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade e valor unitário dos itens.");
+      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade, valor unitário e desconto entre 0 e 100%.");
       setActiveTab("itens");
       return;
     }
@@ -385,7 +424,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
         description: item.description.trim(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
-        discount: normalizeAmount(item.discount),
+        discount: calculateDiscountValue(
+          normalizeAmount(item.quantity),
+          normalizeAmount(item.unitPrice),
+          normalizeAmount(item.discount)
+        ),
       })),
     };
 
@@ -608,7 +651,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                         {form.items.map((item, index) => {
                           const quantity = normalizeAmount(item.quantity);
                           const unitPrice = normalizeAmount(item.unitPrice);
-                          const discount = normalizeAmount(item.discount);
+                          const discountPercent = normalizeAmount(item.discount);
+                          const discount = calculateDiscountValue(
+                            quantity,
+                            unitPrice,
+                            discountPercent
+                          );
                           const lineTotal = Math.max(quantity * unitPrice - discount, 0);
                           const availableCatalogItems = catalogItems.filter((catalogItem) =>
                             item.type === "PRODUCT"
@@ -702,9 +750,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               </div>
                               <div className="grid gap-1">
                                 <Label className="text-[11px] text-muted-foreground">
-                                  Desconto
+                                  Desconto (%)
                                 </Label>
                                 <Input
+                                  inputMode="decimal"
                                   value={item.discount}
                                   onChange={(event) =>
                                     updateItem(item.id, "discount", event.target.value)

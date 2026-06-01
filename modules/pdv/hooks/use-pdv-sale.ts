@@ -75,6 +75,20 @@ function toCurrencyNumber(value: unknown) {
   return Number(parsed.toFixed(2));
 }
 
+function calculateDiscountPercent(
+  quantity: number,
+  unitPrice: number,
+  discountValue: number,
+) {
+  const subtotal = quantity * unitPrice;
+
+  if (subtotal <= 0 || discountValue <= 0) {
+    return 0;
+  }
+
+  return Number(((discountValue / subtotal) * 100).toFixed(2));
+}
+
 function getTotalsAmount(totals: unknown) {
   const record = totals as Record<string, unknown>;
 
@@ -511,9 +525,16 @@ export function usePdvSale({
             product: catalogItem,
             quantity: Number.isFinite(quantityValue) ? quantityValue : 1,
             unitPrice: Number.isFinite(unitPriceValue) ? unitPriceValue : 0,
-            discountPercent: Number.isFinite(discountValue)
-              ? discountValue
-              : 0,
+            discountPercent:
+              Number.isFinite(discountValue) &&
+              Number.isFinite(quantityValue) &&
+              Number.isFinite(unitPriceValue)
+                ? calculateDiscountPercent(
+                    quantityValue,
+                    unitPriceValue,
+                    discountValue
+                  )
+                : 0,
           });
         });
 

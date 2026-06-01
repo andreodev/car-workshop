@@ -111,7 +111,11 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: String(item.unitPrice ?? ""),
-            discount: String(item.discount ?? "0"),
+            discount: calculateDiscountPercent(
+              Number(item.quantity),
+              Number(item.unitPrice ?? 0),
+              item.discount ?? "0",
+            ),
           }))
         : [createEmptyItem()],
   };
@@ -122,6 +126,37 @@ function normalizeAmount(value: string) {
   const parsed = Number(normalized);
 
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function calculateDiscountValue(
+  quantity: number,
+  unitPrice: number,
+  discountPercent: number,
+) {
+  const subtotal = quantity * unitPrice;
+  return roundCurrency(subtotal * (discountPercent / 100));
+}
+
+function calculateDiscountPercent(
+  quantity: number,
+  unitPrice: number,
+  discountValue: string | number,
+) {
+  const subtotal = quantity * unitPrice;
+  const parsedDiscount =
+    typeof discountValue === "number"
+      ? discountValue
+      : normalizeAmount(String(discountValue));
+
+  if (subtotal <= 0 || parsedDiscount <= 0) {
+    return "0";
+  }
+
+  return String(roundCurrency((parsedDiscount / subtotal) * 100));
 }
 
 function formatCurrency(value: number) {
@@ -280,7 +315,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     form.items.forEach((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
-      const discount = normalizeAmount(item.discount);
+      const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       subtotal += quantity * unitPrice;
       discountTotal += discount;
     });
@@ -410,18 +446,21 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
+      const discountPercent = normalizeAmount(item.discount);
 
       return (
         !item.catalogItemId ||
         !item.description.trim() ||
         quantity <= 0 ||
-        unitPrice <= 0
+        unitPrice <= 0 ||
+        discountPercent < 0 ||
+        discountPercent > 100
       );
     });
 
     if (invalidItem) {
       setLocalError(
-        "Selecione os itens do catálogo e preencha quantidade e valor.",
+        "Selecione os itens do catálogo e preencha quantidade, valor e desconto entre 0 e 100%.",
       );
       return;
     }
@@ -445,7 +484,11 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         description: item.description.trim().toLocaleUpperCase(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
-        discount: normalizeAmount(item.discount),
+        discount: calculateDiscountValue(
+          normalizeAmount(item.quantity),
+          normalizeAmount(item.unitPrice),
+          normalizeAmount(item.discount),
+        ),
       })),
     };
 
@@ -815,7 +858,12 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         {form.items.map((item, index) => {
           const quantity = normalizeAmount(item.quantity);
           const unitPrice = normalizeAmount(item.unitPrice);
-          const discount = normalizeAmount(item.discount);
+          const discountPercent = normalizeAmount(item.discount);
+          const discount = calculateDiscountValue(
+            quantity,
+            unitPrice,
+            discountPercent,
+          );
 
           const lineTotal = Math.max(
             quantity * unitPrice - discount,
@@ -996,10 +1044,11 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                   </div>
 
                   <div className="grid gap-2 md:col-span-2">
-                    <Label>Desconto</Label>
+                    <Label>Desconto (%)</Label>
 
                     <Input
                       className="h-11"
+                      inputMode="decimal"
                       value={item.discount}
                       onChange={(event) =>
                         updateItem(

@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import Image from "next/image";
+import Logo from "@/assets/logo/logo.png"
 
 type AppBootLoadingProps = {
   label?: string;
@@ -17,8 +19,14 @@ export function AppBootLoading({
       )}
     >
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 shadow-[0_22px_60px_rgba(0,0,0,0.35)]">
-          <span className="text-sm font-black text-red-400">RAC</span>
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 ">
+          <Image
+            src={Logo}
+            alt="Rikinho Auto Center"
+            width={48}
+            height={48}
+            className="animate-pulse"
+          />
           <span className="absolute -inset-1 rounded-[20px] border border-red-500/20 border-t-red-400 animate-spin" />
         </div>
 
