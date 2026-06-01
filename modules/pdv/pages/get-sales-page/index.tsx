@@ -236,7 +236,6 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Veículo</TableHead>
                 <TableHead>Mecânico</TableHead>
-                <TableHead>Conta</TableHead>
                 <TableHead>Atualizada em</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-center">Status</TableHead>
