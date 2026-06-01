@@ -72,8 +72,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
   if (clientsQuery.isLoading) {
     return (
       <FormLoadingState
-        title="Carregando cadastro de veículo..."
-œœ      />
+        title="Carregando cadastro de veículo..."     />
     );
   }
 
