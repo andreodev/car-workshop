@@ -288,7 +288,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                           className="gap-1.5 bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/20"
                         >
                           <span className="status-dot-inactive" />
-                          Aguardando pagamento
+                          Aguardando
                         </Badge>
                       )}
                     </TableCell>
