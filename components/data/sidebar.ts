@@ -18,7 +18,7 @@ import {
 export const menuGroups = [
   {
     title: "Geral",
-    items: [{ title: "Dashboard", href: "/", icon: LayoutDashboard }],
+    items: [{ title: "Painel", href: "/", icon: LayoutDashboard }],
   },
   {
     title: "Cadastros",

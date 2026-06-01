@@ -185,7 +185,7 @@ export default function ClientsPage() {
                       CPF
                     </TableHead>
                     <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                      Bairro
+                      CEP
                     </TableHead>
                     <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                       Telefone
@@ -212,13 +212,24 @@ export default function ClientsPage() {
                         {client.cpf ?? "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {client.neighborhood ?? "-"}
+                        {client.cep ?? "-"}
                       </TableCell>
-                      <Link href={`https://wa.me/${client.mobile ?? client.phoneResidential}`} target="_blank">
                       <TableCell className="font-mono text-sm text-muted-foreground">
-                        {client.mobile ?? client.phoneResidential ?? "-"}
+                        {client.mobile ?? client.phoneResidential ? (
+                          <a
+                            href={`https://wa.me/${
+                              client.mobile ?? client.phoneResidential
+                            }`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline-offset-4 hover:underline"
+                          >
+                            {client.mobile ?? client.phoneResidential}
+                          </a>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
-                      </Link>
                       <TableCell>
                         {client.status === "ATIVO" ? (
                           <Badge

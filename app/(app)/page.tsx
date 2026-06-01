@@ -364,7 +364,7 @@ export default async function DashboardPage() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Header
-          title="Dashboard"
+          title="Painel"
           description="Resumo operacional da oficina, financeiro, estoque e compras."
         />
 
