@@ -251,8 +251,8 @@ export default function FinancialPage() {
   const [categoryType, setCategoryType] = useState<CategoryTypeFilter>("TODOS");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("TODOS");
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(() => todayInputValue());
+  const [to, setTo] = useState(() => todayInputValue());
 
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
@@ -833,7 +833,7 @@ export default function FinancialPage() {
 
     <Button
       type="button"
-      variant={from === todayInputValue() ? "default" : "outline"}
+      variant={from === todayInputValue() && to === todayInputValue() ? "default" : "outline"}
       size="sm"
       onClick={() => {
         const today = todayInputValue();
