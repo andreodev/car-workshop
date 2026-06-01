@@ -287,7 +287,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       queryClient.invalidateQueries({ queryKey: ["estimates"] });
       queryClient.setQueryData(["estimate", estimate.id], estimate);
       toast({
-        title: mode === "edit" ? "Orcamento atualizado" : "Orcamento criado",
+        title: mode === "edit" ? "Orçamento atualizado" : "Orçamento criado",
         description: "Os dados foram salvos com sucesso.",
         variant: "success",
       });
@@ -356,7 +356,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       ...prev,
       items: prev.items.map((item) =>
         item.id === itemId
-          ? { ...item, type, catalogItemId: "", description: "", unitPrice: "" }
+          ? { ...item, type, catalogItemId: "" }
           : item,
       ),
     }));
@@ -369,18 +369,15 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       ...prev,
       items: prev.items.map((item) =>
         item.id === itemId
-          ? {
-              ...item,
-              catalogItemId,
-              description: catalogItem?.name ?? "",
-              unitPrice: catalogItem ? String(catalogItem.unitPrice) : "",
-              type:
-                catalogItem?.type === "PRODUTO"
-                  ? "PRODUCT"
-                  : catalogItem?.type === "SERVICO"
-                    ? "SERVICE"
-                    : item.type,
-            }
+          ? catalogItem
+            ? {
+                ...item,
+                catalogItemId,
+                description: catalogItem.name,
+                unitPrice: String(catalogItem.unitPrice),
+                type: catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
+              }
+            : { ...item, catalogItemId: "" }
           : item,
       ),
     }));
@@ -446,21 +443,17 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
-      const discountPercent = normalizeAmount(item.discount);
 
       return (
-        !item.catalogItemId ||
         !item.description.trim() ||
         quantity <= 0 ||
-        unitPrice <= 0 ||
-        discountPercent < 0 ||
-        discountPercent > 100
+        unitPrice <= 0
       );
     });
 
     if (invalidItem) {
       setLocalError(
-        "Selecione os itens do catálogo e preencha quantidade, valor e desconto entre 0 e 100%.",
+        "Preencha descrição, quantidade e valor dos itens.",
       );
       return;
     }
@@ -480,7 +473,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       notesClient: form.notesClient.trim() || null,
       items: form.items.map((item) => ({
         type: item.type,
-        catalogItemId: item.catalogItemId,
+        catalogItemId: item.catalogItemId || null,
         description: item.description.trim().toLocaleUpperCase(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -503,7 +496,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   );
   const validItemsCount = form.items.filter((item) => {
     return (
-      item.catalogItemId &&
       item.description.trim() &&
       normalizeAmount(item.quantity) > 0 &&
       normalizeAmount(item.unitPrice) > 0
@@ -547,7 +539,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <Header
           title={mode === "edit" ? "Editar orçamento" : "Novo orçamento"}
-          description="Crie a proposta com cliente, responsável, setor e itens do catálogo."
+          description="Crie a proposta com cliente, responsável, setor e itens personalizados."
         />
       </div>
 
@@ -953,7 +945,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                   </div>
 
                   <div className="grid gap-2">
-                    <Label>Catálogo</Label>
+                    <Label>Catálogo opcional</Label>
 
                     <Select
                       value={item.catalogItemId || noSelection}
@@ -976,9 +968,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
                       <SelectContent>
                         <SelectItem value={noSelection}>
-                          {item.type === "PRODUCT"
-                            ? "Selecione produto"
-                            : "Selecione serviço"}
+                          Sem vínculo com catálogo
                         </SelectItem>
 
                         {availableCatalogItems.map((catalogItem) => (

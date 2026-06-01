@@ -18,7 +18,7 @@ export type EstimateItemTypeValue = (typeof estimateItemTypes)[number];
 export type ParsedEstimateItems = {
   items: Array<{
     type: EstimateItemTypeValue;
-    catalogItemId: string;
+    catalogItemId: string | null;
     description: string;
     quantity: number;
     unitPrice: Prisma.Decimal;
@@ -125,11 +125,6 @@ export function parseEstimateItems(payload: unknown) {
     }
 
     const catalogItemId = normalizeString(item.catalogItemId);
-
-    if (!catalogItemId) {
-      return { error: "Selecione um produto ou serviço do catálogo." };
-    }
-
     const description = normalizeString(item.description);
 
     if (!description) {

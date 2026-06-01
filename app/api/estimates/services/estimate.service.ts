@@ -72,7 +72,18 @@ function buildEstimateWhere(search: string, status: string | null) {
 }
 
 async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
-  const catalogItemIds = Array.from(new Set(items.map((item) => item.catalogItemId)));
+  const catalogItemIds = Array.from(
+    new Set(
+      items
+        .map((item) => item.catalogItemId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (catalogItemIds.length === 0) {
+    return null;
+  }
+
   const catalogItems = await estimateRepository.findCatalogItemsByIds(catalogItemIds);
   const catalogItemsById = new Map(catalogItems.map((item) => [item.id, item]));
 
@@ -81,6 +92,10 @@ async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
   }
 
   for (const item of items) {
+    if (!item.catalogItemId) {
+      continue;
+    }
+
     const catalogItem = catalogItemsById.get(item.catalogItemId);
 
     if (!catalogItem?.active) {
@@ -236,17 +251,6 @@ function validateEstimateForConversion(estimate: EstimateForConversion) {
 
   if (estimate.items.length === 0) {
     return serviceError("Orçamento sem itens.", 400);
-  }
-
-  const itemWithoutCatalog = estimate.items.find(
-    (item) => !item.catalogItemId || !item.catalogItem,
-  );
-
-  if (itemWithoutCatalog) {
-    return serviceError(
-      `Selecione um item do catálogo para "${itemWithoutCatalog.description}".`,
-      400,
-    );
   }
 
   if (!estimate.mechanicId || !estimate.mechanic) {

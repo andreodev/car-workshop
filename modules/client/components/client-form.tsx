@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle } from "lucide-react";
 
 import type { Client } from "../types/client.types";
 import { useClientForm } from "../hooks/use-client-form";
@@ -15,6 +17,15 @@ import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs } from "@/components/ui/tabs";
 
@@ -38,7 +49,15 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
     getInputState,
     handleSubmit,
     handleCancel,
+    errorCount,
   } = useClientForm({ mode, initialData });
+
+  const [dismissedErrorCount, setDismissedErrorCount] = useState(0);
+  const fieldErrorMessages = useMemo(
+    () => Object.values(fieldErrors).filter((error): error is string => Boolean(error)),
+    [fieldErrors],
+  );
+  const isErrorDialogOpen = Boolean(errorMessage) && errorCount > dismissedErrorCount;
 
   const stepProps = {
     form,
@@ -49,25 +68,25 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
   };
 
   return (
-    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col pb-4">
       <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ClientFormStepValue)}
           className="flex-1"
         >
-          <div className="flex flex-1 flex-col gap-8">
+          <div className="flex flex-1 flex-col gap-5 sm:gap-8">
             <Header
               title={mode === "edit" ? "Editar cliente" : "Cadastro de cliente"}
               description="Preencha os dados do cliente para salvar no sistema."
             />
 
-            <div className="pb-6">
+            <div className="pb-2 sm:pb-6">
               <ClientFormStepper activeStep={activeTab} />
             </div>
 
             <Card className="border-border/70 shadow-sm">
-              <CardContent className="space-y-6 pt-6">
+              <CardContent className="space-y-5 px-3 pt-4 sm:space-y-6 sm:px-4 sm:pt-6">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeTab}
@@ -99,7 +118,7 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
             </Card>
 
             <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs leading-relaxed text-muted-foreground sm:max-w-xl">
                 Revise os dados antes de salvar. As informações ficam disponíveis
                 para os demais módulos do sistema.
               </p>
@@ -110,10 +129,16 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
                   variant="ghost"
                   size="lg"
                   onClick={handleCancel}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" size="lg" disabled={isSaving} className="gap-2">
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={isSaving}
+                  className="w-full gap-2 sm:w-auto"
+                >
                   {isSaving ? <Spinner size="sm" /> : null}
                   {isSaving ? "Salvando..." : "Salvar cliente"}
                 </Button>
@@ -122,6 +147,46 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
           </div>
         </Tabs>
       </form>
+
+      <Dialog
+        open={isErrorDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDismissedErrorCount(errorCount);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="pr-8">
+            <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-5" />
+            </div>
+            <DialogTitle>Erro ao salvar cliente</DialogTitle>
+            <DialogDescription>
+              {errorMessage ?? "Não foi possível salvar o cliente."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {fieldErrorMessages.length > 0 ? (
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+              <p className="font-medium">Campos que precisam de atenção:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {fieldErrorMessages.slice(0, 5).map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" className="w-full sm:w-auto">
+                Entendi
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

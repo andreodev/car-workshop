@@ -35,6 +35,7 @@ export function useClientForm({ mode, initialData }: UseClientFormParams) {
   const [fieldErrors, setFieldErrors] = useState<ClientFormErrors>({});
   const [hasEditedCep, setHasEditedCep] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [errorCount, setErrorCount] = useState(0);
 
   const mutation = useMutation({
     mutationFn: async (values: ClientFormValues) => {
@@ -61,6 +62,7 @@ export function useClientForm({ mode, initialData }: UseClientFormParams) {
         error instanceof Error ? error.message : "Não foi possível salvar o cliente.";
 
       setLocalError(message);
+      setErrorCount((count) => count + 1);
 
       toast({
         title: "Erro ao salvar cliente",
@@ -157,6 +159,7 @@ export function useClientForm({ mode, initialData }: UseClientFormParams) {
     const nextErrors = getClientFormErrorMap(result.error.issues);
     setFieldErrors(nextErrors);
     setLocalError("Revise os campos destacados antes de salvar.");
+    setErrorCount((count) => count + 1);
 
     const firstField = Object.keys(nextErrors)[0] as keyof ClientFormValues | undefined;
     if (firstField) {
@@ -194,6 +197,7 @@ export function useClientForm({ mode, initialData }: UseClientFormParams) {
     isSaving: mutation.isPending,
     errorMessage:
       localError ?? (mutation.error instanceof Error ? mutation.error.message : null),
+    errorCount,
     cepError: cepQuery.error instanceof Error ? cepQuery.error.message : null,
     isCepLoading: cepQuery.isFetching,
     setActiveTab,

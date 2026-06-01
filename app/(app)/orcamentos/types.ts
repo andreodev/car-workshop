@@ -95,7 +95,7 @@ export type EstimateItemFormValues = {
 
 export type EstimatePayloadItem = {
   type: "SERVICE" | "PRODUCT";
-  catalogItemId: string;
+  catalogItemId: string | null;
   description: string;
   quantity: number;
   unitPrice: number;
