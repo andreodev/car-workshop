@@ -266,16 +266,6 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                       {order.mechanic?.name ?? "-"}
                     </TableCell>
 
-                    <TableCell className="text-muted-foreground">
-                      {order.financialAccount ? (
-                        <span>
-                          #{order.financialAccount.code} - {order.financialAccount.status}
-                        </span>
-                      ) : (
-                        "Sem conta"
-                      )}
-                    </TableCell>
-
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {formatDateTime(order.updatedAt)}
                     </TableCell>
