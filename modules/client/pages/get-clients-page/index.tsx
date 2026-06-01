@@ -214,9 +214,11 @@ export default function ClientsPage() {
                       <TableCell className="text-muted-foreground">
                         {client.neighborhood ?? "-"}
                       </TableCell>
+                      <Link href={`https://wa.me/${client.mobile ?? client.phoneResidential}`} target="_blank">
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         {client.mobile ?? client.phoneResidential ?? "-"}
                       </TableCell>
+                      </Link>
                       <TableCell>
                         {client.status === "ATIVO" ? (
                           <Badge
