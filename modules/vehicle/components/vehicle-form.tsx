@@ -73,7 +73,7 @@ export function VehicleForm({ mode, initialData }: VehicleFormProps) {
     return (
       <FormLoadingState
         title="Carregando cadastro de veículo..."
-      />
+œœ      />
     );
   }
 

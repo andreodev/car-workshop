@@ -101,8 +101,8 @@ export default function LoginPage() {
             className="object-cover opacity-70"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-r from-[#07080D] via-[#07080D]/85 to-[#07080D]/20" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#07080D] via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-r from-[#07080D] via-[#07080D]/85 to-[#07080D]/20" />
+          <div className="absolute inset-0 bg-linear-to-t from-[#07080D] via-transparent to-transparent" />
 
           <div className="absolute left-10 top-10 z-10 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl">
@@ -164,15 +164,15 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="absolute -right-24 top-1/2 h-[120%] w-48 -translate-y-1/2 rounded-l-[100%] border-l border-red-500/40 bg-gradient-to-r from-red-500/20 to-transparent blur-sm" />
+          <div className="absolute -right-24 top-1/2 h-[120%] w-48 -translate-y-1/2 rounded-l-[100%] border-l border-red-500/40 bg-linear-to-r from-red-500/20 to-transparent blur-sm" />
         </section>
 
         <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F8FAFC] px-5 py-10 text-[#0F172A]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#FEE2E2,transparent_35%),radial-gradient(circle_at_bottom_left,#E0F2FE,transparent_35%)]" />
-          <div className="absolute right-[-120px] top-[-120px] h-80 w-80 rounded-full bg-red-500/10 blur-3xl" />
-          <div className="absolute bottom-[-120px] left-[-120px] h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-linear(circle_at_top_right,#FEE2E2,transparent_35%),radial-linear(circle_at_bottom_left,#E0F2FE,transparent_35%)]" />
+          <div className="absolute right-30 top-30 h-80 w-80 rounded-full bg-red-500/10 blur-3xl" />
+          <div className="absolute bottom-30 left-30 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
 
-          <div className="relative z-10 w-full max-w-[470px] animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700">
+          <div className="relative z-10 w-full max-w-117.5 animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700">
             <div className="mb-6 flex justify-center lg:hidden">
               <div className="flex items-center gap-3 rounded-2xl border bg-white/80 px-4 py-3 shadow-sm backdrop-blur-xl">
                 <Image
@@ -187,11 +187,11 @@ export default function LoginPage() {
             </div>
 
             <div className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-              <div className="h-1.5 bg-gradient-to-r from-red-600 via-red-500 to-red-400" />
+              <div className="h-1.5 bg-linear-to-r from-red-600 via-red-500 to-red-400" />
 
               <div className="px-7 py-8 sm:px-9 sm:py-9">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                  <div className="mx-auto  mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-slate-200 bg-black shadow-sm">
                     <Image
                       src="/assets/logo.png"
                       alt="Rikinho Auto Center"
@@ -300,7 +300,7 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     disabled={isLoading || isSubmitting}
-                    className="group h-13 w-full rounded-2xl bg-gradient-to-r from-red-600 to-red-500 text-sm font-bold text-white shadow-[0_14px_30px_rgba(239,68,68,0.30)] transition-all hover:from-red-700 hover:to-red-600 hover:shadow-[0_18px_36px_rgba(239,68,68,0.38)] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="group h-13 w-full rounded-2xl bg-linear-to-r from-red-600 to-red-500 text-sm font-bold text-white shadow-[0_14px_30px_rgba(239,68,68,0.30)] transition-all hover:from-red-700 hover:to-red-600 hover:shadow-[0_18px_36px_rgba(239,68,68,0.38)] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isSubmitting ? (
                       <span className="flex items-center gap-2">
@@ -356,7 +356,7 @@ type FeatureCardProps = {
 
 function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
+    <div className="rounded-3xl border border-white/10 bg-white/6 p-4 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
       <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-red-400">
         {icon}
       </div>

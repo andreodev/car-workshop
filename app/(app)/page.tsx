@@ -17,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type {
+  CatalogItem,
   EstimateStatus,
   FinancialAccountStatus,
   FinancialAccountType,
@@ -164,10 +165,10 @@ async function getDashboardData() {
     recentEstimates,
     financialGroups,
     overdueFinancial,
-    stockCandidates,
+    lowStockItems,
     openSupplierOrders,
     urgentSupplierOrders,
-  ] = await prisma.$transaction([
+  ] = await Promise.all([
     prisma.client.count({ where: { status: "ATIVO" } }),
     prisma.vehicle.count({ where: { status: "ATIVO" } }),
     prisma.mechanic.count({ where: { active: true } }),
@@ -243,24 +244,29 @@ async function getDashboardData() {
       _sum: { amount: true },
       _count: { _all: true },
     }),
-    prisma.catalogItem.findMany({
-      where: {
-        active: true,
-        type: "PRODUTO",
-        stockCurrent: { not: null },
-        stockMinimum: { not: null },
-      },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        stockCurrent: true,
-        stockMinimum: true,
-        unit: true,
-      },
-      orderBy: { name: "asc" },
-      take: 250,
-    }),
+    prisma.$queryRaw<
+      Pick<
+        CatalogItem,
+        "id" | "code" | "name" | "stockCurrent" | "stockMinimum" | "unit"
+      >[]
+    >`
+      SELECT
+        "id",
+        "code",
+        "name",
+        "stockCurrent",
+        "stockMinimum",
+        "unit"
+      FROM "CatalogItem"
+      WHERE
+        "active" = true
+        AND "type" = ${"PRODUTO"}::"CatalogItemType"
+        AND "stockCurrent" IS NOT NULL
+        AND "stockMinimum" IS NOT NULL
+        AND "stockCurrent" <= "stockMinimum"
+      ORDER BY "name" ASC
+      LIMIT 5
+    `,
     prisma.supplierOrder.count({
       where: { status: "ABERTO" },
     }),
@@ -274,13 +280,6 @@ async function getDashboardData() {
       take: 5,
     }),
   ]);
-
-  const lowStockItems = stockCandidates
-    .filter(
-      (item) =>
-        decimalToNumber(item.stockCurrent) <= decimalToNumber(item.stockMinimum)
-    )
-    .slice(0, 5);
 
   return {
     clientCount,
