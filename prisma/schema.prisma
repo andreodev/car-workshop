@@ -224,7 +224,7 @@ model Client {
 
 model Vehicle {
   id              String        @id @default(cuid())
-  code            Int           @unique @default(autoincrement())
+  code            Int           @unique @default(dbgenerated("public.generate_public_code('Vehicle', 'code')"))
   clientId        String
   client          Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
   plate           String
@@ -258,7 +258,7 @@ model Vehicle {
 
 model ServiceOrder {
   id                 String                         @id @default(cuid())
-  code               Int                            @unique @default(autoincrement())
+  code               Int                            @unique @default(dbgenerated("public.generate_public_code('ServiceOrder', 'code')"))
   status             ServiceOrderStatus             @default(ABERTA)
   clientId           String
   client             Client                         @relation(fields: [clientId], references: [id], onDelete: Restrict)
@@ -345,7 +345,7 @@ model ServiceOrderItem {
 
 model Estimate {
   id                      String         @id @default(cuid())
-  code                    Int            @unique @default(autoincrement())
+  code                    Int            @unique @default(dbgenerated("public.generate_public_code('Estimate', 'code')"))
   status                  EstimateStatus @default(RASCUNHO)
   type                    String         @default("SIMPLES")
   clientId                String
@@ -398,7 +398,7 @@ model EstimateItem {
 
 model CatalogItem {
   id                      String          @id @default(cuid())
-  code                    Int             @unique @default(autoincrement())
+  code                    Int             @unique @default(dbgenerated("public.generate_public_code('CatalogItem', 'code')"))
   type                    CatalogItemType @default(PRODUTO)
   name                    String
   sku                     String?
@@ -520,7 +520,7 @@ model CatalogItem {
 
 model Sector {
   id        String        @id @default(cuid())
-  code      Int           @unique @default(autoincrement())
+  code      Int           @unique @default(dbgenerated("public.generate_public_code('Sector', 'code')"))
   name      String        @unique
   active    Boolean       @default(true)
   notes     String?       @db.Text
@@ -537,7 +537,7 @@ model Sector {
 
 model Mechanic {
   id            String         @id @default(cuid())
-  code          Int            @unique @default(autoincrement())
+  code          Int            @unique @default(dbgenerated("public.generate_public_code('Mechanic', 'code')"))
   name          String         @unique
   active        Boolean        @default(true)
   commissionPercent Decimal        @default(0) @db.Decimal(5, 2)
@@ -554,7 +554,7 @@ model Mechanic {
 
 model Supplier {
   id           String             @id @default(cuid())
-  code         Int                @unique @default(autoincrement())
+  code         Int                @unique @default(dbgenerated("public.generate_public_code('Supplier', 'code')"))
   personType   SupplierPersonType @default(FISICA)
   name         String
   cpf          String?
@@ -590,7 +590,7 @@ model Supplier {
 
 model SupplierOrder {
   id                  String              @id @default(cuid())
-  code                Int                 @unique @default(autoincrement())
+  code                Int                 @unique @default(dbgenerated("public.generate_public_code('SupplierOrder', 'code')"))
   status              SupplierOrderStatus @default(ABERTO)
   supplierId          String
   supplier            Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
@@ -613,7 +613,7 @@ model SupplierOrder {
 
 model Sale {
   id             String            @id @default(cuid())
-  code           Int               @unique @default(autoincrement())
+  code           Int               @unique @default(dbgenerated("public.generate_public_code('Sale', 'code')"))
   status         SaleStatus        @default(CONCLUIDA)
   clientId       String?
   client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
@@ -694,7 +694,7 @@ model StockMovement {
 
 model FinancialAccount {
   id             String                 @id @default(cuid())
-  code           Int                    @unique @default(autoincrement())
+  code           Int                    @unique @default(dbgenerated("public.generate_public_code('FinancialAccount', 'code')"))
   type           FinancialAccountType
   status         FinancialAccountStatus @default(ABERTA)
   description    String
@@ -732,7 +732,7 @@ model FinancialAccount {
 
 model FinancialCategory {
   id            String                @id @default(cuid())
-  code          Int                   @unique @default(autoincrement())
+  code          Int                   @unique @default(dbgenerated("public.generate_public_code('FinancialCategory', 'code')"))
   name          String                @unique
   type          FinancialCategoryType @default(AMBOS)
   active        Boolean               @default(true)
@@ -749,7 +749,7 @@ model FinancialCategory {
 
 model CashMovement {
   id             String              @id @default(cuid())
-  code           Int                 @unique @default(autoincrement())
+  code           Int                 @unique @default(dbgenerated("public.generate_public_code('CashMovement', 'code')"))
   type           CashMovementType
   categoryId     String?
   category       FinancialCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
