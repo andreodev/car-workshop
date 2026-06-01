@@ -24,8 +24,8 @@ export const financialPaymentMethodOptions: Array<{
 }> = [
   { value: "DINHEIRO", label: "Dinheiro" },
   { value: "PIX", label: "Pix" },
-  { value: "CARTAO_CREDITO", label: "Cartao de credito" },
-  { value: "CARTAO_DEBITO", label: "Cartao de debito" },
+  { value: "CARTAO_CREDITO", label: "Cartão de crédito" },
+  { value: "CARTAO_DEBITO", label: "Cartão de débito" },
   { value: "BOLETO", label: "Boleto" },
   { value: "OUTRO", label: "Outro" },
 ];
@@ -41,7 +41,7 @@ export const financialCategoryTypeOptions: Array<{
 
 export const cashMovementTypeOptions: Array<{ value: CashMovementType; label: string }> = [
   { value: "ENTRADA", label: "Entrada" },
-  { value: "SAIDA", label: "Saida" },
+  { value: "SAIDA", label: "Saída" },
 ];
 
 export function getFinancialStatusLabel(status: FinancialAccountStatus) {

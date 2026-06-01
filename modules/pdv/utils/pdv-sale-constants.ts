@@ -5,8 +5,8 @@ export const NO_SECTOR_VALUE = "SEM_SETOR";
 export const paymentOptions: Array<{ value: SalePaymentMethod; label: string }> = [
   { value: "DINHEIRO", label: "Dinheiro" },
   { value: "PIX", label: "PIX" },
-  { value: "CARTAO_CREDITO", label: "Cartao credito" },
-  { value: "CARTAO_DEBITO", label: "Cartao debito" },
+  { value: "CARTAO_CREDITO", label: "Cartão de crédito" },
+  { value: "CARTAO_DEBITO", label: "Cartão de débito" },
   { value: "BOLETO", label: "Boleto" },
   { value: "OUTRO", label: "Outro" },
 ];
