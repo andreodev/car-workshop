@@ -111,7 +111,7 @@ export function ServiceOrderFormStepper({
                   </div>
 
                   <span className="min-w-0 space-y-1">
-                    <span className="block truncate text-xs font-semibold text-foreground sm:text-base">
+                    <span className="block text-xs font-semibold leading-tight text-foreground sm:text-base">
                       {step.label}
                     </span>
                     <span className="hidden text-xs leading-relaxed text-muted-foreground sm:block sm:px-2">
