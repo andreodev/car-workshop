@@ -200,7 +200,10 @@ export const saleRepository = {
   },
 
   async runTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>) {
-    return prisma.$transaction(callback);
+    return prisma.$transaction(callback, {
+      timeout: 15000,
+      maxWait: 15000,
+    });
   },
 };
 

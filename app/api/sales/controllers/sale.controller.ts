@@ -91,4 +91,22 @@ export const saleController = {
 
     return Response.json(result.data);
   },
+
+  async updateStatus(request: NextRequest, { params }: RouteContext) {
+    const session = await getServerAuthSession();
+
+    if (!session?.user) {
+      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const payload = (await request.json()) as Record<string, unknown>;
+    const result = await saleService.updateStatus(id, payload);
+
+    if ("error" in result) {
+      return errorResponse(result);
+    }
+
+    return Response.json(result.data);
+  },
 };

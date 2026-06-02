@@ -46,7 +46,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     include: {
       client: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, model: true } },
-      items: { select: { type: true, total: true } },
+      items: { select: { type: true, total: true, commissionBase: true } },
     },
     orderBy: { entryAt: "desc" },
   });
@@ -74,8 +74,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   let monthCompletedOrders = 0;
   const commissionRate = mechanic.commissionPercent.div(100);
 
-  const getServiceTotal = (order: (typeof orders)[number]) =>
+  const getCommissionBaseTotal = (order: (typeof orders)[number]) =>
     order.items.reduce((sum, item) => {
+      if (item.commissionBase !== null && item.commissionBase !== undefined) {
+        return sum.add(item.commissionBase);
+      }
+
       if (item.type !== "SERVICE") {
         return sum;
       }
@@ -84,7 +88,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     }, new Prisma.Decimal(0));
 
   orders.forEach((order) => {
-    const orderServiceTotal = getServiceTotal(order);
+    const orderServiceTotal = getCommissionBaseTotal(order);
     const bucket = totalsByStatus.get(order.status);
     if (bucket) {
       bucket.count += 1;
@@ -111,7 +115,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   });
 
   const mapOrder = (order: (typeof orders)[number]) => {
-    const serviceTotal = getServiceTotal(order);
+    const serviceTotal = getCommissionBaseTotal(order);
 
     return {
       id: order.id,

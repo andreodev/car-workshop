@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Copy, ExternalLink } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
-import { getServiceOrderStatusOption } from "../../status";
 import type { ServiceOrderStatus } from "../../types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -270,6 +269,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
                   <TableHead>Qtd</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Desconto</TableHead>
+                  <TableHead>Base comissão</TableHead>
                   <TableHead>Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -292,6 +292,11 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
                     <TableCell>{item.quantity}</TableCell>
                     <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                     <TableCell>{formatCurrency(item.discount)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(
+                        item.commissionBase ?? (item.type === "SERVICE" ? item.total : "0")
+                      )}
+                    </TableCell>
                     <TableCell>{formatCurrency(item.total)}</TableCell>
                   </TableRow>
                 ))}

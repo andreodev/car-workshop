@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { Prisma, type SalePaymentMethod } from "@prisma/client";
 
 import {
+  saleListInclude,
   createPaymentCashMovements,
   ensurePdvCategory,
   ensureServiceOrderCategory,
@@ -194,6 +195,7 @@ async function createMechanicCommissionPayable(params: {
       unitPrice: Prisma.Decimal;
       discount: Prisma.Decimal;
       total: Prisma.Decimal;
+      commissionBase: Prisma.Decimal | null;
       catalogItem: {
         type: "PRODUTO" | "SERVICO";
       } | null;
@@ -214,7 +216,11 @@ async function createMechanicCommissionPayable(params: {
     return null;
   }
 
-  const serviceItemsTotal = serviceOrder.items.reduce((acc, item) => {
+  const commissionBaseTotal = serviceOrder.items.reduce((acc, item) => {
+    if (item.commissionBase !== null && item.commissionBase !== undefined) {
+      return acc.plus(new Prisma.Decimal(item.commissionBase));
+    }
+
     const isService = item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
 
     if (!isService) {
@@ -224,11 +230,11 @@ async function createMechanicCommissionPayable(params: {
     return acc.plus(new Prisma.Decimal(item.total));
   }, new Prisma.Decimal(0));
 
-  if (serviceItemsTotal.lessThanOrEqualTo(0)) {
+  if (commissionBaseTotal.lessThanOrEqualTo(0)) {
     return null;
   }
 
-  const commissionAmount = serviceItemsTotal
+  const commissionAmount = commissionBaseTotal
     .mul(commissionPercent)
     .div(100)
     .toDecimalPlaces(2);
@@ -270,10 +276,198 @@ async function createMechanicCommissionPayable(params: {
       paymentMethod: null,
       notes: `Comissão de ${commissionPercent.toFixed(
         2,
-      )}% sobre serviços da OS #${serviceOrder.code}. Base: ${serviceItemsTotal.toFixed(
+      )}% sobre base comissionável da OS #${serviceOrder.code}. Base: ${commissionBaseTotal.toFixed(
         2,
       )}.`,
     },
+  });
+}
+
+function extractServiceOrderCodeFromSale(sale: {
+  notes: string | null;
+  cashMovements: Array<{ documentNumber: string | null }>;
+}) {
+  const candidates = [
+    sale.notes && /ordem de serviço/i.test(sale.notes) ? sale.notes : null,
+    ...sale.cashMovements
+      .map((movement) => movement.documentNumber)
+      .filter((documentNumber: string | null): documentNumber is string =>
+        typeof documentNumber === "string" &&
+        /^OS(?:\s*#|\s*-)?\s*\d+$/i.test(documentNumber)
+      ),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    const match = candidate.match(/OS(?:\s*#|\s*-)?\s*(\d+)/i);
+
+    if (match?.[1]) {
+      const code = Number(match[1]);
+      if (Number.isInteger(code) && code > 0) {
+        return code;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function reverseSaleStockMovements(params: {
+  tx: Prisma.TransactionClient;
+  sale: {
+    id: string;
+    code: number;
+    stockMovements: Array<{
+      type: "SAIDA" | "ENTRADA" | "ESTORNO" | "AJUSTE";
+      catalogItemId: string;
+      saleItemId: string | null;
+      serviceOrderId: string | null;
+      serviceOrderItemId: string | null;
+      quantity: Prisma.Decimal;
+    }>;
+  };
+}) {
+  const { tx, sale } = params;
+
+  for (const movement of sale.stockMovements) {
+    if (movement.type !== "SAIDA") {
+      continue;
+    }
+
+    const catalogItem = await tx.catalogItem.findUnique({
+      where: { id: movement.catalogItemId },
+      select: { stockCurrent: true },
+    });
+
+    if (!catalogItem?.stockCurrent) {
+      continue;
+    }
+
+    const stockBefore = new Prisma.Decimal(catalogItem.stockCurrent);
+
+    await tx.catalogItem.update({
+      where: { id: movement.catalogItemId },
+      data: {
+        stockCurrent: {
+          increment: movement.quantity,
+        },
+      },
+    });
+
+    const updatedItem = await tx.catalogItem.findUnique({
+      where: { id: movement.catalogItemId },
+      select: { stockCurrent: true },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        type: "ESTORNO",
+        catalogItemId: movement.catalogItemId,
+        saleId: sale.id,
+        saleItemId: movement.saleItemId,
+        serviceOrderId: movement.serviceOrderId,
+        serviceOrderItemId: movement.serviceOrderItemId,
+        quantity: movement.quantity,
+        stockBefore,
+        stockAfter: updatedItem?.stockCurrent ?? null,
+        reason: `Cancelamento da venda PDV #${sale.code}`,
+        notes: "Estorno automático por cancelamento no PDV.",
+      },
+    });
+  }
+}
+
+async function findServiceOrderForSaleCancellation(params: {
+  tx: Prisma.TransactionClient;
+  sale: {
+    serviceOrderId: string | null;
+    notes: string | null;
+    cashMovements: Array<{ documentNumber: string | null }>;
+  };
+}) {
+  const { tx, sale } = params;
+
+  if (sale.serviceOrderId) {
+    return tx.serviceOrder.findUnique({
+      where: { id: sale.serviceOrderId },
+      include: {
+        mechanic: { select: { name: true } },
+        financialAccount: { select: { id: true } },
+      },
+    });
+  }
+
+  const serviceOrderCode = extractServiceOrderCodeFromSale(sale);
+
+  if (!serviceOrderCode) {
+    return null;
+  }
+
+  return tx.serviceOrder.findUnique({
+    where: { code: serviceOrderCode },
+    include: {
+      mechanic: { select: { name: true } },
+      financialAccount: { select: { id: true } },
+    },
+  });
+}
+
+async function cancelServiceOrderPaymentArtifacts(params: {
+  tx: Prisma.TransactionClient;
+  serviceOrder: {
+    id: string;
+    code: number;
+    mechanic: { name: string } | null;
+    financialAccount: { id: string } | null;
+  };
+}) {
+  const { tx, serviceOrder } = params;
+
+  if (serviceOrder.financialAccount) {
+    await tx.financialAccount.update({
+      where: { id: serviceOrder.financialAccount.id },
+      data: {
+        status: "ABERTA",
+        paymentDate: null,
+        paidAmount: null,
+        paymentMethod: null,
+        notes: `Pagamento cancelado no PDV. Conta reaberta para a OS #${serviceOrder.code}.`,
+      },
+    });
+
+    await tx.cashMovement.deleteMany({
+      where: {
+        financialAccountId: serviceOrder.financialAccount.id,
+      },
+    });
+  }
+
+  const commissionAccounts = await tx.financialAccount.findMany({
+    where: {
+      type: "PAGAR",
+      documentNumber: `OS-${serviceOrder.code}`,
+      category: "Comissão mecânico",
+      ...(serviceOrder.mechanic?.name
+        ? { counterparty: serviceOrder.mechanic.name }
+        : {}),
+    },
+    select: { id: true },
+  });
+
+  for (const account of commissionAccounts) {
+    await tx.cashMovement.deleteMany({
+      where: {
+        financialAccountId: account.id,
+      },
+    });
+
+    await tx.financialAccount.delete({
+      where: { id: account.id },
+    });
+  }
+
+  await tx.serviceOrder.update({
+    where: { id: serviceOrder.id },
+    data: { status: "FINALIZADA" },
   });
 }
 
@@ -570,6 +764,115 @@ export const saleService = {
     };
   },
 
+  async updateStatus(id: string, payload: Record<string, unknown>) {
+    const status = normalizeStatus(normalizeString(payload.status));
+
+    if (!status) {
+      return serviceError("Status da venda inválido.", 400);
+    }
+
+    if (status !== "CANCELADA") {
+      return serviceError("Use o fluxo de pagamento para concluir a venda.", 400);
+    }
+
+    try {
+      const result = await saleRepository.runTransaction(async (tx) => {
+        const sale = await tx.sale.findUnique({
+          where: { id },
+          include: {
+            cashMovements: {
+              select: {
+                documentNumber: true,
+              },
+            },
+            stockMovements: {
+              select: {
+                type: true,
+                catalogItemId: true,
+                saleItemId: true,
+                serviceOrderId: true,
+                serviceOrderItemId: true,
+                quantity: true,
+              },
+            },
+            serviceOrder: {
+              include: {
+                mechanic: { select: { name: true } },
+                financialAccount: { select: { id: true } },
+              },
+            },
+          },
+        });
+
+        if (!sale) {
+          throw new Error("SALE_NOT_FOUND");
+        }
+
+        if (sale.status === "CANCELADA") {
+          return tx.sale.findUniqueOrThrow({
+            where: { id },
+            include: saleListInclude,
+          });
+        }
+
+        const serviceOrder =
+          sale.serviceOrder ??
+          (await findServiceOrderForSaleCancellation({
+            tx,
+            sale,
+          }));
+        const updatedSale = await tx.sale.update({
+          where: { id },
+          data: {
+            status,
+            notes: sale.notes
+              ? `${sale.notes} | Pagamento cancelado no PDV.`
+              : "Pagamento cancelado no PDV.",
+          },
+          include: saleListInclude,
+        });
+
+        await reverseSaleStockMovements({
+          tx,
+          sale,
+        });
+
+        await tx.cashMovement.deleteMany({
+          where: {
+            saleId: sale.id,
+          },
+        });
+
+        await tx.salePayment.deleteMany({
+          where: {
+            saleId: sale.id,
+          },
+        });
+
+        if (serviceOrder) {
+          await cancelServiceOrderPaymentArtifacts({
+            tx,
+            serviceOrder,
+          });
+        }
+
+        return updatedSale;
+      });
+
+      return { data: result };
+    } catch (error) {
+      if (error instanceof Error && error.message === "SALE_NOT_FOUND") {
+        return serviceError("Venda não encontrada.", 404);
+      }
+
+      return serviceError(
+        "Erro ao cancelar venda.",
+        500,
+        error instanceof Error ? error.message : JSON.stringify(error),
+      );
+    }
+  },
+
   async finalizePayment(id: string, payload: Record<string, unknown>) {
     const serviceOrderId = normalizeString(payload.serviceOrderId);
 
@@ -689,6 +992,7 @@ export const saleService = {
         const sale = await tx.sale.create({
           data: {
             clientId: serviceOrder.clientId,
+            serviceOrderId: serviceOrder.id,
             status: "CONCLUIDA",
             paymentMethod: payments[0].paymentMethod,
             subtotal: serviceOrder.subtotal,

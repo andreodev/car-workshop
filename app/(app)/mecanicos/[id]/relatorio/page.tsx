@@ -92,7 +92,7 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
             <TableHead>Veículo</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Entrada</TableHead>
-            <TableHead className="text-right">Serviços</TableHead>
+            <TableHead className="text-right">Base comissão</TableHead>
             <TableHead className="text-right">Comissão</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right">Ações</TableHead>
@@ -201,7 +201,7 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Serviços movimentados</p>
+          <p className="text-xs text-muted-foreground">Base comissionável</p>
           <p className="mt-2 text-xl font-semibold text-foreground">
             {formatCurrency(data.summary.serviceRevenue)}
           </p>
@@ -213,7 +213,7 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
           </p>
         </div>
         <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Serviços concluídos</p>
+          <p className="text-xs text-muted-foreground">Base concluída</p>
           <p className="mt-2 text-xl font-semibold text-foreground">
             {formatCurrency(data.summary.completedServiceRevenue)}
           </p>

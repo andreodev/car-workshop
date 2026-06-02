@@ -24,6 +24,7 @@ export type ParsedEstimateItems = {
     unitPrice: Prisma.Decimal;
     discount: Prisma.Decimal;
     total: Prisma.Decimal;
+    commissionBase: Prisma.Decimal | null;
   }>;
   subtotal: Prisma.Decimal;
   discountTotal: Prisma.Decimal;
@@ -164,6 +165,29 @@ export function parseEstimateItems(payload: unknown) {
       lineTotal = new Prisma.Decimal(0);
     }
 
+    const rawCommissionBase =
+      item.commissionBase === null || item.commissionBase === undefined
+        ? null
+        : String(item.commissionBase);
+    const hasCommissionBase = rawCommissionBase !== null && rawCommissionBase.trim() !== "";
+    const commissionBaseParsed = hasCommissionBase
+      ? parseDecimal(item.commissionBase, "Base de comissão")
+      : null;
+
+    if (commissionBaseParsed && "error" in commissionBaseParsed) {
+      return { error: commissionBaseParsed.error };
+    }
+
+    const commissionBase = hasCommissionBase
+      ? commissionBaseParsed?.value ?? new Prisma.Decimal(0)
+      : type === "SERVICE"
+        ? lineTotal
+        : new Prisma.Decimal(0);
+
+    if (commissionBase.greaterThan(lineTotal)) {
+      return { error: "Base de comissão não pode ser maior que o total do item." };
+    }
+
     subtotal = subtotal.add(lineSubtotal);
     discountTotal = discountTotal.add(discount);
     items.push({
@@ -174,6 +198,7 @@ export function parseEstimateItems(payload: unknown) {
       unitPrice,
       discount,
       total: lineTotal,
+      commissionBase,
     });
   }
 
@@ -194,5 +219,6 @@ export function toEstimateItemCreateInput(items: ParsedEstimateItems["items"]) {
     unitPrice: item.unitPrice,
     discount: item.discount,
     total: item.total,
+    commissionBase: item.commissionBase,
   }));
 }

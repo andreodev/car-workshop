@@ -14,6 +14,7 @@ export type EstimateItem = {
   unitPrice: string;
   discount: string;
   total: string;
+  commissionBase: string | null;
   catalogItem: {
     id: string;
     code: number;
@@ -91,6 +92,7 @@ export type EstimateItemFormValues = {
   quantity: string;
   unitPrice: string;
   discount: string;
+  commissionBase: string;
 };
 
 export type EstimatePayloadItem = {
@@ -100,6 +102,7 @@ export type EstimatePayloadItem = {
   quantity: number;
   unitPrice: number;
   discount: number;
+  commissionBase: number | null;
 };
 
 export type EstimateFormValues = {

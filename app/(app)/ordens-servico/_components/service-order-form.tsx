@@ -50,6 +50,7 @@ function createEmptyItem(): ServiceOrderItemFormValues {
     quantity: "1",
     unitPrice: "",
     discount: "0",
+    commissionBase: "",
   };
 }
 
@@ -127,6 +128,7 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
               Number(item.unitPrice ?? 0),
               item.discount ?? "0"
             ),
+            commissionBase: item.commissionBase === null ? "" : String(item.commissionBase),
           }))
         : [createEmptyItem()],
   };
@@ -183,6 +185,19 @@ function formatCurrency(value: number) {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+function getCommissionBaseValue(
+  item: ServiceOrderItemFormValues,
+  lineTotal: number,
+) {
+  const rawCommissionBase = item.commissionBase.trim();
+
+  if (rawCommissionBase) {
+    return normalizeAmount(rawCommissionBase);
+  }
+
+  return item.type === "SERVICE" ? lineTotal : 0;
 }
 
 type ServiceOrderFormProps = {
@@ -284,10 +299,21 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       discountTotal += discount;
     });
 
+    const commissionBaseTotal = form.items.reduce((sum, item) => {
+      const quantity = normalizeAmount(item.quantity);
+      const unitPrice = normalizeAmount(item.unitPrice);
+      const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+
+      return sum + getCommissionBaseValue(item, lineTotal);
+    }, 0);
+
     return {
       subtotal,
       discountTotal,
       total: Math.max(subtotal - discountTotal, 0),
+      commissionBaseTotal,
     };
   }, [form.items]);
 
@@ -390,18 +416,24 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
       const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+      const commissionBase = getCommissionBaseValue(item, lineTotal);
+
       return (
         !item.description.trim() ||
         (item.type === "PRODUCT" && !item.catalogItemId) ||
         quantity <= 0 ||
         unitPrice <= 0 ||
         discountPercent < 0 ||
-        discountPercent > 100
+        discountPercent > 100 ||
+        commissionBase < 0 ||
+        commissionBase > lineTotal
       );
     });
 
     if (invalidItem) {
-      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade, valor unitário e desconto entre 0 e 100%.");
+      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade, valor unitário, desconto entre 0 e 100% e base de comissão até o total do item.");
       setActiveTab("itens");
       return;
     }
@@ -429,6 +461,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           normalizeAmount(item.unitPrice),
           normalizeAmount(item.discount)
         ),
+        commissionBase: item.commissionBase.trim()
+          ? normalizeAmount(item.commissionBase)
+          : null,
       })),
     };
 
@@ -656,6 +691,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             discountPercent
                           );
                           const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+                          const commissionBase = getCommissionBaseValue(item, lineTotal);
                           const availableCatalogItems = catalogItems.filter((catalogItem) =>
                             item.type === "PRODUCT"
                               ? catalogItem.type === "PRODUTO"
@@ -665,7 +701,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           return (
                             <div
                               key={item.id}
-                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.8fr_1.4fr_1.8fr_0.7fr_0.9fr_0.9fr_auto]"
+                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.8fr_1.2fr_1.6fr_0.65fr_0.8fr_0.8fr_0.9fr_auto]"
                             >
                               <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Tipo</Label>
@@ -758,12 +794,30 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   }
                                 />
                               </div>
+                              <div className="grid min-w-0 gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Base comissão
+                                </Label>
+                                <Input
+                                  inputMode="decimal"
+                                  value={item.commissionBase}
+                                  onChange={(event) =>
+                                    updateItem(item.id, "commissionBase", event.target.value)
+                                  }
+                                  placeholder={
+                                    item.type === "SERVICE" ? formatCurrency(lineTotal) : "R$ 0,00"
+                                  }
+                                />
+                              </div>
                               <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-end">
                                 <span className="text-sm font-semibold text-foreground lg:text-xs">
                                   <span className="mr-2 text-xs font-medium text-muted-foreground lg:hidden">
                                     Total
                                   </span>
                                   {formatCurrency(lineTotal)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Comissão: {formatCurrency(commissionBase)}
                                 </span>
                                 <Button
                                   type="button"
@@ -789,6 +843,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           <span className="text-muted-foreground">Descontos</span>
                           <span className="font-semibold text-amber-700">
                             -{formatCurrency(totals.discountTotal)}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-muted-foreground">Base comissão</span>
+                          <span className="font-semibold">
+                            {formatCurrency(totals.commissionBaseTotal)}
                           </span>
                         </div>
                         <div className="my-3 h-px bg-border" />

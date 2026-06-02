@@ -58,6 +58,7 @@ function createEmptyItem(): EstimateItemFormValues {
     quantity: "1",
     unitPrice: "",
     discount: "0",
+    commissionBase: "",
   };
 }
 
@@ -116,6 +117,7 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
               Number(item.unitPrice ?? 0),
               item.discount ?? "0",
             ),
+            commissionBase: item.commissionBase === null ? "" : String(item.commissionBase),
           }))
         : [createEmptyItem()],
   };
@@ -164,6 +166,16 @@ function formatCurrency(value: number) {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+function getCommissionBaseValue(item: EstimateItemFormValues, lineTotal: number) {
+  const rawCommissionBase = item.commissionBase.trim();
+
+  if (rawCommissionBase) {
+    return normalizeAmount(rawCommissionBase);
+  }
+
+  return item.type === "SERVICE" ? lineTotal : 0;
 }
 
 function getVehicleLabel(
@@ -321,10 +333,21 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       discountTotal += discount;
     });
 
+    const commissionBaseTotal = form.items.reduce((sum, item) => {
+      const quantity = normalizeAmount(item.quantity);
+      const unitPrice = normalizeAmount(item.unitPrice);
+      const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+
+      return sum + getCommissionBaseValue(item, lineTotal);
+    }, 0);
+
     return {
       subtotal,
       discountTotal,
       total: Math.max(subtotal - discountTotal, 0),
+      commissionBaseTotal,
     };
   }, [form.items]);
 
@@ -443,17 +466,25 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     const invalidItem = form.items.find((item) => {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
+      const discountPercent = normalizeAmount(item.discount);
+      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+      const commissionBase = getCommissionBaseValue(item, lineTotal);
 
       return (
         !item.description.trim() ||
         quantity <= 0 ||
-        unitPrice <= 0
+        unitPrice <= 0 ||
+        discountPercent < 0 ||
+        discountPercent > 100 ||
+        commissionBase < 0 ||
+        commissionBase > lineTotal
       );
     });
 
     if (invalidItem) {
       setLocalError(
-        "Preencha descrição, quantidade e valor dos itens.",
+        "Preencha descrição, quantidade, valor, desconto entre 0 e 100% e base de comissão até o total do item.",
       );
       return;
     }
@@ -482,6 +513,9 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           normalizeAmount(item.unitPrice),
           normalizeAmount(item.discount),
         ),
+        commissionBase: item.commissionBase.trim()
+          ? normalizeAmount(item.commissionBase)
+          : null,
       })),
     };
 
@@ -861,6 +895,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
             quantity * unitPrice - discount,
             0,
           );
+          const commissionBase = getCommissionBaseValue(item, lineTotal);
 
           const availableCatalogItems = catalogItems.filter(
             (catalogItem) =>
@@ -1033,7 +1068,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                     />
                   </div>
 
-                  <div className="grid gap-2 md:col-span-2">
+                  <div className="grid gap-2">
                     <Label>Desconto (%)</Label>
 
                     <Input
@@ -1048,6 +1083,35 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                         )
                       }
                     />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Base comissão</Label>
+
+                    <Input
+                      className="h-11"
+                      inputMode="decimal"
+                      value={item.commissionBase}
+                      onChange={(event) =>
+                        updateItem(
+                          item.id,
+                          "commissionBase",
+                          event.target.value,
+                        )
+                      }
+                      placeholder={
+                        item.type === "SERVICE" ? formatCurrency(lineTotal) : "R$ 0,00"
+                      }
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">Base comissionável</span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(commissionBase)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1110,6 +1174,16 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
           <span className="font-mono font-semibold text-amber-600">
             -{formatCurrency(totals.discountTotal)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Base comissão
+          </span>
+
+          <span className="font-mono font-semibold">
+            {formatCurrency(totals.commissionBaseTotal)}
           </span>
         </div>
 
