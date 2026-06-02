@@ -48,7 +48,7 @@ function StepIcon({
   return (
     <span
       className={cn(
-        "relative z-10 flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-md shadow-black/10 transition-all",
+        "relative z-10 flex size-10 items-center justify-center rounded-full border text-sm font-semibold shadow-md shadow-black/10 transition-all sm:size-12",
         isCompleted || isActive
           ? "border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20"
           : "border-border bg-background text-muted-foreground"
@@ -71,8 +71,8 @@ export function ServiceOrderFormStepper({
       : (activeIndex / (serviceOrderFormSteps.length - 1)) * 100;
 
   return (
-    <TabsList className="w-full bg-transparent p-0">
-      <div className="relative flex w-full flex-col gap-5 px-1 py-2 md:px-2">
+    <TabsList className="h-auto w-full bg-transparent p-0">
+      <div className="relative flex w-full flex-col gap-3 px-0 py-1 sm:gap-5 sm:px-1 sm:py-2 md:px-2">
         <div className="relative hidden w-full px-6 sm:block">
           <div className="absolute left-6 right-6 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-border/80" />
           <div
@@ -81,7 +81,7 @@ export function ServiceOrderFormStepper({
           />
         </div>
 
-        <div className="flex w-full flex-col gap-6 sm:flex-row sm:items-start sm:justify-between sm:gap-0">
+        <div className="flex w-full items-start justify-between gap-1 sm:gap-0">
           {serviceOrderFormSteps.map((step, index) => {
             const isActive = step.value === activeStep;
             const isCompleted = index < activeIndex;
@@ -89,13 +89,13 @@ export function ServiceOrderFormStepper({
             return (
               <div
                 key={step.value}
-                className="relative flex flex-1 justify-center sm:min-w-0"
+                className="relative flex min-w-0 flex-1 justify-center"
               >
                 <TabsTrigger
                   value={step.value}
                   className={cn(
                     "h-auto w-full rounded-none border-0 bg-transparent px-0 py-0",
-                    "flex flex-col items-center gap-3 whitespace-normal text-center transition-all",
+                    "flex flex-col items-center gap-2 whitespace-normal text-center transition-all sm:gap-3",
                     isActive
                       ? "text-foreground"
                       : "text-foreground/80 hover:text-foreground"
@@ -110,11 +110,11 @@ export function ServiceOrderFormStepper({
                     />
                   </div>
 
-                  <span className="space-y-1">
-                    <span className="block text-sm font-semibold text-foreground sm:text-base">
+                  <span className="min-w-0 space-y-1">
+                    <span className="block truncate text-xs font-semibold text-foreground sm:text-base">
                       {step.label}
                     </span>
-                    <span className="block text-xs leading-relaxed text-muted-foreground sm:px-2">
+                    <span className="hidden text-xs leading-relaxed text-muted-foreground sm:block sm:px-2">
                       {step.description}
                     </span>
                   </span>
