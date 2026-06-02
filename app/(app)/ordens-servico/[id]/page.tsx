@@ -35,7 +35,5 @@ export default function ServiceOrderEditPage({ params }: ServiceOrderEditPagePro
     );
   }
 
-  console.log(data)
-
   return <ServiceOrderForm mode="edit" initialData={data} />;
 }

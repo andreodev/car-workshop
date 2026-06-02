@@ -457,30 +457,29 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   }
 
   return (
-    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col">
+    <section className="flex min-h-[calc(100vh-8rem)] w-full min-w-0 flex-col">
       <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ServiceOrderFormStepValue)}
-          className="flex-1"
+          className="min-w-0 flex-1"
         >
-          <div className="flex flex-1 flex-col gap-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-5 sm:gap-8">
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <Header
                 title={mode === "edit" ? "Editar ordem de serviço" : "Nova ordem de serviço"}
                 description="Registre a OS, acompanhe itens e mantenha o time alinhado."
               />
-              <Badge variant="secondary" className="h-fit text-[11px]">
+              <Badge variant="secondary" className="h-fit w-fit text-[11px]">
                 {serviceOrderStatusOptions.find((option) => option.value === form.status)?.label}
               </Badge>
             </div>
 
-
-            <div className="pb-6">
+            <div className="pb-2 sm:pb-6">
               <ServiceOrderFormStepper activeStep={activeTab} />
             </div>
 
-            <div className="rounded-3xl border-2 border-gray-700 bg-white/60 p-6">
+            <div className="min-w-0 rounded-lg border-2 border-gray-700 bg-white/60 p-4 sm:p-6">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -500,7 +499,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-3">
-                        <div className="grid gap-2 md:col-span-2">
+                        <div className="grid min-w-0 gap-2 md:col-span-2">
                           <Label>Cliente</Label>
                           <Select
                             value={form.clientId}
@@ -532,43 +531,41 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                         </div>
                       </div>
 
-
-<div className="grid gap-2">
-  <Label>Mecânico</Label>
-
-  <Select
-    value={form.mechanicId}
-    onValueChange={(value) => {
-      setForm((prev) => ({ ...prev, mechanicId: value }));
-      setLocalError(null);
-    }}
-  >
-    <SelectTrigger className="w-full">
-      <SelectValue
-        placeholder={
-          mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
-        }
-      />
-    </SelectTrigger>
-
-    <SelectContent>
-      {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
-        <SelectItem key={mechanic.id} value={mechanic.id}>
-          {mechanic.name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-
-  {mechanicsQuery.isError ? (
-    <p className="text-xs text-destructive">
-      Não foi possível carregar mecânicos.
-    </p>
-  ) : null}
-</div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid min-w-0 gap-2 md:col-span-2">
+                          <Label>Mecânico</Label>
+                          <Select
+                            value={form.mechanicId}
+                            onValueChange={(value) => {
+                              setForm((prev) => ({ ...prev, mechanicId: value }));
+                              setLocalError(null);
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue
+                                placeholder={
+                                  mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+                                <SelectItem key={mechanic.id} value={mechanic.id}>
+                                  {mechanic.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {mechanicsQuery.isError ? (
+                            <p className="text-xs text-destructive">
+                              Não foi possível carregar mecânicos.
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
 
                       <div className="grid gap-4 md:grid-cols-3">
-                        <div className="grid gap-2 md:col-span-2">
+                        <div className="grid min-w-0 gap-2 md:col-span-2">
                           <Label>Veículo</Label>
                           <Select
                             value={form.vehicleId}
@@ -598,20 +595,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             </p>
                           ) : null}
                         </div>
-
-                
                       </div>
 
-                      
-
                       <div className="grid gap-4 md:grid-cols-3">
-                        <div className="grid gap-2">
+                        <div className="grid min-w-0 gap-2 md:col-span-2">
                           <Label>Responsável</Label>
                           <Input value={responsibleValue} onChange={onChange("responsible")} />
                         </div>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-4">
-                        <div className="grid gap-2 md:col-span-2">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid min-w-0 gap-2">
                           <Label>Data prevista</Label>
                           <Input
                             type="date"
@@ -619,7 +612,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             onChange={onChange("estimatedDate")}
                           />
                         </div>
-                        <div className="grid gap-2 md:col-span-2">
+                        <div className="grid min-w-0 gap-2">
                           <Label>Hora prevista</Label>
                           <Input
                             type="time"
@@ -633,7 +626,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
                   {activeTab === "itens" ? (
                     <section className="space-y-5">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-1">
                           <h3 className="font-heading text-lg text-foreground">
                             Itens e serviços
@@ -642,7 +635,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             Registre os itens executados e atualize o total automaticamente.
                           </p>
                         </div>
-                        <Button type="button" variant="secondary" onClick={addItem}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="w-full sm:w-fit"
+                          onClick={addItem}
+                        >
                           Adicionar item
                         </Button>
                       </div>
@@ -667,9 +665,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           return (
                             <div
                               key={item.id}
-                              className="grid gap-3 rounded-xl border border-dashed bg-muted/30 p-3 md:grid-cols-[0.8fr_1.4fr_1.8fr_0.7fr_0.9fr_0.9fr_auto]"
+                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.8fr_1.4fr_1.8fr_0.7fr_0.9fr_0.9fr_auto]"
                             >
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Tipo</Label>
                                 <Select
                                   value={item.type}
@@ -680,7 +678,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                     )
                                   }
                                 >
-                                  <SelectTrigger>
+                                  <SelectTrigger className="w-full min-w-0">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -689,7 +687,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">
                                   Catálogo
                                 </Label>
@@ -699,7 +697,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                     updateItemCatalog(item.id, value === "MANUAL" ? "" : value)
                                   }
                                 >
-                                  <SelectTrigger>
+                                  <SelectTrigger className="w-full min-w-0">
                                     <SelectValue
                                       placeholder={
                                         catalogItemsQuery.isLoading ? "Carregando..." : "Manual"
@@ -718,7 +716,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1 sm:col-span-2 lg:col-span-1">
                                 <Label className="text-[11px] text-muted-foreground">
                                   Descrição
                                 </Label>
@@ -730,7 +728,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   placeholder={`Servico ${index + 1}`}
                                 />
                               </div>
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Qtd</Label>
                                 <Input
                                   value={item.quantity}
@@ -739,7 +737,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   }
                                 />
                               </div>
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Valor</Label>
                                 <Input
                                   value={item.unitPrice}
@@ -748,7 +746,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   }
                                 />
                               </div>
-                              <div className="grid gap-1">
+                              <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">
                                   Desconto (%)
                                 </Label>
@@ -760,14 +758,18 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   }
                                 />
                               </div>
-                              <div className="flex flex-col items-end justify-between gap-2">
-                                <span className="text-xs font-semibold text-foreground">
+                              <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-end">
+                                <span className="text-sm font-semibold text-foreground lg:text-xs">
+                                  <span className="mr-2 text-xs font-medium text-muted-foreground lg:hidden">
+                                    Total
+                                  </span>
                                   {formatCurrency(lineTotal)}
                                 </span>
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
+                                  className="shrink-0"
                                   onClick={() => removeItem(item.id)}
                                 >
                                   Remover
@@ -778,7 +780,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                         })}
                       </div>
 
-                      <div className="ml-auto max-w-md rounded-2xl border border-border bg-background/70 p-4 text-sm">
+                      <div className="w-full rounded-lg border border-border bg-background/70 p-4 text-sm sm:ml-auto sm:max-w-md">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Subtotal</span>
                           <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
@@ -810,7 +812,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
-                        <div className="grid gap-2">
+                        <div className="grid min-w-0 gap-2">
                           <Label>Observação interna</Label>
                           <Textarea
                             value={form.notesInternal}
@@ -818,7 +820,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             rows={5}
                           />
                         </div>
-                        <div className="grid gap-2">
+                        <div className="grid min-w-0 gap-2">
                           <Label>Observação para o cliente</Label>
                           <Textarea
                             value={form.notesClient}
@@ -839,16 +841,17 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               ) : null}
             </div>
 
-            <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center">
+            <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 lg:flex-row lg:items-center">
               <p className="text-xs text-muted-foreground">
                 Revise os dados antes de salvar. A ordem ficará disponível para acompanhamento.
               </p>
 
-              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-row lg:justify-end">
                 <Button
                   type="button"
                   variant="ghost"
                   size="lg"
+                  className="w-full lg:w-auto"
                   onClick={() => router.push("/ordens-servico")}
                 >
                   Cancelar
@@ -858,6 +861,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     type="button"
                     variant="outline"
                     size="lg"
+                    className="w-full lg:w-auto"
                     onClick={() => setActiveTab(previousStep)}
                   >
                     Anterior
@@ -868,12 +872,18 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     type="button"
                     variant="secondary"
                     size="lg"
+                    className="w-full lg:w-auto"
                     onClick={() => setActiveTab(nextStep)}
                   >
                     Próxima
                   </Button>
                 ) : null}
-                <Button type="submit" size="lg" disabled={isSaving}>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full sm:col-span-2 lg:w-auto"
+                  disabled={isSaving}
+                >
                   {isSaving ? "Salvando..." : "Salvar ordem de serviço"}
                 </Button>
               </div>
