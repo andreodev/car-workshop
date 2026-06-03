@@ -277,8 +277,8 @@ export default function FinancialPage() {
   const [categoryType, setCategoryType] = useState<CategoryTypeFilter>("TODOS");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("TODOS");
 
-  const [from, setFrom] = useState(() => lastDaysRange(7).from);
-  const [to, setTo] = useState(() => lastDaysRange(7).to);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);

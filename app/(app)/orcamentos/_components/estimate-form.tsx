@@ -133,8 +133,10 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
 }
 
 function normalizeAmount(value: string) {
-  const normalized = value.replace(",", ".");
-  const parsed = Number(normalized);
+  const normalized = value.includes(",")
+    ? value.replace(/\./g, "").replace(",", ".")
+    : value;
+  const parsed = Number(normalized.replace(/[^\d.-]/g, ""));
 
   return Number.isFinite(parsed) ? parsed : 0;
 }
