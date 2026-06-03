@@ -29,6 +29,19 @@ type PdvSaleDialogProps = {
   mode?: "PDV" | "SERVICE_ORDER";
 };
 
+function cleanupPdvScrollLock() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.body.classList.remove("overflow-hidden");
+  document.documentElement.classList.remove("overflow-hidden");
+
+  if (document.body.style.pointerEvents === "none") {
+    document.body.style.pointerEvents = "";
+  }
+}
+
 export function PdvSaleDialog({
   open,
   defaultResponsible,
@@ -60,6 +73,18 @@ export function PdvSaleDialog({
       Modal.setAppElement(appElement);
     }
   }, [appElement]);
+
+  useEffect(() => {
+    if (open) {
+      return;
+    }
+
+    cleanupPdvScrollLock();
+  }, [open]);
+
+  useEffect(() => {
+    return cleanupPdvScrollLock;
+  }, []);
 
   if (!open || !appElement) {
     return null;
@@ -201,7 +226,10 @@ export function PdvSaleDialog({
               variant="outline"
               onClick={() => {
                 controller.actions.clearLastSale();
-                controller.actions.close();
+                window.setTimeout(() => {
+                  controller.actions.close();
+                  cleanupPdvScrollLock();
+                }, 0);
               }}
             >
               Fechar

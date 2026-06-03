@@ -423,17 +423,6 @@ async function cancelServiceOrderPaymentArtifacts(params: {
   const { tx, serviceOrder } = params;
 
   if (serviceOrder.financialAccount) {
-    await tx.financialAccount.update({
-      where: { id: serviceOrder.financialAccount.id },
-      data: {
-        status: "ABERTA",
-        paymentDate: null,
-        paidAmount: null,
-        paymentMethod: null,
-        notes: `Pagamento cancelado no PDV. Conta reaberta para a OS #${serviceOrder.code}.`,
-      },
-    });
-
     await tx.cashMovement.deleteMany({
       where: {
         financialAccountId: serviceOrder.financialAccount.id,
@@ -464,11 +453,6 @@ async function cancelServiceOrderPaymentArtifacts(params: {
       where: { id: account.id },
     });
   }
-
-  await tx.serviceOrder.update({
-    where: { id: serviceOrder.id },
-    data: { status: "FINALIZADA" },
-  });
 }
 
 export const saleService = {

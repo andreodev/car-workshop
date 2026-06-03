@@ -114,9 +114,23 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
     to,
     totalPages,
   } = useSalesPage();
-
   return (
     <section className="flex flex-col gap-6">
+      {cancelMutation.isPending ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-background/70 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-lg">
+            <Spinner className="size-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">
+              Cancelando venda
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <Header
           title="PDV"
