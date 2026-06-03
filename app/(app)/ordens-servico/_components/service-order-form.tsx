@@ -40,6 +40,10 @@ import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { vehiclesService } from "@/modules/vehicle/api/vehicle.service";
+import {
+  formatAmountInput,
+  maskServiceOrderItemField,
+} from "../service-order-input-masks";
 
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
@@ -122,21 +126,26 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
             catalogItemId: item.catalogItemId ?? "",
             description: item.description,
             quantity: String(item.quantity),
-            unitPrice: String(item.unitPrice ?? ""),
-            discount: calculateDiscountPercent(
-              Number(item.quantity),
-              Number(item.unitPrice ?? 0),
-              item.discount ?? "0"
+            unitPrice: formatAmountInput(item.unitPrice),
+            discount: formatAmountInput(
+              calculateDiscountPercent(
+                Number(item.quantity),
+                Number(item.unitPrice ?? 0),
+                item.discount ?? "0"
+              ),
             ),
-            commissionBase: item.commissionBase === null ? "" : String(item.commissionBase),
+            commissionBase:
+              item.commissionBase === null ? "" : formatAmountInput(item.commissionBase),
           }))
         : [createEmptyItem()],
   };
 }
 
 function normalizeAmount(value: string) {
-  const normalized = value.replace(",", ".");
-  const parsed = Number(normalized);
+  const normalized = value.includes(",")
+    ? value.replace(/\./g, "").replace(",", ".")
+    : value;
+  const parsed = Number(normalized.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -325,10 +334,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     };
 
   function updateItem(itemId: string, field: keyof ServiceOrderItemFormValues, value: string) {
+    const nextValue = maskServiceOrderItemField(field, value);
+
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.id === itemId ? { ...item, [field]: value } : item
+        item.id === itemId ? { ...item, [field]: nextValue } : item
       ),
     }));
     setLocalError(null);
@@ -354,7 +365,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               ...item,
               catalogItemId,
               description: catalogItem?.name ?? item.description,
-              unitPrice: catalogItem ? String(catalogItem.unitPrice) : item.unitPrice,
+              unitPrice: catalogItem
+                ? formatAmountInput(catalogItem.unitPrice)
+                : item.unitPrice,
               type: catalogItem
                 ? catalogItem.type === "PRODUTO"
                   ? "PRODUCT"
@@ -767,6 +780,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Qtd</Label>
                                 <Input
+                                  inputMode="numeric"
                                   value={item.quantity}
                                   onChange={(event) =>
                                     updateItem(item.id, "quantity", event.target.value)
@@ -776,6 +790,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Valor</Label>
                                 <Input
+                                  inputMode="decimal"
                                   value={item.unitPrice}
                                   onChange={(event) =>
                                     updateItem(item.id, "unitPrice", event.target.value)
