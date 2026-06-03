@@ -64,14 +64,14 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
 
   return (
     <>
-    <aside className="flex min-h-0 flex-col bg-card">
-      <div className="space-y-4 border-b border-border p-4">
+    <aside className="flex flex-col bg-card lg:min-h-0">
+      <div className="space-y-3 border-y border-border p-3 sm:space-y-4 sm:border-t-0 sm:p-4 lg:border-b">
         <div>
           <p className="text-xs font-medium uppercase text-muted-foreground">
             Cliente
           </p>
 
-          <p className="mt-1 truncate text-lg font-semibold text-foreground">
+          <p className="mt-1 truncate text-base font-semibold text-foreground sm:text-lg">
             {state.selectedClient
               ? state.selectedClient.name
               : "Cliente nao informado"}
@@ -107,11 +107,11 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        <div className="rounded-lg bg-primary p-5 text-primary-foreground">
+      <div className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:overflow-y-auto sm:p-4">
+        <div className="rounded-lg bg-primary p-4 text-primary-foreground sm:p-5">
           <p className="text-sm font-medium uppercase opacity-80">Total</p>
 
-          <p className="mt-2 text-5xl font-semibold tracking-tight">
+          <p className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
             {formatCurrency(state.expectedPaymentTotal)}
           </p>
         </div>
@@ -168,11 +168,11 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
         </div>
       </div>
 
-      <div className="grid gap-2 border-t border-border p-4">
+      <div className="grid gap-2 border-t border-border p-3 sm:p-4">
         <Button
           type="button"
           size="lg"
-          className="h-12 gap-2"
+          className="h-11 gap-2 sm:h-12"
           onClick={actions.openPaymentDialog}
           disabled={
             isSaving ||
@@ -217,30 +217,30 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
       open={state.paymentDialogOpen}
       onOpenChange={actions.setPaymentDialogOpen}
     >
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-muted/30 p-3">
             <div>
               <p className="text-xs text-muted-foreground">Total esperado</p>
-              <p className="text-lg font-semibold">
+              <p className="text-sm font-semibold sm:text-lg">
                 {formatCurrency(state.expectedPaymentTotal)}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-muted-foreground">Total pago</p>
-              <p className="text-lg font-semibold">
+              <p className="text-sm font-semibold sm:text-lg">
                 {formatCurrency(state.paymentTotal)}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-muted-foreground">Taxa</p>
-              <p className="text-lg font-semibold">
+              <p className="text-sm font-semibold sm:text-lg">
                 {formatCurrency(state.paymentFeeTotal)}
               </p>
             </div>
@@ -347,7 +347,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             <Button
               type="button"
               variant="outline"
-              className="sm:w-auto"
+              className="h-10 sm:w-auto"
               onClick={actions.addPaymentLine}
             >
               <HugeiconsIcon icon={Add01Icon} strokeWidth={2.5} />
@@ -357,7 +357,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             <Button
               type="button"
               variant="secondary"
-              className="sm:w-auto"
+              className="h-10 sm:w-auto"
               onClick={actions.fillSinglePaymentWithTotal}
             >
               Preencher com total
@@ -366,15 +366,16 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
 
           {Math.abs(state.paymentDifference) > 0.009 && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              DiferenÃ§a de {formatCurrency(Math.abs(state.paymentDifference))}
+              Diferença de {formatCurrency(Math.abs(state.paymentDifference))}
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button
             type="button"
             variant="outline"
+            className="h-10"
             onClick={() => actions.setPaymentDialogOpen(false)}
           >
             Cancelar
@@ -382,6 +383,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
 
           <Button
             type="button"
+            className="h-10"
             onClick={actions.saveSale}
             disabled={finishDisabled}
           >

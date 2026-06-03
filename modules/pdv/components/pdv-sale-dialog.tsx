@@ -115,8 +115,8 @@ export function PdvSaleDialog({
       onRequestClose={controller.actions.close}
       shouldCloseOnOverlayClick={false}
       shouldCloseOnEsc
-      className="mx-auto flex h-[calc(100vh-1.5rem)] w-full max-w-[1500px] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl outline-none"
-      overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/70 p-3"
+      className="mx-auto flex h-[100dvh] w-full flex-col overflow-hidden border border-border bg-background shadow-2xl outline-none sm:h-[calc(100vh-1.5rem)] sm:max-w-[1500px] sm:rounded-lg"
+      overlayClassName="fixed inset-0 z-50 flex items-stretch justify-center bg-neutral-950/70 p-0 sm:items-center sm:p-3"
       bodyOpenClassName="overflow-hidden"
       htmlOpenClassName="overflow-hidden"
       contentLabel={title}
@@ -135,8 +135,8 @@ export function PdvSaleDialog({
 
         <PdvSaleContextBar controller={controller} />
 
-        <div className="grid min-h-0 flex-1 bg-background lg:grid-cols-[minmax(0,1fr)_360px]">
-          <main className="flex min-h-0 flex-col border-r border-border">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:overflow-hidden">
+          <main className="flex min-h-[420px] flex-col border-border lg:min-h-0 lg:border-r">
             {!isServiceOrderMode && <PdvProductEntry controller={controller} />}
 
             <PdvSaleItemsTable
