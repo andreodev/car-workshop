@@ -132,7 +132,11 @@ export const salePaymentInclude = {
       name: true,
     },
   },
-  items: true,
+  items: {
+    orderBy: {
+      createdAt: "asc",
+    },
+  },
   payments: true,
 } satisfies Prisma.SaleInclude;
 

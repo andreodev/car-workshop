@@ -815,20 +815,36 @@ export const saleService = {
           });
         }
 
-        const serviceOrder =
-          sale.serviceOrder ??
-          (await findServiceOrderForSaleCancellation({
-            tx,
-            sale,
-          }));
-        const updatedSale = await tx.sale.update({
-          where: { id },
+        const cancelGuard = await tx.sale.updateMany({
+          where: {
+            id,
+            status: {
+              not: "CANCELADA",
+            },
+          },
           data: {
             status,
             notes: sale.notes
               ? `${sale.notes} | Pagamento cancelado no PDV.`
               : "Pagamento cancelado no PDV.",
           },
+        });
+
+        if (cancelGuard.count !== 1) {
+          return tx.sale.findUniqueOrThrow({
+            where: { id },
+            include: saleListInclude,
+          });
+        }
+
+        const serviceOrder =
+          sale.serviceOrder ??
+          (await findServiceOrderForSaleCancellation({
+            tx,
+            sale,
+          }));
+        const updatedSale = await tx.sale.findUniqueOrThrow({
+          where: { id },
           include: saleListInclude,
         });
 
@@ -914,6 +930,86 @@ export const saleService = {
 
     try {
       const result = await saleRepository.runTransaction(async (tx) => {
+        const paymentGuard = await tx.serviceOrder.updateMany({
+          where: {
+            id: serviceOrder.id,
+            status: "FINALIZADA",
+          },
+          data: {
+            status: "PAGA",
+          },
+        });
+
+        if (paymentGuard.count !== 1) {
+          const existingSale = await tx.sale.findFirst({
+            where: {
+              serviceOrderId: serviceOrder.id,
+              status: "CONCLUIDA",
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: salePaymentInclude,
+          });
+
+          if (existingSale) {
+            const currentServiceOrder = await tx.serviceOrder.findUniqueOrThrow({
+              where: {
+                id: serviceOrder.id,
+              },
+            });
+
+            return {
+              sale: existingSale,
+              serviceOrder: currentServiceOrder,
+              mechanicCommissionPayable: null,
+              updatedFinancialAccountsCount: 0,
+            };
+          }
+
+          throw new Error("SERVICE_ORDER_ALREADY_PAID");
+        }
+
+        const sale = await tx.sale.create({
+          data: {
+            clientId: serviceOrder.clientId,
+            serviceOrderId: serviceOrder.id,
+            status: "CONCLUIDA",
+            paymentMethod: payments[0].paymentMethod,
+            subtotal: serviceOrder.subtotal,
+            discountTotal: serviceOrder.discountTotal,
+            feeTotal,
+            total: totalPaid,
+            responsible: serviceOrder.responsible ?? "PDV",
+            notes: `Pagamento da ordem de serviÃ§o #${serviceOrder.code}`,
+            items: {
+              create: serviceOrder.items.map((item) => ({
+                catalogItemId: item.catalogItemId,
+                description: item.catalogItem?.name ?? item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice).minus(item.discount),
+              })),
+            },
+            payments: {
+              create: payments.map((payment) => ({
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                feeAmount: payment.feeAmount,
+                netAmount: payment.amount.minus(payment.feeAmount),
+              })),
+            },
+          },
+          include: salePaymentInclude,
+        });
+        const saleItemsByServiceOrderItemId = new Map(
+          serviceOrder.items.map((serviceOrderItem, index) => [
+            serviceOrderItem.id,
+            sale.items[index],
+          ]),
+        );
+
         for (const item of serviceOrder.items) {
           if (!item.catalogItemId || item.catalogItem?.type !== "PRODUTO") {
             continue;
@@ -979,6 +1075,8 @@ export const saleService = {
             data: {
               type: "SAIDA",
               catalogItemId: catalogItem.id,
+              saleId: sale.id,
+              saleItemId: saleItemsByServiceOrderItemId.get(item.id)?.id,
               serviceOrderId: serviceOrder.id,
               serviceOrderItemId: item.id,
               quantity,
@@ -988,41 +1086,6 @@ export const saleService = {
             },
           });
         }
-
-        const sale = await tx.sale.create({
-          data: {
-            clientId: serviceOrder.clientId,
-            serviceOrderId: serviceOrder.id,
-            status: "CONCLUIDA",
-            paymentMethod: payments[0].paymentMethod,
-            subtotal: serviceOrder.subtotal,
-            discountTotal: serviceOrder.discountTotal,
-            feeTotal,
-            total: totalPaid,
-            responsible: serviceOrder.responsible ?? "PDV",
-            notes: `Pagamento da ordem de serviço #${serviceOrder.code}`,
-            items: {
-              create: serviceOrder.items.map((item) => ({
-                catalogItemId: item.catalogItemId,
-                description: item.catalogItem?.name ?? item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: item.discount,
-                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice).minus(item.discount),
-              })),
-            },
-            payments: {
-              create: payments.map((payment) => ({
-                paymentMethod: payment.paymentMethod,
-                amount: payment.amount,
-                feeAmount: payment.feeAmount,
-                netAmount: payment.amount.minus(payment.feeAmount),
-              })),
-            },
-          },
-          include: salePaymentInclude,
-        });
-
         const category = await ensureServiceOrderCategory(tx);
 
         await createPaymentCashMovements({
@@ -1077,12 +1140,9 @@ export const saleService = {
           serviceOrder,
         });
 
-        const updatedServiceOrder = await tx.serviceOrder.update({
+        const updatedServiceOrder = await tx.serviceOrder.findUniqueOrThrow({
           where: {
             id: serviceOrder.id,
-          },
-          data: {
-            status: "PAGA",
           },
         });
 
@@ -1098,6 +1158,10 @@ export const saleService = {
         data: result,
       };
     } catch (error) {
+      if (error instanceof Error && error.message === "SERVICE_ORDER_ALREADY_PAID") {
+        return serviceError("Esta ordem de serviÃ§o jÃ¡ foi paga.", 400);
+      }
+
       return serviceError(
         "Erro ao finalizar pagamento da ordem de serviço.",
         500,
