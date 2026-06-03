@@ -23,8 +23,8 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
   const { clientInputRef } = refs;
 
   return (
-    <div className="grid gap-3 border-b border-border bg-muted/30 px-4 py-3 lg:grid-cols-[minmax(320px,1.4fr)_300px_300px] lg:items-start">
-      <div className="min-w-0 space-y-1">
+    <div className="grid gap-3 border-b border-border bg-muted/30 px-3 py-3 sm:px-4 sm:grid-cols-2 lg:grid-cols-[minmax(320px,1.4fr)_300px_300px] lg:items-start">
+      <div className="min-w-0 space-y-1 sm:col-span-2 lg:col-span-1">
         <Label>Cliente</Label>
         <div className="relative flex">
           <Button
@@ -54,7 +54,7 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
             }}
           />
           {state.clientListOpen && !state.selectedClient ? (
-            <div className="absolute left-10 right-0 top-11 z-30 rounded-md border bg-popover shadow-lg">
+            <div className="absolute left-0 right-0 top-11 z-30 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-lg sm:left-10">
               {queries.clientsQuery.data?.items.length ? (
                 queries.clientsQuery.data.items.map((client, index) => (
                   <button

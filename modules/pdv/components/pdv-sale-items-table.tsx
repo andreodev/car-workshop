@@ -26,7 +26,7 @@ export function PdvSaleItemsTable({
   onRemoveLine,
 }: PdvSaleItemsTableProps) {
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-4">
+    <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
       {localError ? (
         <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {localError}
@@ -38,7 +38,59 @@ export function PdvSaleItemsTable({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-md border border-border">
+      <div className="grid gap-2 md:hidden">
+        {lines.length === 0 ? (
+          <div className="flex min-h-[180px] items-center justify-center rounded-md border border-border bg-muted/20 px-4 text-center text-sm text-muted-foreground">
+            Nenhum item incluido.
+          </div>
+        ) : (
+          lines.map((line) => (
+            <div
+              key={line.localId}
+              className="rounded-md border border-border bg-card p-3 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-foreground">
+                    {line.description}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {line.quantity} x {formatCurrency(line.unitPrice)}
+                  </p>
+                </div>
+
+                {onRemoveLine ? (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => onRemoveLine(line.localId)}
+                    title="Remover item"
+                    aria-label="Remover item"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Desconto</p>
+                  <p className="font-medium">{formatCurrency(line.discount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-semibold text-primary">
+                    {formatCurrency(line.total)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-md border border-border md:block">
         <Table className="min-w-[760px]">
           <TableHeader>
             <TableRow className="bg-muted/60 hover:bg-muted/60">

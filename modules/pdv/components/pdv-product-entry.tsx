@@ -16,9 +16,9 @@ export function PdvProductEntry({ controller }: PdvProductEntryProps) {
   const { productInputRef, quantityInputRef, unitPriceInputRef } = refs;
 
   return (
-    <form onSubmit={actions.addLine} className="border-b border-border bg-card px-4 py-3">
-      <div className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_128px_150px_128px_150px] lg:items-end">
-        <div className="min-w-0 space-y-1">
+    <form onSubmit={actions.addLine} className="border-b border-border bg-card px-3 py-3 sm:px-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-[minmax(320px,1fr)_128px_150px_128px_150px] xl:items-end">
+        <div className="col-span-2 min-w-0 space-y-1 xl:col-span-1">
           <Label>Produto</Label>
           <div className="relative flex">
             <Button
@@ -53,7 +53,7 @@ export function PdvProductEntry({ controller }: PdvProductEntryProps) {
               />
             </div>
             {state.productListOpen && !state.selectedProduct ? (
-              <div className="absolute left-10 right-0 top-12 z-30 rounded-md border bg-popover shadow-lg">
+              <div className="absolute left-0 right-0 top-12 z-30 max-h-72 overflow-y-auto rounded-md border bg-popover shadow-lg sm:left-10">
                 {queries.productsQuery.data?.items.length ? (
                   queries.productsQuery.data.items.map((item, index) => (
                     <button
@@ -133,7 +133,7 @@ export function PdvProductEntry({ controller }: PdvProductEntryProps) {
             className="h-11 min-w-0 text-right tabular-nums"
           />
         </div>
-        <Button type="submit" className="h-11 gap-2">
+        <Button type="submit" className="col-span-2 h-11 gap-2 xl:col-span-1">
           <HugeiconsIcon icon={BarcodeScanIcon} strokeWidth={2.5} />
           Incluir
         </Button>

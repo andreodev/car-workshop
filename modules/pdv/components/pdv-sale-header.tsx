@@ -11,22 +11,22 @@ type PdvSaleHeaderProps = {
 
 export function PdvSaleHeader({ onClose, title = "PDV Caixa" }: PdvSaleHeaderProps) {
   return (
-    <header className="grid gap-3 border-b border-border bg-card px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
-      <div className="flex min-w-0 items-center gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <header className="grid gap-3 border-b border-border bg-card px-3 py-2.5 sm:px-4 sm:py-3 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground sm:size-11">
           <HugeiconsIcon icon={CashierIcon} strokeWidth={2.2} className="size-6" />
         </div>
         <div className="min-w-0">
           <p className="font-heading text-xs font-700 uppercase tracking-wide text-muted-foreground">
             Venda balcao
           </p>
-          <h2 className="truncate font-heading text-2xl font-800 text-foreground">
+          <h2 className="truncate font-heading text-lg font-800 text-foreground sm:text-2xl">
             {title}
           </h2>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="absolute right-2 top-2 flex flex-wrap items-center justify-end gap-2 sm:static">
         <div className="hidden flex-wrap gap-1.5 xl:flex">
           {keyboardShortcuts.map(([key, label]) => (
             <span

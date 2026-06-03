@@ -901,8 +901,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               ) : null}
             </div>
 
-            <div className="mt-auto flex flex-col items-stretch justify-between gap-4 border-t border-border/70 pt-6 lg:flex-row lg:items-center">
-              <p className="text-xs text-muted-foreground">
+            <div className="sticky bottom-0 z-30 -mx-4 mt-auto flex flex-col items-stretch justify-between gap-3 border-t border-border/70 bg-background/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:flex-row lg:items-center lg:gap-4 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-6 lg:shadow-none lg:backdrop-blur-none">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Revise os dados antes de salvar. A ordem ficará disponível para acompanhamento.
               </p>
 
@@ -911,7 +911,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   type="button"
                   variant="ghost"
                   size="lg"
-                  className="w-full lg:w-auto"
+                  className="h-10 w-full lg:h-8 lg:w-auto"
                   onClick={() => router.push("/ordens-servico")}
                 >
                   Cancelar
@@ -921,7 +921,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     type="button"
                     variant="outline"
                     size="lg"
-                    className="w-full lg:w-auto"
+                    className="h-10 w-full lg:h-8 lg:w-auto"
                     onClick={() => setActiveTab(previousStep)}
                   >
                     Anterior
@@ -932,7 +932,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     type="button"
                     variant="secondary"
                     size="lg"
-                    className="w-full lg:w-auto"
+                    className="h-10 w-full lg:h-8 lg:w-auto"
                     onClick={() => setActiveTab(nextStep)}
                   >
                     Próxima
@@ -941,7 +941,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full sm:col-span-2 lg:w-auto"
+                  className="h-10 w-full sm:col-span-2 lg:h-8 lg:w-auto"
                   disabled={isSaving}
                 >
                   {isSaving ? "Salvando..." : "Salvar ordem de serviço"}

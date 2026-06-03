@@ -126,7 +126,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
         <Button
           type="button"
           onClick={handleOpenNormalPdv}
-          className="shrink-0 gap-2 font-medium"
+          className="h-10 shrink-0 gap-2 font-medium sm:h-7"
         >
           <Plus className="size-3.5" />
           Nova venda
@@ -135,12 +135,12 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
 
       <form
         onSubmit={handleSearch}
-        className="grid gap-2 rounded-lg border border-border bg-card p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto]"
+        className="grid gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto]"
       >
-        <div className="relative">
+        <div className="relative sm:col-span-2 lg:col-span-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-9 pl-9 text-sm"
+            className="h-10 pl-9 text-sm sm:h-9"
             placeholder="Buscar por venda, cliente, item, setor ou funcionário..."
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
@@ -154,7 +154,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             setPage(1);
           }}
         >
-          <SelectTrigger className="h-9 w-full text-sm">
+          <SelectTrigger className="h-10 w-full text-sm sm:h-9">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -171,7 +171,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             setFrom(event.target.value);
             setPage(1);
           }}
-          className="h-9 text-sm"
+          className="h-10 text-sm sm:h-9"
         />
 
         <Input
@@ -181,31 +181,31 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             setTo(event.target.value);
             setPage(1);
           }}
-          className="h-9 text-sm"
+          className="h-10 text-sm sm:h-9"
         />
 
-        <Button type="submit" variant="secondary" size="sm" className="h-9 px-5 font-medium">
+        <Button type="submit" variant="secondary" size="sm" className="h-10 px-5 font-medium sm:h-9">
           Buscar
         </Button>
       </form>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">Vendas encontradas</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{data?.total ?? 0}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">Total da página</p>
-          <p className="mt-1 text-2xl font-semibold text-primary">{formatCurrency(pageTotal)}</p>
+          <p className="mt-1 text-xl font-semibold text-primary sm:text-2xl">{formatCurrency(pageTotal)}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">Canceladas na página</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{canceledCount}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">OS aguardando caixa</p>
           <p className="mt-1 text-2xl font-semibold text-primary">
             {serviceOrdersCompleted.length}
@@ -229,6 +229,119 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             </div>
           </div>
 
+          <div className="grid gap-3 p-3 md:hidden">
+            {serviceOrdersCompleted.map((order) => (
+              <div
+                key={order.id}
+                className="rounded-lg border border-border bg-background p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground">
+                      OS #{order.code}
+                    </p>
+                    <h3 className="mt-1 truncate text-base font-semibold text-foreground">
+                      {order.client?.name ?? "-"}
+                    </h3>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {order.vehicle
+                        ? `${order.vehicle.plate} - ${order.vehicle.model}`
+                        : "Veículo não informado"}
+                    </p>
+                  </div>
+
+                  {order.financialAccount?.status === "PAGA" ? (
+                    <Badge
+                      variant="default"
+                      className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                    >
+                      <span className="status-dot-active" />
+                      Pago
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="gap-1.5 bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/20"
+                    >
+                      <span className="status-dot-inactive" />
+                      Aguardando
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Mecânico</p>
+                    <p className="truncate font-medium">
+                      {order.mechanic?.name ?? "-"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="font-semibold text-primary">
+                      {formatCurrency(order.total)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Atualizada em</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {formatDateTime(order.updatedAt)}
+                    </p>
+                  </div>
+                </div>
+
+                {expandedServiceOrderId === order.id ? (
+                  <div className="mt-3 rounded-md border border-border bg-muted/20">
+                    {order.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-border p-3 last:border-b-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-medium">
+                            {item.description}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {Number(item.quantity)} x {formatCurrency(item.unitPrice)}
+                          </p>
+                        </div>
+                        <p className="font-semibold">
+                          {formatCurrency(item.total)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="mt-3 grid gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-1.5"
+                    onClick={() =>
+                      setExpandedServiceOrderId((current) =>
+                        current === order.id ? null : order.id,
+                      )
+                    }
+                  >
+                    <ChevronsUpDown className="size-3" />
+                    {expandedServiceOrderId === order.id ? "Ocultar itens" : "Ver itens"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="h-10 gap-1.5"
+                    onClick={() => handlePayServiceOrder(order)}
+                  >
+                    <CreditCard className="size-3" />
+                    Efetuar pagamento
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
           <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="bg-muted/60 hover:bg-muted/60">
@@ -366,6 +479,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       ) : null}
 
@@ -411,6 +525,123 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
 
         {data && data.items.length > 0 ? (
           <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <div className="grid gap-3 p-3 md:hidden">
+              {data.items.map((sale) => (
+                <div
+                  key={sale.id}
+                  className="rounded-lg border border-border bg-background p-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs text-muted-foreground">
+                        Venda #{sale.code}
+                      </p>
+                      <h3 className="mt-1 truncate text-base font-semibold text-foreground">
+                        {sale.client?.name ?? "Caixa livre"}
+                      </h3>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {sale.sector?.name ?? sale.sectorName ?? "Sem setor"} •{" "}
+                        {paymentLabel(sale.paymentMethod)}
+                      </p>
+                    </div>
+
+                    {sale.status === "CONCLUIDA" ? (
+                      <Badge
+                        variant="default"
+                        className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                      >
+                        <span className="status-dot-active" />
+                        Concluída
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className="gap-1.5 text-muted-foreground"
+                      >
+                        <span className="status-dot-inactive" />
+                        Cancelada
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Funcionário</p>
+                      <p className="truncate font-medium">{sale.responsible}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="font-semibold text-primary">
+                        {formatCurrency(sale.total)}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground">Data</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(sale.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {expandedId === sale.id ? (
+                    <div className="mt-3 rounded-md border border-border bg-muted/20">
+                      {sale.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-border p-3 last:border-b-0"
+                        >
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-medium">
+                              {item.description}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {Number(item.quantity)} x {formatCurrency(item.unitPrice)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">
+                              {formatCurrency(item.total)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Desc. {formatCurrency(item.discount)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 gap-1.5"
+                      onClick={() =>
+                        setExpandedId((current) =>
+                          current === sale.id ? null : sale.id,
+                        )
+                      }
+                    >
+                      <ChevronsUpDown className="size-3" />
+                      {expandedId === sale.id ? "Ocultar" : "Itens"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="h-10 gap-1.5"
+                      disabled={sale.status === "CANCELADA" || cancelMutation.isPending}
+                      onClick={() => cancelMutation.mutate(sale)}
+                    >
+                      <CircleX className="size-3" />
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
             <Table className="min-w-[980px]">
               <TableHeader>
                 <TableRow className="bg-muted/60 hover:bg-muted/60">
@@ -571,6 +802,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         ) : null}
       </div>
