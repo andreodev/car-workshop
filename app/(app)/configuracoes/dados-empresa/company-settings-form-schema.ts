@@ -54,7 +54,7 @@ export const companySettingsFormSchema = z.object({
   whatsapp: digitsField("WhatsApp", 11, [10, 11]),
   website: textField("Site", 255),
   cep: digitsField("CEP", 8, [8]),
-  address: textField("Endereco", 255),
+  address: textField("Endereço", 255),
   number: textField("Numero", 20),
   complement: textField("Complemento", 120),
   neighborhood: textField("Bairro", 120),

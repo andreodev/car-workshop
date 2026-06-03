@@ -11,6 +11,7 @@ export type ClientStatusFilter = ClientStatus | "TODOS";
 export function useClientsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<ClientStatusFilter>("TODOS");
+  const [statusInput, setStatusInput] = useState<ClientStatusFilter>("TODOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
@@ -31,16 +32,18 @@ export function useClientsPage() {
     event.preventDefault();
 
     setPage(1);
+    setStatus(statusInput);
     setSearch(searchInput.trim());
   }
 
   function handleStatusChange(value: string) {
-    setStatus(value as ClientStatusFilter);
-    setPage(1);
+    setStatusInput(value as ClientStatusFilter);
   }
 
   function handleClearSearch() {
     setPage(1);
+    setStatus("TODOS");
+    setStatusInput("TODOS");
     setSearch("");
     setSearchInput("");
   }
@@ -50,6 +53,7 @@ export function useClientsPage() {
     page,
     setPage,
     status,
+    statusInput,
     search,
     searchInput,
     setSearchInput,

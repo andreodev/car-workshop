@@ -22,7 +22,7 @@ export const estimateStatusOptions: Array<{
   { value: "REJEITADO", label: "Rejeitado", variant: "destructive" },
   {
     value: "CONVERTIDO",
-    label: "Convertido em OS",
+    label: "OS Convertida",
     variant: "secondary",
     className: "bg-blue-100 text-blue-800",
   },

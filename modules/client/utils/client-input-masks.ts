@@ -26,6 +26,10 @@ function limitText(value: string, max: number) {
   return value.slice(0, max);
 }
 
+function limitUppercaseText(value: string, max: number) {
+  return limitText(value.toUpperCase(), max);
+}
+
 export function maskCpf(value: string) {
   const digits = onlyDigits(value).slice(0, 11);
   return digits
@@ -89,12 +93,12 @@ export const clientInputMasks = {
   personType: (value) => value,
   status: (value) => value,
   icms: (value) => value,
-  name: (value) => limitText(value, textLimits.name),
+  name: (value) => limitUppercaseText(value, textLimits.name),
   cpf: maskCpf,
   rg: maskRg,
   birthDate: maskDateInput,
-  notesBasic: (value) => limitText(value, textLimits.notesBasic),
-  email: (value) => limitText(value.trimStart().toLowerCase(), textLimits.email),
+  notesBasic: (value) => limitUppercaseText(value, textLimits.notesBasic),
+  email: (value) => limitUppercaseText(value.trimStart(), textLimits.email),
   phoneResidential: maskPhone,
   phoneCommercial: maskPhone,
   mobile: maskPhone,
@@ -102,17 +106,17 @@ export const clientInputMasks = {
   phone2: maskPhone,
   phone3: maskPhone,
   phone4: maskPhone,
-  website: (value) => limitText(value.trimStart(), textLimits.website),
-  social: (value) => limitText(value.trimStart(), textLimits.social),
-  otherContact: (value) => limitText(value, textLimits.otherContact),
-  notesContacts: (value) => limitText(value, textLimits.notesContacts),
+  website: (value) => limitUppercaseText(value.trimStart(), textLimits.website),
+  social: (value) => limitUppercaseText(value.trimStart(), textLimits.social),
+  otherContact: (value) => limitUppercaseText(value, textLimits.otherContact),
+  notesContacts: (value) => limitUppercaseText(value, textLimits.notesContacts),
   cep: maskCep,
-  address: (value) => limitText(value, textLimits.address),
-  number: (value) => limitText(value, textLimits.number),
-  complement: (value) => limitText(value, textLimits.complement),
+  address: (value) => limitUppercaseText(value, textLimits.address),
+  number: (value) => limitUppercaseText(value, textLimits.number),
+  complement: (value) => limitUppercaseText(value, textLimits.complement),
   state: maskState,
-  city: (value) => limitText(value, textLimits.city),
-  neighborhood: (value) => limitText(value, textLimits.neighborhood),
+  city: (value) => limitUppercaseText(value, textLimits.city),
+  neighborhood: (value) => limitUppercaseText(value, textLimits.neighborhood),
   ibgeCode: maskIbgeCode,
-  notesAddress: (value) => limitText(value, textLimits.notesAddress),
+  notesAddress: (value) => limitUppercaseText(value, textLimits.notesAddress),
 } satisfies Record<keyof ClientFormValues, ClientInputMask>;

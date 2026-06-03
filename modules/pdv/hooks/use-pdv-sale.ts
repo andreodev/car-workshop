@@ -26,6 +26,8 @@ import {
   createSaleLine,
   getStockValidationMessage,
   isEditableTarget,
+  maskCurrencyInput,
+  maskPercentInput,
   parseDecimal,
   type ClientOption,
   type SaleLine,
@@ -60,8 +62,8 @@ function createPaymentLine(
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`,
     paymentMethod,
-    amount,
-    feeAmount,
+    amount: amount ? maskCurrencyInput(amount) : "",
+    feeAmount: maskCurrencyInput(feeAmount),
   };
 }
 
@@ -192,6 +194,7 @@ export function usePdvSale({
   const [clientListOpen, setClientListOpen] = useState(false);
   const [productListOpen, setProductListOpen] = useState(false);
   const [serviceOrderLoading, setServiceOrderLoading] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", clientSearch],
@@ -261,7 +264,7 @@ export function usePdvSale({
 
       setSelectedProduct(item);
       setProductSearch(item.name);
-      setUnitPrice(String(item.unitPrice));
+      setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
       setLocalError(null);
 
       toast({
@@ -300,6 +303,7 @@ export function usePdvSale({
     setLocalError(null);
     setSuccessMessage(null);
     setServiceOrderLoading(false);
+    setPaymentDialogOpen(false);
 
     if (!options?.keepLastSale) {
       setLastSale(null);
@@ -313,6 +317,7 @@ export function usePdvSale({
       queryClient.invalidateQueries({ queryKey: pdvKeys.catalogItems() });
 
       resetDraft({ keepLastSale: true });
+      setPaymentDialogOpen(false);
       setLastSale({ id: sale.id, code: sale.code });
       setSuccessMessage(`Venda ${sale.code} guardada com sucesso.`);
 
@@ -346,6 +351,7 @@ export function usePdvSale({
       queryClient.invalidateQueries({ queryKey: pdvKeys.serviceOrders() });
 
       resetDraft({ keepLastSale: true });
+      setPaymentDialogOpen(false);
       setLastSale({
         id: result.sale.id,
         code: result.sale.code,
@@ -380,7 +386,12 @@ export function usePdvSale({
   const saleTotal = useMemo(() => getTotalsAmount(totals), [totals]);
 
   const paymentsPayload = useMemo(
-    () => normalizePaymentLines(paymentLines, paymentMethod, saleTotal),
+    () =>
+      normalizePaymentLines(
+        paymentLines,
+        paymentLines[0]?.paymentMethod ?? paymentMethod,
+        saleTotal
+      ),
     [paymentLines, paymentMethod, saleTotal]
   );
 
@@ -444,31 +455,57 @@ export function usePdvSale({
     });
   }, []);
 
+  const updateUnitPrice = useCallback((value: string) => {
+    setUnitPrice(maskCurrencyInput(value));
+  }, []);
+
+  const updateDiscountPercent = useCallback((value: string) => {
+    setDiscountPercent(maskPercentInput(value));
+  }, []);
+
   const updatePaymentLine = useCallback(
     (
       lineId: string,
       field: "paymentMethod" | "amount" | "feeAmount",
       value: string
     ) => {
-      setPaymentLines((current) =>
-        current.map((line) =>
+      const nextValue =
+        field === "paymentMethod" ? value : maskCurrencyInput(value);
+
+      setPaymentLines((current) => {
+        const updated = current.map((line) =>
           line.localId === lineId
             ? {
                 ...line,
-                [field]: value,
+                [field]: nextValue,
               }
             : line
-        )
-      );
+        );
+
+        if (field === "paymentMethod" && updated[0]?.localId === lineId) {
+          setPaymentMethodState(value as SalePaymentMethod);
+        }
+
+        return updated;
+      });
     },
     []
   );
 
   const fillSinglePaymentWithTotal = useCallback(() => {
-    setPaymentLines([
-      createPaymentLine(paymentMethod, String(expectedPaymentTotal), "0"),
+    setPaymentLines((current) => [
+      createPaymentLine(
+        current[0]?.paymentMethod ?? paymentMethod,
+        String(expectedPaymentTotal * 100),
+        "0"
+      ),
     ]);
   }, [expectedPaymentTotal, paymentMethod]);
+
+  const openPaymentDialog = useCallback(() => {
+    setPaymentDialogOpen(true);
+    requestAnimationFrame(() => paymentTriggerRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -549,7 +586,7 @@ export function usePdvSale({
         setPaymentLines([
           createPaymentLine(
             "DINHEIRO",
-            serviceOrderTotal > 0 ? String(serviceOrderTotal) : "",
+            serviceOrderTotal > 0 ? String(serviceOrderTotal * 100) : "",
             "0"
           ),
         ]);
@@ -601,7 +638,7 @@ export function usePdvSale({
   const selectProduct = useCallback((item: CatalogItem) => {
     setSelectedProduct(item);
     setProductSearch(item.name);
-    setUnitPrice(String(item.unitPrice));
+    setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
     setProductListOpen(false);
     quantityInputRef.current?.focus();
   }, []);
@@ -875,13 +912,13 @@ export function usePdvSale({
 
       if (event.key === "F6") {
         event.preventDefault();
-        paymentTriggerRef.current?.focus();
+        openPaymentDialog();
         return;
       }
 
       if (event.key === "F8") {
         event.preventDefault();
-        saveSale();
+        openPaymentDialog();
         return;
       }
 
@@ -897,7 +934,7 @@ export function usePdvSale({
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [close, isServiceOrderMode, open, saveSale]);
+  }, [close, isServiceOrderMode, open, openPaymentDialog]);
 
   const handleClientSearchKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1021,6 +1058,7 @@ export function usePdvSale({
       localError,
       paymentDifference,
       paymentFeeTotal,
+      paymentDialogOpen,
       paymentLines,
       paymentMethod,
       paymentsPayload,
@@ -1051,6 +1089,7 @@ export function usePdvSale({
       fillSinglePaymentWithTotal,
       handleClientSearchKeyDown,
       handleProductSearchKeyDown,
+      openPaymentDialog,
       openSalesList,
       removeLine,
       removePaymentLine,
@@ -1060,9 +1099,10 @@ export function usePdvSale({
       setClientHighlightIndex,
       setClientListOpen,
       setClientSearch,
-      setDiscountPercent,
+      setDiscountPercent: updateDiscountPercent,
       setPaymentMethod,
       setPaymentLines,
+      setPaymentDialogOpen,
       setProductHighlightIndex,
       setProductListOpen,
       setProductSearch,
@@ -1071,7 +1111,7 @@ export function usePdvSale({
       setSectorId,
       setSelectedClient,
       setSelectedProduct,
-      setUnitPrice,
+      setUnitPrice: updateUnitPrice,
       updatePaymentLine,
     },
   };

@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { clientsKeys } from "../../api/client.keys";
 import { clientsService } from "../../api/client.service";
@@ -39,5 +42,16 @@ export default function ClientEditPage({ id }: ClientEditPageProps) {
     );
   }
 
-  return <ClientForm mode="edit" initialData={data} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Button asChild variant="ghost" size="sm" className="w-fit gap-2 px-2">
+        <Link href={`/clientes/${data.id}`}>
+          <ArrowLeft className="size-4" />
+          Voltar para detalhes
+        </Link>
+      </Button>
+
+      <ClientForm mode="edit" initialData={data} />
+    </div>
+  );
 }

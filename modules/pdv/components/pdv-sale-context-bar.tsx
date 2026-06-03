@@ -1,8 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 
-import type { SalePaymentMethod } from "../types/pdv.types";
-import { NO_SECTOR_VALUE, paymentOptions } from "../utils/pdv-sale-constants";
+import { NO_SECTOR_VALUE } from "../utils/pdv-sale-constants";
 import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +20,10 @@ type PdvSaleContextBarProps = {
 
 export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
   const { refs, queries, state, actions } = controller;
-  const { clientInputRef, paymentTriggerRef } = refs;
+  const { clientInputRef } = refs;
 
   return (
-    <div className="grid gap-3 border-b border-border bg-muted/30 px-4 py-3 lg:grid-cols-[minmax(320px,1.4fr)_300px_300px_220px] lg:items-start">
+    <div className="grid gap-3 border-b border-border bg-muted/30 px-4 py-3 lg:grid-cols-[minmax(320px,1.4fr)_300px_300px] lg:items-start">
       <div className="min-w-0 space-y-1">
         <Label>Cliente</Label>
         <div className="relative flex">
@@ -107,24 +106,6 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
         </Select>
       </div>
 
-      <div className="min-w-0 space-y-1">
-        <Label>Pagamento</Label>
-        <Select
-          value={state.paymentMethod}
-          onValueChange={(value) => actions.setPaymentMethod(value as SalePaymentMethod)}
-        >
-          <SelectTrigger ref={paymentTriggerRef} className="h-10 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {paymentOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }

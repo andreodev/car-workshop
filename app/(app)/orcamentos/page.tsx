@@ -109,17 +109,6 @@ function EstimateSendMenu({
         variant="ghost"
         size="sm"
         className="h-7 gap-1 px-2 text-xs font-medium"
-        onClick={() => onOpenShare(estimate)}
-      >
-        <Send className="size-3.5" />
-        Enviar
-        <MoreHorizontal className="size-3.5" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1 px-2 text-xs font-medium"
         disabled={sentStatusDisabled}
         onClick={onMarkSent}
       >
@@ -408,9 +397,6 @@ export default function EstimatesPage() {
                     Número
                   </TableHead>
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Tipo
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Cliente
                   </TableHead>
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
@@ -418,9 +404,6 @@ export default function EstimatesPage() {
                   </TableHead>
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Mecânico
-                  </TableHead>
-                  <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                    Setor
                   </TableHead>
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Status
@@ -457,7 +440,6 @@ export default function EstimatesPage() {
                       <TableCell className="font-mono text-sm font-medium text-foreground">
                         #{estimate.code}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{estimate.type}</TableCell>
                       <TableCell className="max-w-64">
                         <Link
                           href={estimate.client?.id ? `/clientes/${estimate.client.id}` : "#"}
@@ -482,14 +464,6 @@ export default function EstimatesPage() {
                           title={estimate.mechanic?.name ?? undefined}
                         >
                           {estimate.mechanic?.name ?? "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-40 text-muted-foreground">
-                        <span
-                          className="block truncate"
-                          title={estimate.sector?.name ?? undefined}
-                        >
-                          {estimate.sector?.name ?? "-"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -606,89 +580,6 @@ export default function EstimatesPage() {
           </div>
         </div>
       )}
-
-      <Dialog
-        open={Boolean(shareEstimate)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShareEstimate(null);
-            setCopiedShareText(false);
-          }
-        }}
-      >
-        <DialogContent className="gap-4 sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Enviar orçamento</DialogTitle>
-            <DialogDescription>
-              Escolha o canal para compartilhar o orçamento.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 gap-2"
-                onClick={() => {
-                  if (shareEstimate) {
-                    setShareEstimate(null);
-                    setCopiedShareText(false);
-                    setPrintEstimate(shareEstimate);
-                  }
-                }}
-              >
-                <Download className="size-3.5" />
-                PDF
-              </Button>
-              <Button asChild variant="outline" className="h-9 gap-2">
-                <a href={shareLinks?.whatsappHref ?? "#"} target="_blank" rel="noreferrer">
-                  <MessageCircle className="size-3.5" />
-                  WhatsApp
-                </a>
-              </Button>
-              <Button asChild variant="outline" className="h-9 gap-2">
-                <a href={shareLinks?.emailHref ?? "#"}>
-                  <Mail className="size-3.5" />
-                  E-mail
-                </a>
-              </Button>
-            </div>
-
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                  Texto para copiar
-                </p>
-                <Button type="button" variant="secondary" className="h-7" onClick={handleCopyShareText}>
-                  {copiedShareText ? "Copiado" : "Copiar texto"}
-                </Button>
-              </div>
-              <Textarea
-                value={shareText}
-                readOnly
-                className="mt-2 min-h-[120px] text-xs"
-                aria-label="Texto do orçamento para copiar"
-              />
-            </div>
-
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-9 gap-2"
-              disabled={shareSentDisabled || statusMutation.isPending}
-              onClick={() =>
-                shareEstimate
-                  ? statusMutation.mutate({ id: shareEstimate.id, status: "ENVIADO" })
-                  : null
-              }
-            >
-              <Check className="size-3.5" />
-              Marcar enviado
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={Boolean(printEstimate)}

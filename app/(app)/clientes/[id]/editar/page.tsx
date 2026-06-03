@@ -1,4 +1,4 @@
-import ClientDetailsPage from "@/modules/client/pages/client-details-page";
+import { ClientEditPage } from "@/modules/client";
 
 type PageProps = {
   params: Promise<{
@@ -9,5 +9,5 @@ type PageProps = {
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
 
-  return <ClientDetailsPage id={id} />;
+  return <ClientEditPage id={id} />;
 }

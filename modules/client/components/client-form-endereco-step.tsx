@@ -7,7 +7,7 @@ import {
   type ClientFormFieldProps,
 } from "./client-form-fields";
 
-type ClientFormEnderecoStepProps = ClientFormFieldProps & {
+type ClientFormEndereçoStepProps = ClientFormFieldProps & {
   cepError?: string | null;
   isCepLoading?: boolean;
 };
@@ -16,7 +16,7 @@ export function ClientFormEnderecoStep({
   cepError,
   isCepLoading = false,
   ...props
-}: ClientFormEnderecoStepProps) {
+}: ClientFormEndereçoStepProps) {
   return (
     <>
       <ClientFormSection

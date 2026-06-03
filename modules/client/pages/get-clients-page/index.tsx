@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,8 +27,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useClientsPage } from "../../hooks/use-clients-page";
+import {
+  formatCep,
+  formatCpf,
+  formatPhone,
+} from "../../utils/client-form-utils";
+import { onlyDigits } from "../../utils/client-input-masks";
 
 export default function ClientsPage() {
+  const router = useRouter();
   const {
     data,
     isLoading,
@@ -36,8 +44,7 @@ export default function ClientsPage() {
     error,
     page,
     setPage,
-    status,
-    search,
+    statusInput,
     searchInput,
     setSearchInput,
     totalPages,
@@ -51,91 +58,97 @@ export default function ClientsPage() {
 
   return (
     <section className="flex min-h-[calc(100vh-3rem)] flex-col gap-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <Header
           title="Clientes"
           description="Gerencie os clientes cadastrados na oficina."
         />
 
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:max-w-4xl">
-          <form
-            onSubmit={handleSearch}
-            className="flex w-full flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-sm sm:flex-row sm:items-center"
-          >
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Button asChild className="h-9 shrink-0 gap-2 font-medium">
+          <Link href="/clientes/novo">
+            <Plus className="size-3.5" />
+            Cadastrar cliente
+          </Link>
+        </Button>
+      </div>
 
+      <form
+        onSubmit={handleSearch}
+        className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      >
+        <h2 className="font-heading text-base font-700 text-foreground">
+          Filtros
+        </h2>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]">
+          <label className="grid gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Buscar
+            </span>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome, CPF ou telefone..."
+                placeholder="Nome, CPF ou telefone"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                className="h-9 border-0 bg-transparent pl-9 pr-8 text-sm shadow-none focus-visible:ring-0"
+                className="h-10 rounded-lg bg-input/20 pl-9 pr-9 text-sm"
               />
 
               {searchInput ? (
                 <button
                   type="button"
-                  onClick={handleClearSearch}
+                  onClick={() => setSearchInput("")}
                   className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                   aria-label="Limpar busca"
                 >
-                  <X className="size-3.5" />
+                  <X className="size-4" />
                 </button>
               ) : null}
             </div>
+          </label>
 
-            <Select value={status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="h-9 text-sm sm:w-44">
-                <SelectValue placeholder="Situação" />
+          <label className="grid gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Situacao
+            </span>
+            <Select value={statusInput} onValueChange={handleStatusChange}>
+              <SelectTrigger className="h-10 w-full rounded-lg bg-input/20 px-3 text-sm">
+                <SelectValue placeholder="Todas as situacoes" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="TODOS">Todas as situações</SelectItem>
+                <SelectItem value="TODOS">Todas as situacoes</SelectItem>
                 <SelectItem value="ATIVO">Ativo</SelectItem>
                 <SelectItem value="INATIVO">Inativo</SelectItem>
               </SelectContent>
             </Select>
-
-            <Button
-              type="submit"
-              size="sm"
-              className="h-9 px-4 font-medium"
-              disabled={isFetching}
-            >
-              {showBackgroundLoading ? (
-                <Spinner size="sm" className="text-primary-foreground" />
-              ) : (
-                "Buscar"
-              )}
-            </Button>
-          </form>
-
-          <Button asChild className="shrink-0 gap-2 font-medium">
-            <Link href="/clientes/novo">
-              <Plus className="size-3.5" />
-              Cadastrar cliente
-            </Link>
-          </Button>
+          </label>
         </div>
-      </div>
 
-      {search ? (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <span>
-            Exibindo resultados para{" "}
-            <strong className="font-medium text-foreground">{search}</strong>
-          </span>
-
+        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleClearSearch}
-            className="h-7 px-2 text-xs"
+            className="w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
           >
-            Limpar filtro
+            Limpar filtros
+          </Button>
+
+          <Button
+            type="submit"
+            size="sm"
+            className="h-9 px-4 font-medium sm:min-w-32"
+            disabled={isFetching}
+          >
+            {showBackgroundLoading ? (
+              <Spinner size="sm" className="text-primary-foreground" />
+            ) : (
+              "Aplicar filtros"
+            )}
           </Button>
         </div>
-      ) : null}
+      </form>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {showInitialLoading && (
@@ -191,76 +204,78 @@ export default function ClientsPage() {
                       Telefone
                     </TableHead>
                     <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                      Situação
-                    </TableHead>
-                    <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                      Ações
+                      Situacao
                     </TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {data.items.map((client) => (
-                    <TableRow
-                      key={client.id}
-                      className="group transition-colors hover:bg-accent/40"
-                    >
-                      <TableCell className="font-medium text-foreground">
-                        {client.name}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {client.cpf ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {client.cep ?? "-"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {client.mobile ?? client.phoneResidential ? (
-                          <a
-                            href={`https://wa.me/${
-                              client.mobile ?? client.phoneResidential
-                            }`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline-offset-4 hover:underline"
-                          >
-                            {client.mobile ?? client.phoneResidential}
-                          </a>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {client.status === "ATIVO" ? (
-                          <Badge
-                            variant="default"
-                            className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
-                          >
-                            <span className="status-dot-active" />
-                            Ativo
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="gap-1.5 text-muted-foreground"
-                          >
-                            <span className="status-dot-inactive" />
-                            Inativo
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                          className="h-7 px-3 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <Link href={`/clientes/${client.id}`}>Editar</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {data.items.map((client) => {
+                    const clientHref = `/clientes/${client.id}`;
+
+                    return (
+                      <TableRow
+                        key={client.id}
+                        role="link"
+                        tabIndex={0}
+                        aria-label={`Abrir detalhes do cliente ${client.name}`}
+                        onClick={() => router.push(clientHref)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            router.push(clientHref);
+                          }
+                        }}
+                        className="cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <TableCell className="font-medium text-foreground">
+                          {client.name}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {client.cpf ? formatCpf(client.cpf) : "-"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {client.cep ? formatCep(client.cep) : "-"}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {client.mobile ?? client.phoneResidential ? (
+                            <a
+                              href={`https://wa.me/${onlyDigits(
+                                client.mobile ?? client.phoneResidential ?? ""
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                              className="text-primary underline-offset-4 hover:underline"
+                            >
+                              {formatPhone(client.mobile ?? client.phoneResidential ?? "")}
+                            </a>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {client.status === "ATIVO" ? (
+                            <Badge
+                              variant="default"
+                              className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                            >
+                              <span className="status-dot-active" />
+                              Ativo
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="secondary"
+                              className="gap-1.5 text-muted-foreground"
+                            >
+                              <span className="status-dot-inactive" />
+                              Inativo
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -271,7 +286,7 @@ export default function ClientsPage() {
       {data && totalPages > 1 && (
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            Página{" "}
+            Pagina{" "}
             <span className="font-medium text-foreground">{data.page ?? page}</span>{" "}
             de <span className="font-medium text-foreground">{totalPages}</span>
             {data.total ? ` - ${data.total} clientes` : ""}
@@ -297,7 +312,7 @@ export default function ClientsPage() {
               disabled={page >= totalPages}
               className="h-8 gap-1 px-3 text-xs"
             >
-              Próxima
+              Proxima
               <ChevronRight className="size-3" />
             </Button>
           </div>

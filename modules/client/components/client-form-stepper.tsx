@@ -20,7 +20,7 @@ export const clientFormSteps = [
     icon: PhoneCall,
   },
   {
-    value: "endereco",
+    value: "Endereço",
     label: "Endereço",
     description: "Localização e referência fiscal",
     icon: MapPinned,

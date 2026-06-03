@@ -16,14 +16,14 @@ const icmsSchema = z.enum(
 const textField = (label: string, max: number) =>
   z
     .string({ error: `${label} inválido.` })
-    .transform((value) => value.trim())
+    .transform((value) => value.trim().toUpperCase())
     .refine((value) => value.length <= max, {
       message: `${label} deve ter no máximo ${max} caracteres.`,
     });
 
 const emailField = z
   .string({ error: "E-mail inválido." })
-  .transform((value) => value.trim())
+  .transform((value) => value.trim().toUpperCase())
   .refine((value) => value === "" || z.email().safeParse(value).success, {
     message: "Informe um e-mail válido.",
   });

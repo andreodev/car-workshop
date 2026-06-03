@@ -68,7 +68,16 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
   };
 
   return (
-    <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col pb-4">
+    <section className="relative flex min-h-[calc(100vh-8rem)] w-full flex-col pb-4">
+      {isSaving ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm text-muted-foreground shadow-sm">
+            <Spinner size="sm" className="text-primary" />
+            Salvando cliente...
+          </div>
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
         <Tabs
           value={activeTab}
@@ -98,7 +107,7 @@ export function ClientForm({ mode, initialData }: ClientFormProps) {
                   >
                     {activeTab === "dados" ? <ClientFormDadosStep {...stepProps} /> : null}
                     {activeTab === "contato" ? <ClientFormContatoStep {...stepProps} /> : null}
-                    {activeTab === "endereco" ? (
+                    {activeTab === "Endereço" ? (
                       <ClientFormEnderecoStep
                         cepError={cepError}
                         isCepLoading={isCepLoading}

@@ -23,8 +23,57 @@ export type SaleTotals = {
 };
 
 export function parseDecimal(value: string) {
-  const parsed = Number(value.replace(",", "."));
+  const normalized = value.includes(",")
+    ? value.replace(/\./g, "").replace(",", ".")
+    : value;
+  const parsed = Number(normalized.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function maskCurrencyInput(value: string | number) {
+  const digits = String(value).replace(/\D/g, "");
+
+  if (!digits) {
+    return "";
+  }
+
+  const parsed = Number(digits) / 100;
+
+  return parsed.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function maskPercentInput(value: string | number) {
+  const normalized = String(value)
+    .replace(/[^\d,.]/g, "")
+    .replace(".", ",");
+
+  const [integerPart = "", decimalPart = ""] = normalized.split(",");
+  const integerDigits = integerPart.replace(/\D/g, "");
+  const decimalDigits = decimalPart.replace(/\D/g, "").slice(0, 2);
+
+  if (!integerDigits && !decimalDigits) {
+    return "";
+  }
+
+  const composed = decimalDigits
+    ? `${integerDigits || "0"},${decimalDigits}`
+    : integerDigits;
+  const parsed = parseDecimal(composed);
+  const limited = Math.min(parsed, 100);
+
+  if (limited === 100) {
+    return "100";
+  }
+
+  return decimalDigits
+    ? limited.toLocaleString("pt-BR", {
+        minimumFractionDigits: decimalDigits.length,
+        maximumFractionDigits: 2,
+      })
+    : String(limited);
 }
 
 export function formatCurrency(value: number | string) {

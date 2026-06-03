@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Banknote,
   Check,
+  Download,
   Edit2,
   FolderTree,
   Plus,
@@ -77,6 +78,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import {
   Table,
@@ -89,7 +97,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 10;
 const NO_CATEGORY = "SEM_CATEGORIA";
 const NO_PAYMENT_METHOD = "SEM_FORMA";
 
@@ -115,6 +123,7 @@ type StatementRow = {
   status: ReactNode;
   notes: string;
   actions: ReactNode;
+  account?: FinancialAccount;
 };
 
 const emptyAccountForm: FinancialAccountFormValues = {
@@ -155,6 +164,18 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function lastDaysRange(days: number) {
+  const end = new Date();
+  const start = new Date();
+
+  start.setDate(end.getDate() - days);
+
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: end.toISOString().slice(0, 10),
+  };
+}
+
 function toDateInput(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -182,6 +203,10 @@ function formatDate(value: string | null) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function formatValue(value: string | null | undefined) {
+  return value && value.trim() ? value : "-";
 }
 
 function accountToForm(account: FinancialAccount): FinancialAccountFormValues {
@@ -244,6 +269,7 @@ export default function FinancialPage() {
   const [statementKind, setStatementKind] = useState<StatementKindFilter>("TODOS");
   const [statementSearchInput, setStatementSearchInput] = useState("");
   const [statementSearch, setStatementSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [accountType, setAccountType] = useState<AccountTypeFilter>("TODOS");
   const [accountStatus, setAccountStatus] = useState<AccountStatusFilter>("TODOS");
@@ -251,16 +277,18 @@ export default function FinancialPage() {
   const [categoryType, setCategoryType] = useState<CategoryTypeFilter>("TODOS");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("TODOS");
 
-  const [from, setFrom] = useState(() => todayInputValue());
-  const [to, setTo] = useState(() => todayInputValue());
+  const [from, setFrom] = useState(() => lastDaysRange(7).from);
+  const [to, setTo] = useState(() => lastDaysRange(7).to);
 
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
   const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinancialCategory | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<FinancialAccount | null>(null);
 
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
@@ -269,12 +297,15 @@ export default function FinancialPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const accountsQuery = useQuery({
-    queryKey: ["financial-accounts", { accountType, accountStatus, from, to }],
+    queryKey: [
+      "financial-accounts",
+      { accountType, accountStatus, from, to, currentPage, statementSearch },
+    ],
     queryFn: () =>
       fetchFinancialAccounts({
-        page: 1,
+        page: currentPage,
         pageSize: PAGE_SIZE,
-        search: "",
+        search: statementSearch,
         type: accountType,
         status: accountStatus,
         from,
@@ -285,12 +316,12 @@ export default function FinancialPage() {
   });
 
   const movementsQuery = useQuery({
-    queryKey: ["cash-movements", { movementType, from, to }],
+    queryKey: ["cash-movements", { movementType, from, to, currentPage, statementSearch }],
     queryFn: () =>
       fetchCashMovements({
-        page: 1,
+        page: currentPage,
         pageSize: PAGE_SIZE,
-        search: "",
+        search: statementSearch,
         type: movementType,
         from,
         to,
@@ -300,11 +331,15 @@ export default function FinancialPage() {
   });
 
   const categoriesQuery = useQuery({
-    queryKey: ["financial-categories", { categoryType, activeFilter }],
+    queryKey: [
+      "financial-categories",
+      { categoryType, activeFilter, currentPage, statementSearch },
+    ],
     queryFn: () =>
       fetchFinancialCategories({
+        page: currentPage,
         pageSize: PAGE_SIZE,
-        search: "",
+        search: statementSearch,
         type: categoryType,
         active:
           activeFilter === "TODOS"
@@ -510,6 +545,7 @@ export default function FinancialPage() {
             </Button>
           </div>
         ),
+        account,
       })) ?? [];
 
     const movementRows: StatementRow[] =
@@ -671,6 +707,8 @@ export default function FinancialPage() {
 
   const isLoadingStatement =
     accountsQuery.isLoading || movementsQuery.isLoading || categoriesQuery.isLoading;
+  const isFetchingStatement =
+    accountsQuery.isFetching || movementsQuery.isFetching || categoriesQuery.isFetching;
 
   function showMutationError(error: unknown) {
     const message =
@@ -727,9 +765,38 @@ export default function FinancialPage() {
     setCategorySheetOpen(true);
   }
 
+  function openAccountDetails(account: FinancialAccount) {
+    setSelectedAccount(account);
+    setDetailDialogOpen(true);
+  }
+
+  function shouldOpenDetails(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) {
+      return true;
+    }
+
+    return !target.closest("button, a, input, select, textarea");
+  }
+
   function handleStatementSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatementSearch(statementSearchInput.trim());
+    setCurrentPage(1);
+  }
+
+  function clearStatementFilters() {
+    const range = lastDaysRange(7);
+
+    setStatementKind("TODOS");
+    setStatementSearchInput("");
+    setStatementSearch("");
+    setAccountType("TODOS");
+    setAccountStatus("TODOS");
+    setMovementType("TODOS");
+    setActiveFilter("TODOS");
+    setFrom(range.from);
+    setTo(range.to);
+    setCurrentPage(1);
   }
 
   function handleAccountSubmit(event: FormEvent<HTMLFormElement>) {
@@ -750,6 +817,36 @@ export default function FinancialPage() {
     saveCategoryMutation.mutate(categoryForm);
   }
 
+  function handleExportPdf() {
+    const params = new URLSearchParams({
+      statementKind,
+      search: statementSearch,
+      accountType,
+      accountStatus,
+      movementType,
+      categoryType,
+      activeFilter,
+      from,
+      to,
+    });
+
+    const url = `/api/financial-statement/pdf?${params.toString()}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  const totalItems =
+    statementKind === "CONTA"
+      ? accountsQuery.data?.total ?? 0
+      : statementKind === "CAIXA"
+        ? movementsQuery.data?.total ?? 0
+        : statementKind === "CATEGORIA"
+          ? categoriesQuery.data?.total ?? 0
+          : (accountsQuery.data?.total ?? 0) +
+            (movementsQuery.data?.total ?? 0) +
+            (categoriesQuery.data?.total ?? 0);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -759,6 +856,11 @@ export default function FinancialPage() {
         />
 
         <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={handleExportPdf} className="gap-1.5">
+            <Download className="size-4" />
+            Exportar PDF
+          </Button>
+
           <Button type="button" onClick={() => openNewAccount("RECEBER")} className="gap-1.5">
             <Plus className="size-4" />
             Conta a receber
@@ -826,6 +928,7 @@ export default function FinancialPage() {
       onClick={() => {
         setFrom("");
         setTo("");
+        setCurrentPage(1);
       }}
     >
       Todos
@@ -833,13 +936,14 @@ export default function FinancialPage() {
 
     <Button
       type="button"
-      variant={from === todayInputValue() && to === todayInputValue() ? "default" : "outline"}
+      variant={from === lastDaysRange(1).from && to === lastDaysRange(1).to ? "default" : "outline"}
       size="sm"
       onClick={() => {
-        const today = todayInputValue();
+        const range = lastDaysRange(1);
 
-        setFrom(today);
-        setTo(today);
+        setFrom(range.from);
+        setTo(range.to);
+        setCurrentPage(1);
       }}
     >
       1 dia
@@ -847,16 +951,14 @@ export default function FinancialPage() {
 
     <Button
       type="button"
-      variant="outline"
+      variant={from === lastDaysRange(7).from && to === lastDaysRange(7).to ? "default" : "outline"}
       size="sm"
       onClick={() => {
-        const end = new Date();
-        const start = new Date();
+        const range = lastDaysRange(7);
 
-        start.setDate(end.getDate() - 7);
-
-        setFrom(start.toISOString().slice(0, 10));
-        setTo(end.toISOString().slice(0, 10));
+        setFrom(range.from);
+        setTo(range.to);
+        setCurrentPage(1);
       }}
     >
       7 dias
@@ -864,7 +966,7 @@ export default function FinancialPage() {
 
     <Button
       type="button"
-      variant="outline"
+      variant={from === lastDaysRange(30).from && to === lastDaysRange(30).to ? "default" : "outline"}
       size="sm"
       onClick={() => {
         const end = new Date();
@@ -874,6 +976,7 @@ export default function FinancialPage() {
 
         setFrom(start.toISOString().slice(0, 10));
         setTo(end.toISOString().slice(0, 10));
+        setCurrentPage(1);
       }}
     >
       30 dias
@@ -891,52 +994,145 @@ export default function FinancialPage() {
 
       <form
         onSubmit={handleStatementSearch}
-        className="grid gap-3 rounded-md border bg-card p-4 shadow-sm xl:grid-cols-[170px_minmax(0,1fr)_150px_150px_150px_150px_150px_150px_auto]"
+        className="rounded-lg border bg-card p-4 shadow-sm"
       >
-        <SelectFilter value={statementKind} onValueChange={(value) => setStatementKind(value as StatementKindFilter)}>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Filtros do extrato</h2>
+          <p className="text-xs text-muted-foreground">
+            Refine por origem, periodo, status e categorias financeiras.
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(24rem,2fr)_minmax(15rem,1fr)_minmax(15rem,1fr)]">
+          <FilterField label="Origem">
+            <SelectFilter
+          value={statementKind}
+          onValueChange={(value) => {
+            setStatementKind(value as StatementKindFilter);
+            setCurrentPage(1);
+          }}
+        >
           <SelectItem value="TODOS">Extrato completo</SelectItem>
           <SelectItem value="CONTA">Contas</SelectItem>
           <SelectItem value="CAIXA">Caixa</SelectItem>
           <SelectItem value="CATEGORIA">Categorias</SelectItem>
-        </SelectFilter>
+            </SelectFilter>
+          </FilterField>
 
-        <SearchInput
+          <FilterField label="Busca">
+            <SearchInput
           value={statementSearchInput}
           onChange={setStatementSearchInput}
+          onClear={() => {
+            setStatementSearchInput("");
+            setStatementSearch("");
+            setCurrentPage(1);
+          }}
           placeholder="Buscar por descrição, categoria, documento, forma ou observação"
-        />
+            />
+          </FilterField>
 
-        <SelectFilter value={accountType} onValueChange={(value) => setAccountType(value as AccountTypeFilter)}>
+          <FilterField label="Contas">
+            <SelectFilter
+          value={accountType}
+          onValueChange={(value) => {
+            setAccountType(value as AccountTypeFilter);
+            setCurrentPage(1);
+          }}
+        >
           <SelectItem value="TODOS">Todas contas</SelectItem>
           {financialTypeOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
           ))}
-        </SelectFilter>
+            </SelectFilter>
+          </FilterField>
 
-        <SelectFilter value={accountStatus} onValueChange={(value) => setAccountStatus(value as AccountStatusFilter)}>
+          <FilterField label="Status">
+            <SelectFilter
+          value={accountStatus}
+          onValueChange={(value) => {
+            setAccountStatus(value as AccountStatusFilter);
+            setCurrentPage(1);
+          }}
+        >
           <SelectItem value="TODOS">Todos status</SelectItem>
           {financialStatusOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
           ))}
-        </SelectFilter>
+            </SelectFilter>
+          </FilterField>
 
-        <SelectFilter value={movementType} onValueChange={(value) => setMovementType(value as MovementTypeFilter)}>
+        </div>
+
+        <div className="mt-4 grid gap-4 border-t pt-4 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(28rem,1.6fr)_minmax(15rem,1fr)_auto]">
+          <FilterField label="Caixa">
+            <SelectFilter
+          value={movementType}
+          onValueChange={(value) => {
+            setMovementType(value as MovementTypeFilter);
+            setCurrentPage(1);
+          }}
+        >
           <SelectItem value="TODOS">Todo caixa</SelectItem>
           {cashMovementTypeOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
           ))}
-        </SelectFilter>
+            </SelectFilter>
+          </FilterField>
 
-        <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          <FilterField label="Periodo">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                type="date"
+                value={from}
+                className="h-10 rounded-lg bg-input/20 px-3 text-sm"
+                aria-label="Data inicial"
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+              <Input
+                type="date"
+                value={to}
+                className="h-10 rounded-lg bg-input/20 px-3 text-sm"
+                aria-label="Data final"
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+          </FilterField>
 
-        <SelectFilter value={activeFilter} onValueChange={(value) => setActiveFilter(value as ActiveFilter)}>
-          <SelectItem value="TODOS">Todas cat.</SelectItem>
-          <SelectItem value="ATIVAS">Ativas</SelectItem>
-          <SelectItem value="INATIVAS">Inativas</SelectItem>
-        </SelectFilter>
+          <FilterField label="Categorias">
+            <SelectFilter
+              value={activeFilter}
+              onValueChange={(value) => {
+                setActiveFilter(value as ActiveFilter);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectItem value="TODOS">Todas categorias</SelectItem>
+              <SelectItem value="ATIVAS">Ativas</SelectItem>
+              <SelectItem value="INATIVAS">Inativas</SelectItem>
+            </SelectFilter>
+          </FilterField>
 
-        <Button type="submit">Buscar</Button>
+          <div className="flex flex-col-reverse gap-2 self-end sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={clearStatementFilters}
+              className="h-10 px-3 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            >
+              Limpar filtros
+            </Button>
+            <Button type="submit" className="h-10 px-5">
+              Buscar
+            </Button>
+          </div>
+        </div>
       </form>
 
       <div className="overflow-x-auto rounded-md border bg-card shadow-sm">
@@ -957,11 +1153,25 @@ export default function FinancialPage() {
           </TableHeader>
 
           <TableBody>
-            {isLoadingStatement ? (
+            {isLoadingStatement || isFetchingStatement ? (
               <TableMessage colSpan={10} message="Carregando extrato financeiro..." />
             ) : statementRows.length ? (
               statementRows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={row.kind === "CONTA" ? "cursor-pointer" : undefined}
+                  onClick={(event) => {
+                    if (row.kind !== "CONTA" || !row.account) {
+                      return;
+                    }
+
+                    if (!shouldOpenDetails(event.target)) {
+                      return;
+                    }
+
+                    openAccountDetails(row.account);
+                  }}
+                >
                   <TableCell>
                     <Badge variant="secondary">
                       {row.kind === "CONTA"
@@ -999,6 +1209,32 @@ export default function FinancialPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span>
+          Pagina {currentPage} de {totalPages} ({totalItems} registro(s))
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          >
+            Anterior
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+          >
+            Proxima
+          </Button>
+        </div>
       </div>
 
       <Sheet open={accountSheetOpen} onOpenChange={setAccountSheetOpen}>
@@ -1199,6 +1435,114 @@ export default function FinancialPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da conta</DialogTitle>
+            <DialogDescription>
+              Visualize as informações completas da conta financeira.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAccount ? (
+            <div className="grid gap-4 text-sm">
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Resumo</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1 sm:col-span-2">
+                    <span className="text-xs uppercase text-muted-foreground">Descrição</span>
+                    <span className="font-medium">{selectedAccount.description}</span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Tipo</span>
+                    <span>{getFinancialTypeLabel(selectedAccount.type)}</span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Status</span>
+                    <span>{getFinancialStatusLabel(selectedAccount.status)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Datas</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Vencimento</span>
+                    <span>{formatDate(selectedAccount.dueDate)}</span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Pagamento</span>
+                    <span>{formatDate(selectedAccount.paymentDate)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Valores</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Valor</span>
+                    <span>{formatCurrency(selectedAccount.amount)}</span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Valor pago</span>
+                    <span>{formatCurrency(selectedAccount.paidAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Classificação</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Categoria</span>
+                    <span>{formatValue(selectedAccount.category)}</span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Forma</span>
+                    <span>{formatValue(getPaymentMethodLabel(selectedAccount.paymentMethod))}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Relacionamento</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Contraparte</span>
+                    <span>
+                      {formatValue(
+                        selectedAccount.client?.name ??
+                          selectedAccount.supplier?.name ??
+                          selectedAccount.counterparty
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <span className="text-xs uppercase text-muted-foreground">Documento</span>
+                    <span>{formatValue(selectedAccount.documentNumber)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Observações</div>
+                <div className="grid gap-1">
+                  <span>{formatValue(selectedAccount.notes)}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -1260,16 +1604,33 @@ function SummaryCard({
 function SearchInput({
   value,
   onChange,
+  onClear,
   placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
+  onClear?: () => void;
   placeholder: string;
 }) {
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input className="pl-9" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <Input
+        className="h-10 rounded-lg bg-input/20 pl-9 pr-9 text-sm"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder.includes("Ã") ? "Descricao, categoria, documento, forma ou observacao" : placeholder}
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={onClear ?? (() => onChange(""))}
+          className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          aria-label="Limpar busca"
+        >
+          <X className="size-4" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1285,9 +1646,24 @@ function SelectFilter({
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger><SelectValue /></SelectTrigger>
+      <SelectTrigger className="h-10 w-full rounded-lg bg-input/20 px-3 text-sm"><SelectValue /></SelectTrigger>
       <SelectContent>{children}</SelectContent>
     </Select>
+  );
+}
+
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }
 

@@ -44,6 +44,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { vehiclesService } from "@/modules/vehicle/api/vehicle.service";
+import {
+  formatAmountInput,
+  maskEstimateItemField,
+} from "../estimate-input-masks";
 
 const noSelection = "__none__";
 
@@ -111,13 +115,18 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
             catalogItemId: item.catalogItemId ?? "",
             description: item.description,
             quantity: String(item.quantity),
-            unitPrice: String(item.unitPrice ?? ""),
-            discount: calculateDiscountPercent(
-              Number(item.quantity),
-              Number(item.unitPrice ?? 0),
-              item.discount ?? "0",
+            unitPrice: formatAmountInput(item.unitPrice),
+            discount: formatAmountInput(
+              calculateDiscountPercent(
+                Number(item.quantity),
+                Number(item.unitPrice ?? 0),
+                item.discount ?? "0",
+              ),
             ),
-            commissionBase: item.commissionBase === null ? "" : String(item.commissionBase),
+            commissionBase:
+              item.commissionBase === null
+                ? ""
+                : formatAmountInput(item.commissionBase),
           }))
         : [createEmptyItem()],
   };
@@ -371,6 +380,14 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     }));
   }
 
+  function updateMaskedItem(
+    itemId: string,
+    field: keyof EstimateItemFormValues,
+    value: string,
+  ) {
+    updateItem(itemId, field, maskEstimateItemField(field, value));
+  }
+
   function updateItemType(
     itemId: string,
     type: EstimateItemFormValues["type"],
@@ -397,7 +414,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                 ...item,
                 catalogItemId,
                 description: catalogItem.name,
-                unitPrice: String(catalogItem.unitPrice),
+                unitPrice: formatAmountInput(catalogItem.unitPrice),
                 type: catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
               }
             : { ...item, catalogItemId: "" }
@@ -601,7 +618,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
           <div className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-r">
             <UserCog className="size-4 shrink-0 text-primary" />
-            <div className="min-w-0">
+            <div className="min-w-0 w-full">
               <p className="truncate text-sm font-semibold text-foreground">
                 {selectedMechanic?.name ?? "Mecânico pendente"}
               </p>
@@ -628,49 +645,41 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         </div>
       </section>
 
-      <section className="grid gap-3 border border-border bg-card p-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-center">
-        <div className="flex items-center gap-2">
-          <ClipboardList className="size-4 text-primary" />
-          <span className="text-sm font-semibold text-foreground">
-            Progresso do orçamento
-          </span>
-        </div>
-        <div className="grid gap-3">
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${workflowProgress}%` }}
-            />
-          </div>
-          <div className="grid gap-2 sm:grid-cols-4">
-            {workflowSteps.map((step) => {
-              const StepIcon = step.done ? CheckCircle2 : Circle;
+<section className="w-full border border-border bg-card p-4">
+  <div className="flex w-full flex-col gap-3">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-full rounded-full bg-primary transition-all"
+        style={{ width: `${workflowProgress}%` }}
+      />
+    </div>
 
-              return (
-                <div
-                  key={step.label}
-                  className="flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <StepIcon
-                    className={
-                      step.done
-                        ? "size-3.5 text-emerald-600"
-                        : "size-3.5 text-muted-foreground"
-                    }
-                  />
-                  <span
-                    className={
-                      step.done ? "font-medium text-foreground" : undefined
-                    }
-                  >
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
+    <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
+      {workflowSteps.map((step) => {
+        const StepIcon = step.done ? CheckCircle2 : Circle;
+
+        return (
+          <div
+            key={step.label}
+            className="flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            <StepIcon
+              className={
+                step.done
+                  ? "size-3.5 text-emerald-600"
+                  : "size-3.5 text-muted-foreground"
+              }
+            />
+
+            <span className={step.done ? "font-medium text-foreground" : ""}>
+              {step.label}
+            </span>
           </div>
-        </div>
-      </section>
+        );
+      })}
+    </div>
+  </div>
+</section>
 
       {errorMessage ? (
         <div className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -705,7 +714,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
               }))
             }
           >
-            <SelectTrigger className="h-11">
+            <SelectTrigger className="h-11 w-full">
               <SelectValue
                 placeholder={
                   clientsQuery.isLoading
@@ -737,7 +746,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
               }))
             }
           >
-            <SelectTrigger className="h-11">
+            <SelectTrigger className="h-11 w-full">
               <SelectValue
                 placeholder={
                   vehiclesQuery.isLoading
@@ -793,7 +802,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
               }))
             }
           >
-            <SelectTrigger className="h-11">
+            <SelectTrigger className="h-11 w-full">
               <SelectValue
                 placeholder={
                   mechanicsQuery.isLoading
@@ -825,7 +834,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
               }))
             }
           >
-            <SelectTrigger className="h-11">
+            <SelectTrigger className="h-11 w-full">
               <SelectValue
                 placeholder={
                   sectorsQuery.isLoading
@@ -864,10 +873,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
               Itens do orçamento
             </h2>
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Adicione produtos e serviços ao orçamento.
-          </p>
         </div>
 
         <Button
@@ -963,7 +968,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                         )
                       }
                     >
-                      <SelectTrigger className="h-11">
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue />
                       </SelectTrigger>
 
@@ -991,7 +996,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                         )
                       }
                     >
-                      <SelectTrigger className="h-11">
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue
                           placeholder={
                             catalogItemsQuery.isLoading
@@ -1020,7 +1025,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                   </div>
 
                   <div className="grid gap-2 md:col-span-2">
-                    <Label>Descrição</Label>
+                    <Label>Nome do serviço (Personalizado) </Label>
 
                     <Input
                       className="h-11"
@@ -1041,9 +1046,10 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
                     <Input
                       className="h-11"
+                      inputMode="numeric"
                       value={item.quantity}
                       onChange={(event) =>
-                        updateItem(
+                        updateMaskedItem(
                           item.id,
                           "quantity",
                           event.target.value,
@@ -1057,9 +1063,10 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
                     <Input
                       className="h-11"
+                      inputMode="decimal"
                       value={item.unitPrice}
                       onChange={(event) =>
-                        updateItem(
+                        updateMaskedItem(
                           item.id,
                           "unitPrice",
                           event.target.value,
@@ -1076,7 +1083,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                       inputMode="decimal"
                       value={item.discount}
                       onChange={(event) =>
-                        updateItem(
+                        updateMaskedItem(
                           item.id,
                           "discount",
                           event.target.value,
@@ -1093,7 +1100,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                       inputMode="decimal"
                       value={item.commissionBase}
                       onChange={(event) =>
-                        updateItem(
+                        updateMaskedItem(
                           item.id,
                           "commissionBase",
                           event.target.value,

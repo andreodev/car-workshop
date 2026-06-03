@@ -222,7 +222,7 @@ export function CompanySettingsForm() {
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-6">
       <Header
         title="Dados da empresa"
-        description="Identidade, documentos, endereco e informacoes comerciais usadas nos documentos da oficina."
+        description="Identidade, documentos, Endereço e informacoes comerciais usadas nos documentos da oficina."
       />
 
       <form
@@ -352,7 +352,7 @@ export function CompanySettingsForm() {
 
                 <FormSection
                   icon={MapPin}
-                  title="Endereco"
+                  title="Endereço"
                   description="Localizacao principal da oficina para contratos, OS e comprovantes."
                 >
                   <div className="grid gap-4 lg:grid-cols-12">
@@ -390,7 +390,7 @@ export function CompanySettingsForm() {
                       {(field) => (
                         <InputField
                           field="address"
-                          label="Endereco"
+                          label="Endereço"
                           wrapperClassName="lg:col-span-6"
                           value={field.state.value}
                           error={fieldErrors.address}
@@ -902,7 +902,7 @@ const DocumentPreview = memo(function DocumentPreview({
             <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
               <PreviewLine label="CNPJ" value={form.document} />
               <PreviewLine label="IE" value={form.stateRegistration} />
-              <PreviewLine label="Endereco" value={address} />
+              <PreviewLine label="Endereço" value={address} />
               <PreviewLine label="Contato" value={contacts} />
             </div>
 

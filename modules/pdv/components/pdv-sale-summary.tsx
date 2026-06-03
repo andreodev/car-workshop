@@ -10,6 +10,13 @@ import {
 import { formatCurrency } from "../utils/pdv-sale-utils";
 import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,7 +50,7 @@ const paymentMethodOptions = [
 ] as const;
 
 export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
-  const { state, actions, mutations } = controller;
+  const { refs, state, actions, mutations } = controller;
 
   const isSaving =
     mutations.saleMutation.isPending ||
@@ -56,6 +63,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
     Math.abs(state.paymentDifference) > 0.009;
 
   return (
+    <>
     <aside className="flex min-h-0 flex-col bg-card">
       <div className="space-y-4 border-b border-border p-4">
         <div>
@@ -112,11 +120,13 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-foreground">
-                Pagamentos
+                Pagamento
               </p>
 
               <p className="text-xs text-muted-foreground">
-                Aceita uma ou mais formas
+                {state.paymentLines.length > 1
+                  ? `${state.paymentLines.length} formas informadas`
+                  : "Uma forma informada"}
               </p>
             </div>
 
@@ -124,101 +134,12 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
               type="button"
               size="sm"
               variant="outline"
-              onClick={actions.addPaymentLine}
+              onClick={actions.openPaymentDialog}
+              disabled={state.lines.length === 0 || isSaving}
             >
-              <HugeiconsIcon icon={Add01Icon} strokeWidth={2.5} />
-              Adicionar
+              Editar
             </Button>
           </div>
-
-          <div className="space-y-3">
-            {state.paymentLines.map((payment) => (
-              <div
-                key={payment.localId}
-                className="grid gap-2 rounded-md border border-border bg-background p-2"
-              >
-                <div className="flex gap-2">
-                  <Select
-                    value={payment.paymentMethod}
-                    onValueChange={(value) =>
-                      actions.updatePaymentLine(
-                        payment.localId,
-                        "paymentMethod",
-                        value
-                      )
-                    }
-                  >
-                    <SelectTrigger className="h-9 flex-1">
-                      <SelectValue placeholder="Forma" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      {paymentMethodOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => actions.removePaymentLine(payment.localId)}
-                    disabled={state.paymentLines.length <= 1}
-                  >
-                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2.5} />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Valor</p>
-
-                    <Input
-                      value={payment.amount}
-                      onChange={(event) =>
-                        actions.updatePaymentLine(
-                          payment.localId,
-                          "amount",
-                          event.target.value
-                        )
-                      }
-                      inputMode="decimal"
-                      placeholder="0,00"
-                    />
-                  </div>
-
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Taxa</p>
-
-                    <Input
-                      value={payment.feeAmount}
-                      onChange={(event) =>
-                        actions.updatePaymentLine(
-                          payment.localId,
-                          "feeAmount",
-                          event.target.value
-                        )
-                      }
-                      inputMode="decimal"
-                      placeholder="0,00"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={actions.fillSinglePaymentWithTotal}
-          >
-            Preencher com total
-          </Button>
 
           <div className="grid gap-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between">
@@ -252,12 +173,16 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
           type="button"
           size="lg"
           className="h-12 gap-2"
-          onClick={actions.saveSale}
-          disabled={finishDisabled}
+          onClick={actions.openPaymentDialog}
+          disabled={
+            isSaving ||
+            state.lines.length === 0 ||
+            (!state.isServiceOrderMode && !state.responsible.trim())
+          }
           title="F8"
         >
           <HugeiconsIcon icon={PaymentSuccess01Icon} strokeWidth={2.5} />
-          {state.isServiceOrderMode ? "Finalizar pagamento" : "Finalizar venda"}
+          {state.isServiceOrderMode ? "Receber pagamento" : "Receber venda"}
         </Button>
 
         <div className="grid grid-cols-2 gap-2">
@@ -287,5 +212,185 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
         </Button>
       </div>
     </aside>
+
+    <Dialog
+      open={state.paymentDialogOpen}
+      onOpenChange={actions.setPaymentDialogOpen}
+    >
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Pagamento</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Total esperado</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(state.expectedPaymentTotal)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground">Total pago</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(state.paymentTotal)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground">Taxa</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(state.paymentFeeTotal)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {state.paymentLines.map((payment, index) => (
+              <div
+                key={payment.localId}
+                className="grid gap-3 rounded-lg border border-border bg-background p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    Forma {index + 1}
+                  </p>
+
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => actions.removePaymentLine(payment.localId)}
+                    disabled={state.paymentLines.length <= 1}
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2.5} />
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Forma</p>
+
+                    <Select
+                      value={payment.paymentMethod}
+                      onValueChange={(value) =>
+                        actions.updatePaymentLine(
+                          payment.localId,
+                          "paymentMethod",
+                          value
+                        )
+                      }
+                    >
+                      <SelectTrigger
+                        ref={
+                          payment.localId === state.paymentLines[0]?.localId
+                            ? refs.paymentTriggerRef
+                            : undefined
+                        }
+                        className="h-10 w-full"
+                      >
+                        <SelectValue placeholder="Forma" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {paymentMethodOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Valor</p>
+
+                    <Input
+                      className="h-10"
+                      value={payment.amount}
+                      onChange={(event) =>
+                        actions.updatePaymentLine(
+                          payment.localId,
+                          "amount",
+                          event.target.value
+                        )
+                      }
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Taxa</p>
+
+                    <Input
+                      className="h-10"
+                      value={payment.feeAmount}
+                      onChange={(event) =>
+                        actions.updatePaymentLine(
+                          payment.localId,
+                          "feeAmount",
+                          event.target.value
+                        )
+                      }
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="sm:w-auto"
+              onClick={actions.addPaymentLine}
+            >
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2.5} />
+              Adicionar forma
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="sm:w-auto"
+              onClick={actions.fillSinglePaymentWithTotal}
+            >
+              Preencher com total
+            </Button>
+          </div>
+
+          {Math.abs(state.paymentDifference) > 0.009 && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              DiferenÃ§a de {formatCurrency(Math.abs(state.paymentDifference))}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => actions.setPaymentDialogOpen(false)}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="button"
+            onClick={actions.saveSale}
+            disabled={finishDisabled}
+          >
+            <HugeiconsIcon icon={PaymentSuccess01Icon} strokeWidth={2.5} />
+            {state.isServiceOrderMode ? "Finalizar pagamento" : "Finalizar venda"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
