@@ -7,9 +7,17 @@ import { ArrowLeft, Camera, Copy, ExternalLink } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
 import type { ServiceOrderStatus } from "../../types";
+import { getServiceOrderStatusOption, serviceOrderStatusOptions } from "../../status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -117,7 +125,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
     window.setTimeout(() => setCopiedInspectionLink(false), 1600);
   }
 
-  console.log(data)
+  const statusOption = getServiceOrderStatusOption(data.status);
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] w-full flex-col gap-8">
@@ -135,6 +143,22 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={data.status}
+            disabled={statusMutation.isPending}
+            onValueChange={(value) => statusMutation.mutate(value as ServiceOrderStatus)}
+          >
+            <SelectTrigger className="h-9 w-44 bg-white text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {serviceOrderStatusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" asChild>
             <Link href={`/ordens-servico/${data.id}`}>Editar</Link>
           </Button>
@@ -155,6 +179,12 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
             <p className="text-sm font-semibold text-foreground">
               {data.client?.name ?? "-"}
             </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            <Badge variant={statusOption.variant} className={statusOption.className}>
+              {statusOption.label}
+            </Badge>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Veículo</p>

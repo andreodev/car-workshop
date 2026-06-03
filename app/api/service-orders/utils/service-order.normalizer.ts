@@ -11,6 +11,14 @@ export const serviceOrderStatuses = [
 
 export type ServiceOrderStatusValue = (typeof serviceOrderStatuses)[number];
 
+const serviceOrderStatusAliases: Record<string, ServiceOrderStatusValue> = {
+  CONCLUIDA: "FINALIZADA",
+  CONCLUÍDA: "FINALIZADA",
+  CONCLUIDO: "FINALIZADA",
+  CONCLUÍDO: "FINALIZADA",
+  FINALIZADO: "FINALIZADA",
+};
+
 export const serviceOrderItemTypes = ["SERVICE", "PRODUCT"] as const;
 
 export type ServiceOrderItemTypeValue = (typeof serviceOrderItemTypes)[number];
@@ -48,7 +56,8 @@ export function normalizeString(value: unknown) {
 }
 
 export function parseServiceOrderStatus(value: unknown) {
-  const status = normalizeString(value) ?? "ABERTA";
+  const rawStatus = normalizeString(value) ?? "ABERTA";
+  const status = serviceOrderStatusAliases[rawStatus] ?? rawStatus;
 
   if (!serviceOrderStatuses.includes(status as ServiceOrderStatusValue)) {
     return { error: "Status da ordem de serviço inválido." };

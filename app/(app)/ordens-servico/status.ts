@@ -20,7 +20,7 @@ export const serviceOrderStatusOptions: Array<{
     className: "border-amber-300 bg-amber-100 text-amber-800",
   },
   { value: "IMPEDIDA", label: "Impedida", variant: "destructive" },
-  { value: "FINALIZADA", label: "Concluida", variant: "default" },
+  { value: "FINALIZADA", label: "Concluída", variant: "default" },
   { value: "CANCELADA", label: "Cancelada", variant: "outline" },
 ];
 

@@ -10,9 +10,7 @@ import {
   parsePositiveInt,
   parseServiceOrderItems,
   parseServiceOrderStatus,
-  serviceOrderStatuses,
   type ParsedServiceOrderItems,
-  type ServiceOrderStatusValue,
 } from "../utils/service-order.normalizer";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -39,11 +37,13 @@ function buildServiceOrderWhere(params: {
   const where: Prisma.ServiceOrderWhereInput = {};
 
   if (status && status !== "TODOS") {
-    if (!serviceOrderStatuses.includes(status as ServiceOrderStatusValue)) {
-      return serviceError("Status da ordem de serviço inválido.", 400);
+    const parsedStatus = parseServiceOrderStatus(status);
+
+    if (parsedStatus.error) {
+      return serviceError(parsedStatus.error, 400);
     }
 
-    where.status = status as ServiceOrderStatusValue;
+    where.status = parsedStatus.value;
   }
 
   if ((!status || status === "TODOS") && !includeArchived) {
