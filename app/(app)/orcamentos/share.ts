@@ -39,7 +39,7 @@ export function buildEstimateMessage(estimate: Estimate) {
     )} | Total: ${formatShareCurrency(item.total)}`;
   });
   const mechanic = estimate.mechanic?.name ?? estimate.convertedServiceOrder?.mechanic?.name;
-  const sector = estimate.sector?.name;
+  const sector = estimate.items?.find((item) => item.sector?.name)?.sector?.name;
 
   return [
     `Olá, segue o seu orçamento #${estimate.code}.`,

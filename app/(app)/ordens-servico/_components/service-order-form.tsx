@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchCatalogItems } from "@/modules/pdv/api/pdv.service";
+import { fetchCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";
@@ -50,6 +50,8 @@ function createEmptyItem(): ServiceOrderItemFormValues {
     id: globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`,
     type: "SERVICE",
     catalogItemId: "",
+    mechanicId: "",
+    sectorId: "",
     description: "",
     quantity: "1",
     unitPrice: "",
@@ -124,6 +126,8 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
             id: item.id,
             type: item.type,
             catalogItemId: item.catalogItemId ?? "",
+            mechanicId: item.mechanicId ?? order.mechanicId ?? "",
+            sectorId: item.sectorId ?? "",
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: formatAmountInput(item.unitPrice),
@@ -253,7 +257,15 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     staleTime: 60_000,
   });
 
+  const sectorsQuery = useQuery({
+    queryKey: ["service-order-sectors"],
+    queryFn: () => fetchSectors({ page: 1, pageSize: 50 }),
+    staleTime: 60_000,
+  });
+
   const catalogItems = catalogItemsQuery.data?.items ?? [];
+  const mechanics = mechanicsQuery.data?.items ?? [];
+  const sectors = sectorsQuery.data?.items ?? [];
 
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
@@ -368,6 +380,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               unitPrice: catalogItem
                 ? formatAmountInput(catalogItem.unitPrice)
                 : item.unitPrice,
+              sectorId: catalogItem?.sectorId ?? item.sectorId,
               type: catalogItem
                 ? catalogItem.type === "PRODUTO"
                   ? "PRODUCT"
@@ -381,7 +394,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   }
 
   function addItem() {
-    setForm((prev) => ({ ...prev, items: [...prev.items, createEmptyItem()] }));
+    setForm((prev) => ({
+      ...prev,
+      items: [...prev.items, { ...createEmptyItem(), mechanicId: prev.mechanicId }],
+    }));
   }
 
   function removeItem(itemId: string) {
@@ -436,6 +452,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return (
         !item.description.trim() ||
         (item.type === "PRODUCT" && !item.catalogItemId) ||
+        !item.mechanicId ||
+        !item.sectorId ||
         quantity <= 0 ||
         unitPrice <= 0 ||
         discountPercent < 0 ||
@@ -446,7 +464,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     });
 
     if (invalidItem) {
-      setLocalError("Preencha tipo, produto quando necessário, descrição, quantidade, valor unitário, desconto entre 0 e 100% e base de comissão até o total do item.");
+      setLocalError("Preencha tipo, produto quando necessário, descrição, mecânico, setor, quantidade, valor unitário, desconto entre 0 e 100% e base de comissão até o total do item.");
       setActiveTab("itens");
       return;
     }
@@ -466,6 +484,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       items: form.items.map((item) => ({
         type: item.type,
         catalogItemId: item.catalogItemId || null,
+        mechanicId: item.mechanicId || null,
+        sectorId: item.sectorId || null,
         description: item.description.trim(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -494,6 +514,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     clientsQuery.isLoading ||
     vehiclesQuery.isLoading ||
     mechanicsQuery.isLoading ||
+    sectorsQuery.isLoading ||
     catalogItemsQuery.isLoading;
 
   if (isLoadingOptions) {
@@ -585,7 +606,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           <Select
                             value={form.mechanicId}
                             onValueChange={(value) => {
-                              setForm((prev) => ({ ...prev, mechanicId: value }));
+                              setForm((prev) => ({
+                                ...prev,
+                                mechanicId: value,
+                                items: prev.items.map((item) => ({
+                                  ...item,
+                                  mechanicId: item.mechanicId || value,
+                                })),
+                              }));
                               setLocalError(null);
                             }}
                           >
@@ -597,7 +625,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
+                              {mechanics.map((mechanic) => (
                                 <SelectItem key={mechanic.id} value={mechanic.id}>
                                   {mechanic.name}
                                 </SelectItem>
@@ -714,7 +742,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           return (
                             <div
                               key={item.id}
-                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.8fr_1.2fr_1.6fr_0.65fr_0.8fr_0.8fr_0.9fr_auto]"
+                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.75fr_1.1fr_1.1fr_1.1fr_1.4fr_0.6fr_0.75fr_0.75fr_0.85fr_auto]"
                             >
                               <div className="grid min-w-0 gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Tipo</Label>
@@ -760,6 +788,58 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                     {availableCatalogItems.map((catalogItem) => (
                                       <SelectItem key={catalogItem.id} value={catalogItem.id}>
                                         #{catalogItem.code} {catalogItem.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="grid min-w-0 gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Mecânico
+                                </Label>
+                                <Select
+                                  value={item.mechanicId}
+                                  onValueChange={(value) =>
+                                    updateItem(item.id, "mechanicId", value)
+                                  }
+                                >
+                                  <SelectTrigger className="w-full min-w-0">
+                                    <SelectValue
+                                      placeholder={
+                                        mechanicsQuery.isLoading ? "Carregando..." : "Selecione"
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {mechanics.map((mechanic) => (
+                                      <SelectItem key={mechanic.id} value={mechanic.id}>
+                                        {mechanic.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="grid min-w-0 gap-1">
+                                <Label className="text-[11px] text-muted-foreground">
+                                  Setor
+                                </Label>
+                                <Select
+                                  value={item.sectorId}
+                                  onValueChange={(value) =>
+                                    updateItem(item.id, "sectorId", value)
+                                  }
+                                >
+                                  <SelectTrigger className="w-full min-w-0">
+                                    <SelectValue
+                                      placeholder={
+                                        sectorsQuery.isLoading ? "Carregando..." : "Selecione"
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {sectors.map((sector) => (
+                                      <SelectItem key={sector.id} value={sector.id}>
+                                        {sector.name}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>

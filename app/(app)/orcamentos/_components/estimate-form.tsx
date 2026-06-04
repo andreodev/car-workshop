@@ -58,6 +58,8 @@ function createEmptyItem(): EstimateItemFormValues {
       `item-${Date.now()}-${Math.random()}`,
     type: "SERVICE",
     catalogItemId: "",
+    mechanicId: "",
+    sectorId: "",
     description: "",
     quantity: "1",
     unitPrice: "",
@@ -69,8 +71,6 @@ function createEmptyItem(): EstimateItemFormValues {
 const emptyForm: EstimateFormValues = {
   clientId: "",
   vehicleId: "",
-  mechanicId: "",
-  sectorId: "",
   responsible: "",
   validUntil: "",
   status: "RASCUNHO",
@@ -99,8 +99,6 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
   return {
     clientId: estimate.clientId,
     vehicleId: estimate.vehicleId,
-    mechanicId: estimate.mechanicId ?? "",
-    sectorId: estimate.sectorId ?? "",
     responsible: estimate.responsible ?? "",
     validUntil: toInputDate(estimate.validUntil),
     status: estimate.status,
@@ -113,6 +111,8 @@ function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
             id: item.id,
             type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
             catalogItemId: item.catalogItemId ?? "",
+            mechanicId: item.mechanicId ?? "",
+            sectorId: item.sectorId ?? "",
             description: item.description,
             quantity: String(item.quantity),
             unitPrice: formatAmountInput(item.unitPrice),
@@ -263,6 +263,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   });
 
   const catalogItems = catalogItemsQuery.data?.items ?? [];
+  const mechanics = mechanicsQuery.data?.items ?? [];
+  const sectors = sectorsQuery.data?.items ?? [];
 
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
@@ -287,23 +289,19 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   }, [vehiclesQuery.data, form.vehicleId]);
 
   const selectedMechanic = useMemo(() => {
-    return (mechanicsQuery.data?.items ?? []).find(
-      (mechanic) => mechanic.id === form.mechanicId,
-    );
-  }, [mechanicsQuery.data, form.mechanicId]);
+    const firstItemMechanicId =
+      form.items.find((item) => item.mechanicId)?.mechanicId ?? "";
 
-  const selectedSector = useMemo(() => {
-    return (sectorsQuery.data?.items ?? []).find(
-      (sector) => sector.id === form.sectorId,
+    return mechanics.find(
+      (mechanic) => mechanic.id === firstItemMechanicId,
     );
-  }, [sectorsQuery.data, form.sectorId]);
+  }, [mechanics, form.items]);
 
   const mutation = useMutation({
     mutationFn: async (payload: EstimatePayload) => {
       if (mode === "edit" && initialData?.id) {
         return updateEstimate(initialData.id, payload);
       }
-
       return createEstimate(payload);
     },
     onSuccess: (estimate) => {
@@ -418,6 +416,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                 description: catalogItem.name,
                 unitPrice: formatAmountInput(catalogItem.unitPrice),
                 type: catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
+                sectorId: catalogItem.sectorId ?? item.sectorId,
               }
             : { ...item, catalogItemId: "" }
           : item,
@@ -426,7 +425,15 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   }
 
   function addItem() {
-    setForm((prev) => ({ ...prev, items: [...prev.items, createEmptyItem()] }));
+    setForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          ...createEmptyItem(),
+        },
+      ],
+    }));
   }
 
   function removeItem(itemId: string) {
@@ -472,11 +479,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       return;
     }
 
-    if (!form.mechanicId) {
-      setLocalError("Selecione o mecânico responsável.");
-      return;
-    }
-
     if (!responsibleValue.trim()) {
       setLocalError("Responsável é obrigatório.");
       return;
@@ -492,6 +494,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
       return (
         !item.description.trim() ||
+        !item.mechanicId ||
+        !item.sectorId ||
         quantity <= 0 ||
         unitPrice <= 0 ||
         discountPercent < 0 ||
@@ -503,7 +507,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
     if (invalidItem) {
       setLocalError(
-        "Preencha descrição, quantidade, valor, desconto entre 0 e 100% e base de comissão até o total do item.",
+        "Preencha descrição, mecânico, setor, quantidade, valor, desconto entre 0 e 100% e base de comissão até o total do item.",
       );
       return;
     }
@@ -511,8 +515,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     const payload: EstimatePayload = {
       clientId: form.clientId,
       vehicleId: form.vehicleId,
-      mechanicId: form.mechanicId,
-      sectorId: form.sectorId || null,
       responsible: responsibleValue.trim(),
       validUntil: form.validUntil
         ? new Date(`${form.validUntil}T23:59:59`).toISOString()
@@ -524,6 +526,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       items: form.items.map((item) => ({
         type: item.type,
         catalogItemId: item.catalogItemId || null,
+        mechanicId: item.mechanicId || null,
+        sectorId: item.sectorId || null,
         description: item.description.trim().toLocaleUpperCase(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -556,10 +560,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   }).length;
   const workflowSteps = [
     { label: "Cliente", done: Boolean(form.clientId && form.vehicleId) },
-    {
-      label: "Execução",
-      done: Boolean(form.mechanicId && responsibleValue.trim()),
-    },
     { label: "Itens", done: validItemsCount > 0 },
     { label: "Salvar", done: false },
   ];
@@ -625,7 +625,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                 {selectedMechanic?.name ?? "Mecânico pendente"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {selectedSector?.name ?? "Sem setor"}
+                Setores por item
               </p>
             </div>
           </div>
@@ -781,86 +781,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       </div>
     </section>
 
-    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border px-5 py-4">
-        <div className="flex items-center gap-2">
-          <UserCog className="size-4 text-primary" />
-          <h2 className="text-sm font-semibold text-foreground">
-            Execução
-          </h2>
-        </div>
-      </div>
-
-      <div className="space-y-5 p-5">
-        <div className="grid gap-2">
-          <Label>Mecânico responsável</Label>
-
-          <Select
-            value={form.mechanicId}
-            onValueChange={(value) =>
-              setForm((prev) => ({
-                ...prev,
-                mechanicId: value,
-              }))
-            }
-          >
-            <SelectTrigger className="h-11 w-full">
-              <SelectValue
-                placeholder={
-                  mechanicsQuery.isLoading
-                    ? "Carregando mecânicos..."
-                    : "Selecione"
-                }
-              />
-            </SelectTrigger>
-
-            <SelectContent>
-              {(mechanicsQuery.data?.items ?? []).map((mechanic) => (
-                <SelectItem key={mechanic.id} value={mechanic.id}>
-                  {mechanic.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-2">
-          <Label>Setor</Label>
-
-          <Select
-            value={form.sectorId || noSelection}
-            onValueChange={(value) =>
-              setForm((prev) => ({
-                ...prev,
-                sectorId: value === noSelection ? "" : value,
-              }))
-            }
-          >
-            <SelectTrigger className="h-11 w-full">
-              <SelectValue
-                placeholder={
-                  sectorsQuery.isLoading
-                    ? "Carregando setores..."
-                    : "Selecione"
-                }
-              />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value={noSelection}>
-                Sem setor
-              </SelectItem>
-
-              {sectorsQuery.data?.items.map((sector) => (
-                <SelectItem key={sector.id} value={sector.id}>
-                  {sector.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </section>
   </aside>
 
   {/* CENTER */}
@@ -1020,6 +940,64 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                           >
                             #{catalogItem.code}{" "}
                             {catalogItem.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Mecânico do item</Label>
+
+                    <Select
+                      value={item.mechanicId}
+                      onValueChange={(value) =>
+                        updateItem(item.id, "mechanicId", value)
+                      }
+                    >
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue
+                          placeholder={
+                            mechanicsQuery.isLoading
+                              ? "Carregando..."
+                              : "Selecione"
+                          }
+                        />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {mechanics.map((mechanic) => (
+                          <SelectItem key={mechanic.id} value={mechanic.id}>
+                            {mechanic.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Setor do item</Label>
+
+                    <Select
+                      value={item.sectorId}
+                      onValueChange={(value) =>
+                        updateItem(item.id, "sectorId", value)
+                      }
+                    >
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue
+                          placeholder={
+                            sectorsQuery.isLoading
+                              ? "Carregando..."
+                              : "Selecione"
+                          }
+                        />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {sectors.map((sector) => (
+                          <SelectItem key={sector.id} value={sector.id}>
+                            {sector.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

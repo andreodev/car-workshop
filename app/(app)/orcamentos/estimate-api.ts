@@ -77,6 +77,8 @@ export async function createEstimate(payload: EstimatePayload) {
     body: JSON.stringify(payload),
   });
 
+  console.log("Response status:", response.status);
+
   return parseResponse<Estimate>(response);
 }
 

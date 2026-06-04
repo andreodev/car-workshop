@@ -55,7 +55,6 @@ function buildEstimateWhere(search: string, status: string | null) {
       { vehicle: { plate: { contains: search, mode: "insensitive" } } },
       { vehicle: { model: { contains: search, mode: "insensitive" } } },
       { mechanic: { name: { contains: search, mode: "insensitive" } } },
-      { sector: { name: { contains: search, mode: "insensitive" } } },
       { responsible: { contains: search, mode: "insensitive" } },
     ];
 
@@ -114,6 +113,68 @@ async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
   return null;
 }
 
+async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
+  const mechanicIds = Array.from(
+    new Set(items.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
+  );
+
+  if (items.some((item) => !item.mechanicId)) {
+    return "Mecânico do item é obrigatório.";
+  }
+
+  if (mechanicIds.length === 0) {
+    return "Mecânico do item é obrigatório.";
+  }
+
+  const mechanics = await estimateRepository.findMechanicsByIds(mechanicIds);
+  const mechanicsById = new Map(mechanics.map((mechanic) => [mechanic.id, mechanic]));
+
+  if (mechanics.length !== mechanicIds.length) {
+    return "Mecânico do item não encontrado.";
+  }
+
+  for (const item of items) {
+    const itemMechanicId = item.mechanicId;
+
+    if (!itemMechanicId || !mechanicsById.get(itemMechanicId)?.active) {
+      return `Mecânico inativo não pode receber o item "${item.description}".`;
+    }
+  }
+
+  return null;
+}
+
+async function validateItemSectors(items: ParsedEstimateItems["items"]) {
+  const sectorIds = Array.from(
+    new Set(items.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
+  );
+
+  if (items.some((item) => !item.sectorId)) {
+    return "Setor do item é obrigatório.";
+  }
+
+  if (sectorIds.length === 0) {
+    return "Setor do item é obrigatório.";
+  }
+
+  const sectors = await estimateRepository.findSectorsByIds(sectorIds);
+  const sectorsById = new Map(sectors.map((sector) => [sector.id, sector]));
+
+  if (sectors.length !== sectorIds.length) {
+    return "Setor do item nÃ£o encontrado.";
+  }
+
+  for (const item of items) {
+    const itemSectorId = item.sectorId;
+
+    if (!itemSectorId || !sectorsById.get(itemSectorId)?.active) {
+      return `Setor inativo nÃ£o pode receber o item "${item.description}".`;
+    }
+  }
+
+  return null;
+}
+
 async function buildEstimateData(
   payload: Record<string, unknown>,
   responsibleFallback: string | null | undefined,
@@ -121,8 +182,6 @@ async function buildEstimateData(
 ) {
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
-  const mechanicId = normalizeString(payload.mechanicId);
-  const sectorId = normalizeString(payload.sectorId);
   const responsible = normalizeString(payload.responsible) ?? responsibleFallback;
 
   if (!clientId) {
@@ -131,10 +190,6 @@ async function buildEstimateData(
 
   if (!vehicleId) {
     return serviceError("Veículo é obrigatório.", 400);
-  }
-
-  if (!mechanicId) {
-    return serviceError("Mecânico é obrigatório.", 400);
   }
 
   if (!responsible) {
@@ -159,10 +214,28 @@ async function buildEstimateData(
     return serviceError(itemsParsed.error ?? "Dados inválidos.", 400);
   }
 
+  itemsParsed.items = itemsParsed.items.map((item) => ({
+    ...item,
+    mechanicId: item.mechanicId,
+    sectorId: item.sectorId,
+  }));
+
   const catalogItemsError = await validateCatalogItems(itemsParsed.items);
 
   if (catalogItemsError) {
     return serviceError(catalogItemsError, 400);
+  }
+
+  const itemMechanicsError = await validateItemMechanics(itemsParsed.items);
+
+  if (itemMechanicsError) {
+    return serviceError(itemMechanicsError, 400);
+  }
+
+  const itemSectorsError = await validateItemSectors(itemsParsed.items);
+
+  if (itemSectorsError) {
+    return serviceError(itemSectorsError, 400);
   }
 
   const client = await estimateRepository.findClientById(clientId);
@@ -181,30 +254,9 @@ async function buildEstimateData(
     return serviceError("Veículo nao pertence ao cliente.", 400);
   }
 
-  const mechanic = await estimateRepository.findMechanicById(mechanicId);
-
-  if (!mechanic) {
-    return serviceError("Mecânico não encontrado.", 400);
-  }
-
-  if (!mechanic.active) {
-    return serviceError("Mecânico inativo não pode receber orçamento.", 400);
-  }
-
-  const sector = sectorId ? await estimateRepository.findSectorById(sectorId) : null;
-
-  if (sectorId && !sector) {
-    return serviceError("Setor não encontrado.", 400);
-  }
-
-  if (sector && !sector.active) {
-    return serviceError("Setor esta inativo.", 400);
-  }
-
   const baseData = {
     client: { connect: { id: clientId } },
     vehicle: { connect: { id: vehicleId } },
-    mechanic: { connect: { id: mechanicId } },
     responsible,
     status: status.value,
     type: normalizeString(payload.type) ?? "SIMPLES",
@@ -220,7 +272,6 @@ async function buildEstimateData(
     return {
       data: {
         ...baseData,
-        sector: sectorId ? { connect: { id: sectorId } } : undefined,
         items: {
           create: toEstimateItemCreateInput(itemsParsed.items),
         },
@@ -231,7 +282,7 @@ async function buildEstimateData(
   return {
     data: {
       ...baseData,
-      sector: sectorId ? { connect: { id: sectorId } } : { disconnect: true },
+      mechanic: { disconnect: true },
       items: {
         deleteMany: {},
         create: toEstimateItemCreateInput(itemsParsed.items),
@@ -253,17 +304,20 @@ function validateEstimateForConversion(estimate: EstimateForConversion) {
     return serviceError("Orçamento sem itens.", 400);
   }
 
-  if (!estimate.mechanicId || !estimate.mechanic) {
-    return serviceError("Atribua um mecânico antes de gerar a OS.", 400);
+  const mechanicId = estimate.items.find((item) => item.mechanicId)?.mechanicId ?? null;
+  const mechanic = estimate.items.find((item) => item.mechanicId === mechanicId)?.mechanic;
+
+  if (!mechanicId || !mechanic) {
+    return serviceError("Atribua um mecânico aos itens antes de gerar a OS.", 400);
   }
 
-  if (!estimate.mechanic.active) {
+  if (!mechanic.active) {
     return serviceError("Mecânico inativo não pode receber OS.", 400);
   }
 
   return {
     data: {
-      mechanicId: estimate.mechanicId,
+      mechanicId,
     },
   };
 }
@@ -307,7 +361,7 @@ export const estimateService = {
       return parsed;
     }
 
-    const estimate = await estimateRepository.create(parsed.data);
+    const estimate = await estimateRepository.create(parsed.data as Prisma.EstimateCreateInput);
 
     return {
       data: serializeData(estimate),
@@ -337,7 +391,7 @@ export const estimateService = {
       return parsed;
     }
 
-    const estimate = await estimateRepository.update(id, parsed.data);
+    const estimate = await estimateRepository.update(id, parsed.data as Prisma.EstimateUpdateInput);
 
     return {
       data: serializeData(estimate),

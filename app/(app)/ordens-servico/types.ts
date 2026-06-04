@@ -20,6 +20,16 @@ export type ServiceOrderItem = {
     type: "PRODUTO" | "SERVICO";
     stockCurrent: string | null;
   } | null;
+  mechanicId: string | null;
+  mechanic?: {
+    id: string;
+    name: string;
+  } | null;
+  sectorId: string | null;
+  sector?: {
+    id: string;
+    name: string;
+  } | null;
   description: string;
   quantity: number;
   unitPrice: string;
@@ -100,6 +110,8 @@ export type ServiceOrderItemFormValues = {
   id: string;
   type: ServiceOrderItemType;
   catalogItemId: string;
+  mechanicId: string;
+  sectorId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -110,6 +122,8 @@ export type ServiceOrderItemFormValues = {
 export type ServiceOrderPayloadItem = {
   type: ServiceOrderItemType;
   catalogItemId: string | null;
+  mechanicId: string | null;
+  sectorId: string | null;
   description: string;
   quantity: number;
   unitPrice: number;

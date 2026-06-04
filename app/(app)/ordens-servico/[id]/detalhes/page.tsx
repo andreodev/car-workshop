@@ -295,6 +295,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               <TableHeader>
                 <TableRow>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Mecânico</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Qtd</TableHead>
                   <TableHead>Valor</TableHead>
@@ -311,6 +312,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
                         {item.type === "PRODUCT" ? "Produto" : "Serviço"}
                       </Badge>
                     </TableCell>
+                    <TableCell>{item.mechanic?.name ?? data.mechanic?.name ?? "-"}</TableCell>
                     <TableCell className="font-medium">
                       {item.description}
                       {item.catalogItem ? (

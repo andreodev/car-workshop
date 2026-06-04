@@ -39,6 +39,12 @@ export const serviceOrderInclude = {
       catalogItem: {
         select: { id: true, code: true, name: true, type: true, stockCurrent: true },
       },
+      mechanic: {
+        select: { id: true, name: true },
+      },
+      sector: {
+        select: { id: true, name: true },
+      },
     },
   },
   client: { select: { id: true, name: true } },
@@ -91,6 +97,20 @@ export const serviceOrderRepository = {
   async findMechanicById(mechanicId: string) {
     return prisma.mechanic.findUnique({
       where: { id: mechanicId },
+      select: { id: true, active: true },
+    });
+  },
+
+  async findMechanicsByIds(ids: string[]) {
+    return prisma.mechanic.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, active: true },
+    });
+  },
+
+  async findSectorsByIds(ids: string[]) {
+    return prisma.sector.findMany({
+      where: { id: { in: ids } },
       select: { id: true, active: true },
     });
   },

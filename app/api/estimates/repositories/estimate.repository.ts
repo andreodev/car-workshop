@@ -20,12 +20,17 @@ export const estimateListInclude = {
   client: { select: { id: true, name: true } },
   vehicle: { select: { id: true, plate: true, model: true } },
   mechanic: { select: { id: true, name: true } },
-  sector: { select: { id: true, name: true } },
   convertedServiceOrder: { select: { id: true, code: true } },
 } satisfies Prisma.EstimateInclude;
 
 export const estimateDetailInclude = {
-  items: { include: { catalogItem: { select: catalogItemSelect } } },
+  items: {
+    include: {
+      catalogItem: { select: catalogItemSelect },
+      mechanic: { select: { id: true, name: true } },
+      sector: { select: { id: true, name: true } },
+    },
+  },
   client: { select: { id: true, name: true } },
   vehicle: {
     select: {
@@ -40,7 +45,6 @@ export const estimateDetailInclude = {
     },
   },
   mechanic: { select: { id: true, name: true } },
-  sector: { select: { id: true, name: true } },
   convertedServiceOrder: {
     select: {
       id: true,
@@ -55,6 +59,8 @@ export const estimateConversionInclude = {
   items: {
     include: {
       catalogItem: { select: catalogItemSelect },
+      mechanic: { select: { id: true, active: true } },
+      sector: { select: { id: true, active: true } },
     },
   },
   mechanic: { select: { id: true, active: true } },
@@ -68,6 +74,18 @@ export const estimatePdfInclude = {
   items: {
     include: {
       catalogItem: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      mechanic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      sector: {
         select: {
           id: true,
           name: true,
@@ -90,12 +108,6 @@ export const estimatePdfInclude = {
     },
   },
   mechanic: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
-  sector: {
     select: {
       id: true,
       name: true,
@@ -150,9 +162,16 @@ export const estimateRepository = {
     });
   },
 
-  async findSectorById(sectorId: string) {
-    return prisma.sector.findUnique({
-      where: { id: sectorId },
+  async findMechanicsByIds(ids: string[]) {
+    return prisma.mechanic.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, active: true },
+    });
+  },
+
+  async findSectorsByIds(ids: string[]) {
+    return prisma.sector.findMany({
+      where: { id: { in: ids } },
       select: { id: true, active: true },
     });
   },
@@ -226,6 +245,8 @@ export const estimateRepository = {
             create: estimate.items.map((item) => ({
               type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
               catalogItemId: item.catalogItemId,
+              mechanicId: item.mechanicId ?? mechanicId,
+              sectorId: item.sectorId,
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,

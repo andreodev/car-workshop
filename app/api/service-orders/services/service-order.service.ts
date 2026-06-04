@@ -110,6 +110,64 @@ async function validateCatalogItems(items: ParsedServiceOrderItems["items"]) {
   return null;
 }
 
+async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
+  const mechanicIds = Array.from(
+    new Set(items.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
+  );
+
+  if (mechanicIds.length === 0) {
+    return null;
+  }
+
+  const mechanics = await serviceOrderRepository.findMechanicsByIds(mechanicIds);
+  const mechanicsById = new Map(mechanics.map((mechanic) => [mechanic.id, mechanic]));
+
+  if (mechanics.length !== mechanicIds.length) {
+    return "Mecânico do item não encontrado.";
+  }
+
+  for (const item of items) {
+    if (!item.mechanicId) {
+      continue;
+    }
+
+    if (!mechanicsById.get(item.mechanicId)?.active) {
+      return `Mecânico inativo não pode receber o item "${item.description}".`;
+    }
+  }
+
+  return null;
+}
+
+async function validateItemSectors(items: ParsedServiceOrderItems["items"]) {
+  const sectorIds = Array.from(
+    new Set(items.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
+  );
+
+  if (sectorIds.length === 0) {
+    return null;
+  }
+
+  const sectors = await serviceOrderRepository.findSectorsByIds(sectorIds);
+  const sectorsById = new Map(sectors.map((sector) => [sector.id, sector]));
+
+  if (sectors.length !== sectorIds.length) {
+    return "Setor do item nÃ£o encontrado.";
+  }
+
+  for (const item of items) {
+    if (!item.sectorId) {
+      continue;
+    }
+
+    if (!sectorsById.get(item.sectorId)?.active) {
+      return `Setor inativo nÃ£o pode receber o item "${item.description}".`;
+    }
+  }
+
+  return null;
+}
+
 async function buildServiceOrderData(
   payload: Record<string, unknown>,
   responsibleFallback: string | null | undefined,
@@ -161,10 +219,27 @@ async function buildServiceOrderData(
     return serviceError(itemsParsed.error ?? "Dados inválidos.", 400);
   }
 
+  itemsParsed.items = itemsParsed.items.map((item) => ({
+    ...item,
+    mechanicId: item.mechanicId ?? mechanicId,
+  }));
+
   const catalogItemsError = await validateCatalogItems(itemsParsed.items);
 
   if (catalogItemsError) {
     return serviceError(catalogItemsError, 400);
+  }
+
+  const itemMechanicsError = await validateItemMechanics(itemsParsed.items);
+
+  if (itemMechanicsError) {
+    return serviceError(itemMechanicsError, 400);
+  }
+
+  const itemSectorsError = await validateItemSectors(itemsParsed.items);
+
+  if (itemSectorsError) {
+    return serviceError(itemSectorsError, 400);
   }
 
   const status = parseServiceOrderStatus(payload.status);

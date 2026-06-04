@@ -27,6 +27,8 @@ export type ParsedServiceOrderItems = {
   items: Array<{
     type: ServiceOrderItemTypeValue;
     catalogItemId: string | null;
+    mechanicId: string | null;
+    sectorId: string | null;
     description: string;
     quantity: number;
     unitPrice: Prisma.Decimal;
@@ -135,6 +137,8 @@ export function parseServiceOrderItems(payload: unknown) {
     }
 
     const catalogItemId = normalizeString(item.catalogItemId);
+    const mechanicId = normalizeString(item.mechanicId);
+    const sectorId = normalizeString(item.sectorId);
     const description = normalizeString(item.description);
 
     if (!description) {
@@ -208,6 +212,8 @@ export function parseServiceOrderItems(payload: unknown) {
     items.push({
       type: type as ServiceOrderItemTypeValue,
       catalogItemId,
+      mechanicId,
+      sectorId,
       description,
       quantity,
       unitPrice,

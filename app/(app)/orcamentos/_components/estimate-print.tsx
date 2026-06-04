@@ -148,7 +148,7 @@ export function EstimatePrint({ estimate, companySettings }: EstimatePrintProps)
         <div className="rounded-lg border border-border p-3">
           <p className="text-xs text-muted-foreground">Setor</p>
           <p className="mt-1 text-sm font-medium text-foreground">
-            {estimate.sector?.name ?? "-"}
+            {estimate.items?.find((item) => item.sector?.name)?.sector?.name ?? "-"}
           </p>
         </div>
         <div className="rounded-lg border border-border p-3">

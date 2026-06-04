@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 import { Prisma, type SalePaymentMethod } from "@prisma/client";
 
 import {
@@ -110,11 +110,11 @@ function parseSaleItems(rawItems: unknown[]) {
     const catalogItemId = normalizeString(item.catalogItemId);
 
     if (!description) {
-      return serviceError("Descrição do item é obrigatória.", 400);
+      return serviceError("DescriÃ§Ã£o do item Ã© obrigatÃ³ria.", 400);
     }
 
     if (!catalogItemId) {
-      return serviceError("Selecione um produto ou serviço cadastrado para vender.", 400);
+      return serviceError("Selecione um produto ou serviÃ§o cadastrado para vender.", 400);
     }
 
     if (quantity === null || quantity <= 0) {
@@ -122,7 +122,7 @@ function parseSaleItems(rawItems: unknown[]) {
     }
 
     if (unitPrice === null) {
-      return serviceError("Valor unitário inválido.", 400);
+      return serviceError("Valor unitÃ¡rio invÃ¡lido.", 400);
     }
 
     if (discountPercent < 0 || discountPercent > 100) {
@@ -196,6 +196,11 @@ async function createMechanicCommissionPayable(params: {
       discount: Prisma.Decimal;
       total: Prisma.Decimal;
       commissionBase: Prisma.Decimal | null;
+      mechanic: {
+        id: string;
+        name: string;
+        commissionPercent: Prisma.Decimal;
+      } | null;
       catalogItem: {
         type: "PRODUTO" | "SERVICO";
       } | null;
@@ -203,92 +208,110 @@ async function createMechanicCommissionPayable(params: {
   };
 }) {
   const { tx, serviceOrder } = params;
+  const commissionByMechanic = new Map<
+    string,
+    {
+      mechanic: {
+        id: string;
+        name: string;
+        commissionPercent: Prisma.Decimal;
+      };
+      base: Prisma.Decimal;
+    }
+  >();
 
-  if (!serviceOrder.mechanic) {
-    return null;
-  }
+  for (const item of serviceOrder.items) {
+    const mechanic = item.mechanic ?? serviceOrder.mechanic;
 
-  const commissionPercent = new Prisma.Decimal(
-    serviceOrder.mechanic.commissionPercent ?? 0,
-  );
-
-  if (commissionPercent.lessThanOrEqualTo(0)) {
-    return null;
-  }
-
-  const commissionBaseTotal = serviceOrder.items.reduce((acc, item) => {
-    if (item.commissionBase !== null && item.commissionBase !== undefined) {
-      return acc.plus(new Prisma.Decimal(item.commissionBase));
+    if (!mechanic) {
+      continue;
     }
 
     const isService = item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
+    const base =
+      item.commissionBase !== null && item.commissionBase !== undefined
+        ? new Prisma.Decimal(item.commissionBase)
+        : isService
+          ? new Prisma.Decimal(item.total)
+          : new Prisma.Decimal(0);
 
-    if (!isService) {
-      return acc;
+    if (base.lessThanOrEqualTo(0)) {
+      continue;
     }
 
-    return acc.plus(new Prisma.Decimal(item.total));
-  }, new Prisma.Decimal(0));
+    const current = commissionByMechanic.get(mechanic.id);
 
-  if (commissionBaseTotal.lessThanOrEqualTo(0)) {
-    return null;
+    commissionByMechanic.set(mechanic.id, {
+      mechanic,
+      base: current ? current.base.plus(base) : base,
+    });
   }
 
-  const commissionAmount = commissionBaseTotal
-    .mul(commissionPercent)
-    .div(100)
-    .toDecimalPlaces(2);
+  const createdAccounts = [];
 
-  if (commissionAmount.lessThanOrEqualTo(0)) {
-    return null;
-  }
+  for (const { mechanic, base } of commissionByMechanic.values()) {
+    const commissionPercent = new Prisma.Decimal(mechanic.commissionPercent ?? 0);
 
-  const existingCommission = await tx.financialAccount.findFirst({
-    where: {
-      type: "PAGAR",
-      documentNumber: `OS-${serviceOrder.code}`,
-      category: "Comissão mecânico",
-      counterparty: serviceOrder.mechanic.name,
-      status: {
-        not: "CANCELADA",
+    if (commissionPercent.lessThanOrEqualTo(0) || base.lessThanOrEqualTo(0)) {
+      continue;
+    }
+
+    const commissionAmount = base.mul(commissionPercent).div(100).toDecimalPlaces(2);
+
+    if (commissionAmount.lessThanOrEqualTo(0)) {
+      continue;
+    }
+
+    const existingCommission = await tx.financialAccount.findFirst({
+      where: {
+        type: "PAGAR",
+        documentNumber: `OS-${serviceOrder.code}`,
+        category: "ComissÃ£o mecÃ¢nico",
+        counterparty: mechanic.name,
+        status: {
+          not: "CANCELADA",
+        },
       },
-    },
-    select: {
-      id: true,
-    },
-  });
+      select: {
+        id: true,
+      },
+    });
 
-  if (existingCommission) {
-    return null;
+    if (existingCommission) {
+      continue;
+    }
+
+    const account = await tx.financialAccount.create({
+      data: {
+        type: "PAGAR",
+        status: "ABERTA",
+        description: `ComissÃ£o do mecÃ¢nico - OS #${serviceOrder.code}`,
+        counterparty: mechanic.name,
+        category: "ComissÃ£o mecÃ¢nico",
+        documentNumber: `OS-${serviceOrder.code}`,
+        dueDate: getNextWeeklyPaymentDate(),
+        amount: commissionAmount,
+        paidAmount: null,
+        paymentMethod: null,
+        notes: `ComissÃ£o de ${commissionPercent.toFixed(
+          2,
+        )}% sobre base comissionÃ¡vel da OS #${serviceOrder.code}. Base: ${base.toFixed(
+          2,
+        )}.`,
+      },
+    });
+
+    createdAccounts.push(account);
   }
 
-  return tx.financialAccount.create({
-    data: {
-      type: "PAGAR",
-      status: "ABERTA",
-      description: `Comissão do mecânico - OS #${serviceOrder.code}`,
-      counterparty: serviceOrder.mechanic.name,
-      category: "Comissão mecânico",
-      documentNumber: `OS-${serviceOrder.code}`,
-      dueDate: getNextWeeklyPaymentDate(),
-      amount: commissionAmount,
-      paidAmount: null,
-      paymentMethod: null,
-      notes: `Comissão de ${commissionPercent.toFixed(
-        2,
-      )}% sobre base comissionável da OS #${serviceOrder.code}. Base: ${commissionBaseTotal.toFixed(
-        2,
-      )}.`,
-    },
-  });
+  return createdAccounts;
 }
-
 function extractServiceOrderCodeFromSale(sale: {
   notes: string | null;
   cashMovements: Array<{ documentNumber: string | null }>;
 }) {
   const candidates = [
-    sale.notes && /ordem de serviço/i.test(sale.notes) ? sale.notes : null,
+    sale.notes && /ordem de serviÃ§o/i.test(sale.notes) ? sale.notes : null,
     ...sale.cashMovements
       .map((movement) => movement.documentNumber)
       .filter((documentNumber: string | null): documentNumber is string =>
@@ -370,7 +393,7 @@ async function reverseSaleStockMovements(params: {
         stockBefore,
         stockAfter: updatedItem?.stockCurrent ?? null,
         reason: `Cancelamento da venda PDV #${sale.code}`,
-        notes: "Estorno automático por cancelamento no PDV.",
+        notes: "Estorno automÃ¡tico por cancelamento no PDV.",
       },
     });
   }
@@ -434,10 +457,7 @@ async function cancelServiceOrderPaymentArtifacts(params: {
     where: {
       type: "PAGAR",
       documentNumber: `OS-${serviceOrder.code}`,
-      category: "Comissão mecânico",
-      ...(serviceOrder.mechanic?.name
-        ? { counterparty: serviceOrder.mechanic.name }
-        : {}),
+      category: "ComissÃ£o mecÃ¢nico",
     },
     select: { id: true },
   });
@@ -539,14 +559,14 @@ export const saleService = {
       const client = await saleRepository.findClientById(clientId);
 
       if (!client) {
-        return serviceError("Cliente não encontrado.", 404);
+        return serviceError("Cliente nÃ£o encontrado.", 404);
       }
     }
 
     const sector = sectorId ? await saleRepository.findSectorById(sectorId) : null;
 
     if (sectorId && !sector) {
-      return serviceError("Setor não encontrado.", 404);
+      return serviceError("Setor nÃ£o encontrado.", 404);
     }
 
     if (sector && !sector.active) {
@@ -568,7 +588,7 @@ export const saleService = {
     const foundItems = await saleRepository.findCatalogItemsByIds(uniqueCatalogItemIds);
 
     if (foundItems.length !== uniqueCatalogItemIds.length) {
-      return serviceError("Produto da venda não encontrado.", 404);
+      return serviceError("Produto da venda nÃ£o encontrado.", 404);
     }
 
     const catalogItemsById = new Map(foundItems.map((item) => [item.id, item]));
@@ -594,7 +614,7 @@ export const saleService = {
 
       if (currentStock.lessThan(requestedQuantity)) {
         return serviceError(
-          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
+          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
           400,
         );
       }
@@ -659,7 +679,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
+              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
             );
           }
 
@@ -719,7 +739,7 @@ export const saleService = {
     const serviceOrder = await saleRepository.findServiceOrderById(id);
 
     if (!serviceOrder) {
-      return serviceError("Ordem de serviço não encontrada.", 404);
+      return serviceError("Ordem de serviÃ§o nÃ£o encontrada.", 404);
     }
 
     return {
@@ -752,7 +772,7 @@ export const saleService = {
     const status = normalizeStatus(normalizeString(payload.status));
 
     if (!status) {
-      return serviceError("Status da venda inválido.", 400);
+      return serviceError("Status da venda invÃ¡lido.", 400);
     }
 
     if (status !== "CANCELADA") {
@@ -862,7 +882,7 @@ export const saleService = {
       return { data: result };
     } catch (error) {
       if (error instanceof Error && error.message === "SALE_NOT_FOUND") {
-        return serviceError("Venda não encontrada.", 404);
+        return serviceError("Venda nÃ£o encontrada.", 404);
       }
 
       return serviceError(
@@ -887,17 +907,17 @@ export const saleService = {
     const serviceOrder = await saleRepository.findServiceOrderById(serviceOrderId);
 
     if (!serviceOrder) {
-      return serviceError("Ordem de serviço não encontrada.", 404);
+      return serviceError("Ordem de serviÃ§o nÃ£o encontrada.", 404);
     }
 
     if (serviceOrder.status === "PAGA") {
-      return serviceError("Esta ordem de serviço já foi paga.", 400);
+      return serviceError("Esta ordem de serviÃ§o jÃ¡ foi paga.", 400);
     }
 
     const payments = normalizePaymentsFromPayload(payload, serviceOrder.total);
 
     if (!payments?.length) {
-      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
+      return serviceError("Nenhuma forma de pagamento vÃ¡lida foi informada.", 400);
     }
 
     const totalPaid = sumPaymentAmounts(payments);
@@ -906,7 +926,7 @@ export const saleService = {
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
-        "Total pago inválido.",
+        "Total pago invÃ¡lido.",
         400,
         `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
       );
@@ -965,7 +985,7 @@ export const saleService = {
             feeTotal,
             total: totalPaid,
             responsible: serviceOrder.responsible ?? "PDV",
-            notes: `Pagamento da ordem de serviÃ§o #${serviceOrder.code}`,
+            notes: `Pagamento da ordem de serviÃƒÂ§o #${serviceOrder.code}`,
             items: {
               create: serviceOrder.items.map((item) => ({
                 catalogItemId: item.catalogItemId,
@@ -1019,7 +1039,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
+              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(
                 currentStock,
               )}. Solicitado: ${formatStock(quantity)}.`,
             );
@@ -1042,7 +1062,7 @@ export const saleService = {
 
           if (updateResult.count !== 1) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Atualize a ordem de serviço e tente novamente.`,
+              `Estoque insuficiente para ${catalogItem.name}. Atualize a ordem de serviÃ§o e tente novamente.`,
             );
           }
 
@@ -1078,7 +1098,7 @@ export const saleService = {
           code: sale.code,
           payments,
           categoryId: category.id,
-          description: `Pagamento da ordem de serviço #${serviceOrder.code}`,
+          description: `Pagamento da ordem de serviÃ§o #${serviceOrder.code}`,
           documentNumber: `OS-${serviceOrder.code}`,
           notes: "Pagamento realizado via PDV",
         });
@@ -1143,11 +1163,11 @@ export const saleService = {
       };
     } catch (error) {
       if (error instanceof Error && error.message === "SERVICE_ORDER_ALREADY_PAID") {
-        return serviceError("Esta ordem de serviÃ§o jÃ¡ foi paga.", 400);
+        return serviceError("Esta ordem de serviÃƒÂ§o jÃƒÂ¡ foi paga.", 400);
       }
 
       return serviceError(
-        "Erro ao finalizar pagamento da ordem de serviço.",
+        "Erro ao finalizar pagamento da ordem de serviÃ§o.",
         500,
         error instanceof Error ? error.message : JSON.stringify(error),
       );
@@ -1158,13 +1178,13 @@ export const saleService = {
     const currentSale = await saleRepository.findSaleForStock(id);
 
     if (!currentSale) {
-      return serviceError("Venda não encontrada.", 404);
+      return serviceError("Venda nÃ£o encontrada.", 404);
     }
 
     const payments = normalizePaymentsFromPayload(payload, currentSale.total);
 
     if (!payments?.length) {
-      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
+      return serviceError("Nenhuma forma de pagamento vÃ¡lida foi informada.", 400);
     }
 
     const totalPaid = sumPaymentAmounts(payments);
@@ -1173,7 +1193,7 @@ export const saleService = {
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
-        "Total pago inválido.",
+        "Total pago invÃ¡lido.",
         400,
         `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
       );
@@ -1206,7 +1226,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
+              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(
                 currentStock,
               )}. Solicitado: ${formatStock(quantity)}.`,
             );
@@ -1311,3 +1331,5 @@ export const saleService = {
     }
   },
 };
+
+

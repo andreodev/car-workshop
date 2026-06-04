@@ -330,6 +330,10 @@ model ServiceOrderItem {
   type           ServiceOrderItemType @default(SERVICE)
   catalogItemId  String?
   catalogItem    CatalogItem?         @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  mechanicId     String?
+  mechanic       Mechanic?            @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+  sectorId       String?
+  sector         Sector?              @relation(fields: [sectorId], references: [id], onDelete: SetNull)
   description    String
   quantity       Int
   unitPrice      Decimal              @db.Decimal(10, 2)
@@ -342,6 +346,8 @@ model ServiceOrderItem {
 
   @@index([serviceOrderId])
   @@index([catalogItemId])
+  @@index([mechanicId])
+  @@index([sectorId])
   @@index([type])
 }
 
@@ -356,8 +362,6 @@ model Estimate {
   vehicle                 Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   mechanicId              String?
   mechanic                Mechanic?      @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
-  sectorId                String?
-  sector                  Sector?        @relation(fields: [sectorId], references: [id], onDelete: SetNull)
   responsible             String
   validUntil              DateTime?
   notesInternal           String?        @db.Text
@@ -375,7 +379,6 @@ model Estimate {
   @@index([clientId])
   @@index([vehicleId])
   @@index([mechanicId])
-  @@index([sectorId])
   @@index([status])
   @@index([validUntil])
 }
@@ -386,6 +389,10 @@ model EstimateItem {
   estimate       Estimate     @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   catalogItemId  String?
   catalogItem    CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  mechanicId     String?
+  mechanic       Mechanic?    @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+  sectorId       String?
+  sector         Sector?      @relation(fields: [sectorId], references: [id], onDelete: SetNull)
   description    String
   quantity       Int
   unitPrice      Decimal      @db.Decimal(10, 2)
@@ -397,6 +404,8 @@ model EstimateItem {
 
   @@index([estimateId])
   @@index([catalogItemId])
+  @@index([mechanicId])
+  @@index([sectorId])
 }
 
 model CatalogItem {
@@ -529,7 +538,8 @@ model Sector {
   notes     String?       @db.Text
   sales     Sale[]
   products  CatalogItem[]
-  estimates Estimate[]
+  serviceOrderItems ServiceOrderItem[]
+  estimateItems     EstimateItem[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -546,7 +556,9 @@ model Mechanic {
   commissionPercent Decimal        @default(0) @db.Decimal(5, 2)
   notes             String?        @db.Text
   serviceOrders     ServiceOrder[]
+  serviceOrderItems ServiceOrderItem[]
   estimates         Estimate[]
+  estimateItems     EstimateItem[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 

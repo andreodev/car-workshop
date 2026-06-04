@@ -19,6 +19,8 @@ export type ParsedEstimateItems = {
   items: Array<{
     type: EstimateItemTypeValue;
     catalogItemId: string | null;
+    mechanicId: string | null;
+    sectorId: string | null;
     description: string;
     quantity: number;
     unitPrice: Prisma.Decimal;
@@ -126,6 +128,8 @@ export function parseEstimateItems(payload: unknown) {
     }
 
     const catalogItemId = normalizeString(item.catalogItemId);
+    const mechanicId = normalizeString(item.mechanicId);
+    const sectorId = normalizeString(item.sectorId);
     const description = normalizeString(item.description);
 
     if (!description) {
@@ -193,6 +197,8 @@ export function parseEstimateItems(payload: unknown) {
     items.push({
       type: type as EstimateItemTypeValue,
       catalogItemId,
+      mechanicId,
+      sectorId,
       description,
       quantity,
       unitPrice,
@@ -214,6 +220,8 @@ export function parseEstimateItems(payload: unknown) {
 export function toEstimateItemCreateInput(items: ParsedEstimateItems["items"]) {
   return items.map((item) => ({
     catalogItemId: item.catalogItemId,
+    mechanicId: item.mechanicId,
+    sectorId: item.sectorId,
     description: item.description,
     quantity: item.quantity,
     unitPrice: item.unitPrice,

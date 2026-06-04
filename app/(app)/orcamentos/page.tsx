@@ -214,6 +214,7 @@ export default function EstimatesPage() {
     enabled: Boolean(selectedEstimateId),
   });
 
+
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: EstimateStatus }) =>
       updateEstimateStatus(id, { status }),
@@ -277,6 +278,8 @@ export default function EstimatesPage() {
     setSearch(searchInput.trim());
   }
 
+  console.log(data);
+
   function handleStatusChange(value: string) {
     setStatus(value as StatusFilter);
     setPage(1);
@@ -315,6 +318,9 @@ export default function EstimatesPage() {
       frameWindow.print();
     }
   }
+
+  console.log(data)
+  console.log(isLoading, isError, error)
 
   return (
     <section className="flex flex-col gap-6">
@@ -704,7 +710,7 @@ export default function EstimatesPage() {
                   <div className="rounded-lg border border-border p-3">
                     <p className="text-xs text-muted-foreground">Setor</p>
                     <p className="mt-1 font-medium text-foreground">
-                      {selectedEstimate.sector?.name ?? "-"}
+                      {selectedEstimate.items?.find((item) => item.sector?.name)?.sector?.name ?? "-"}
                     </p>
                   </div>
                   <div className="rounded-lg border border-border p-3">
@@ -720,6 +726,7 @@ export default function EstimatesPage() {
                     <TableHeader>
                       <TableRow className="bg-muted/60 hover:bg-muted/60">
                         <TableHead>Item</TableHead>
+                        <TableHead>Mecânico</TableHead>
                         <TableHead className="text-right">Qtd.</TableHead>
                         <TableHead className="text-right">Unitário</TableHead>
                         <TableHead className="text-right">Desconto</TableHead>
@@ -735,6 +742,9 @@ export default function EstimatesPage() {
                             <div className="text-xs text-muted-foreground">
                               {item.catalogItem?.name ?? "Item sem catálogo"}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {item.mechanic?.name ?? selectedEstimate.mechanic?.name ?? "-"}
                           </TableCell>
                           <TableCell className="text-right font-mono">{item.quantity}</TableCell>
                           <TableCell className="text-right font-mono">

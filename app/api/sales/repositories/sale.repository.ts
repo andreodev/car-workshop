@@ -113,6 +113,13 @@ export const serviceOrderPdvInclude = {
           stockCurrent: true,
         },
       },
+      mechanic: {
+        select: {
+          id: true,
+          name: true,
+          commissionPercent: true,
+        },
+      },
     },
   },
 } satisfies Prisma.ServiceOrderInclude;

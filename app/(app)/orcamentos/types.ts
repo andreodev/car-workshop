@@ -15,6 +15,16 @@ export type EstimateItem = {
   discount: string;
   total: string;
   commissionBase: string | null;
+  mechanicId: string | null;
+  mechanic: {
+    id: string;
+    name: string;
+  } | null;
+  sectorId: string | null;
+  sector: {
+    id: string;
+    name: string;
+  } | null;
   catalogItem: {
     id: string;
     code: number;
@@ -31,8 +41,6 @@ export type Estimate = {
   type: string;
   clientId: string;
   vehicleId: string;
-  mechanicId: string | null;
-  sectorId: string | null;
   responsible: string;
   validUntil: string | null;
   notesInternal: string | null;
@@ -61,10 +69,6 @@ export type Estimate = {
     id: string;
     name: string;
   } | null;
-  sector: {
-    id: string;
-    name: string;
-  } | null;
   convertedServiceOrder: {
     id: string;
     code: number;
@@ -88,6 +92,8 @@ export type EstimateItemFormValues = {
   id: string;
   type: "SERVICE" | "PRODUCT";
   catalogItemId: string;
+  mechanicId: string;
+  sectorId: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -98,6 +104,8 @@ export type EstimateItemFormValues = {
 export type EstimatePayloadItem = {
   type: "SERVICE" | "PRODUCT";
   catalogItemId: string | null;
+  mechanicId: string | null;
+  sectorId: string | null;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -108,8 +116,6 @@ export type EstimatePayloadItem = {
 export type EstimateFormValues = {
   clientId: string;
   vehicleId: string;
-  mechanicId: string;
-  sectorId: string;
   responsible: string;
   validUntil: string;
   status: EstimateStatus;
@@ -122,8 +128,6 @@ export type EstimateFormValues = {
 export type EstimatePayload = {
   clientId: string;
   vehicleId: string;
-  mechanicId: string;
-  sectorId: string | null;
   responsible: string;
   validUntil: string | null;
   status: EstimateStatus;

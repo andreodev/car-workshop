@@ -495,7 +495,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .join(" - ") || "-";
 
   const mechanicName = safeText(estimate.mechanic?.name);
-  const sectorName = safeText(estimate.sector?.name);
+  const sectorName = safeText(estimate.items?.find((item) => item.sector?.name)?.sector?.name);
   const responsibleName = safeText(estimate.responsible);
 
   const items = estimate.items ?? [];
