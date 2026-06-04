@@ -227,13 +227,11 @@ async function createMechanicCommissionPayable(params: {
       continue;
     }
 
-    const isService = item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
-    const base =
-      item.commissionBase !== null && item.commissionBase !== undefined
-        ? new Prisma.Decimal(item.commissionBase)
-        : isService
-          ? new Prisma.Decimal(item.total)
-          : new Prisma.Decimal(0);
+    if (item.commissionBase === null || item.commissionBase === undefined) {
+      continue;
+    }
+
+    const base = new Prisma.Decimal(item.commissionBase);
 
     if (base.lessThanOrEqualTo(0)) {
       continue;
