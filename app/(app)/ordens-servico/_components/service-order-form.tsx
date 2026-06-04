@@ -327,7 +327,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       const lineTotal = Math.max(quantity * unitPrice - discount, 0);
 
-      return sum + getCommissionBaseValue(item, lineTotal);
+      return item.type === "SERVICE" ? sum + getCommissionBaseValue(item, lineTotal) : sum;
     }, 0);
 
     return {
@@ -361,7 +361,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.id === itemId ? { ...item, type, catalogItemId: "" } : item
+        item.id === itemId
+          ? {
+              ...item,
+              type,
+              catalogItemId: "",
+              mechanicId: type === "SERVICE" ? item.mechanicId : "",
+              sectorId: type === "SERVICE" ? item.sectorId : "",
+              commissionBase: type === "SERVICE" ? item.commissionBase : "",
+            }
+          : item
       ),
     }));
     setLocalError(null);
@@ -396,7 +405,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   function addItem() {
     setForm((prev) => ({
       ...prev,
-      items: [...prev.items, { ...createEmptyItem(), mechanicId: prev.mechanicId }],
+      items: [...prev.items, { ...createEmptyItem() }],
     }));
   }
 
@@ -448,23 +457,23 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       const lineTotal = Math.max(quantity * unitPrice - discount, 0);
       const commissionBase = getCommissionBaseValue(item, lineTotal);
+      const isService = item.type === "SERVICE";
 
       return (
         !item.description.trim() ||
         (item.type === "PRODUCT" && !item.catalogItemId) ||
-        !item.mechanicId ||
-        !item.sectorId ||
+        (isService && !item.mechanicId) ||
+        (isService && !item.sectorId) ||
         quantity <= 0 ||
         unitPrice <= 0 ||
         discountPercent < 0 ||
         discountPercent > 100 ||
-        commissionBase < 0 ||
-        commissionBase > lineTotal
+        (isService && (commissionBase < 0 || commissionBase > lineTotal))
       );
     });
 
     if (invalidItem) {
-      setLocalError("Preencha tipo, produto quando necessário, descrição, mecânico, setor, quantidade, valor unitário, desconto entre 0 e 100% e base de comissão até o total do item.");
+      setLocalError("Preencha os campos obrigatórios do item conforme o tipo selecionado.");
       setActiveTab("itens");
       return;
     }
@@ -484,8 +493,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       items: form.items.map((item) => ({
         type: item.type,
         catalogItemId: item.catalogItemId || null,
-        mechanicId: item.mechanicId || null,
-        sectorId: item.sectorId || null,
+        mechanicId: item.type === "SERVICE" ? item.mechanicId || null : null,
+        sectorId: item.type === "SERVICE" ? item.sectorId || null : null,
         description: item.description.trim(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -494,7 +503,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           normalizeAmount(item.unitPrice),
           normalizeAmount(item.discount)
         ),
-        commissionBase: item.commissionBase.trim()
+        commissionBase: item.type === "SERVICE" && item.commissionBase.trim()
           ? normalizeAmount(item.commissionBase)
           : null,
       })),
@@ -793,58 +802,62 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Mecânico
-                                </Label>
-                                <Select
-                                  value={item.mechanicId}
-                                  onValueChange={(value) =>
-                                    updateItem(item.id, "mechanicId", value)
-                                  }
-                                >
-                                  <SelectTrigger className="w-full min-w-0">
-                                    <SelectValue
-                                      placeholder={
-                                        mechanicsQuery.isLoading ? "Carregando..." : "Selecione"
+                              {item.type === "SERVICE" ? (
+                                <>
+                                  <div className="grid min-w-0 gap-1">
+                                    <Label className="text-[11px] text-muted-foreground">
+                                      Mecânico
+                                    </Label>
+                                    <Select
+                                      value={item.mechanicId}
+                                      onValueChange={(value) =>
+                                        updateItem(item.id, "mechanicId", value)
                                       }
-                                    />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {mechanics.map((mechanic) => (
-                                      <SelectItem key={mechanic.id} value={mechanic.id}>
-                                        {mechanic.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Setor
-                                </Label>
-                                <Select
-                                  value={item.sectorId}
-                                  onValueChange={(value) =>
-                                    updateItem(item.id, "sectorId", value)
-                                  }
-                                >
-                                  <SelectTrigger className="w-full min-w-0">
-                                    <SelectValue
-                                      placeholder={
-                                        sectorsQuery.isLoading ? "Carregando..." : "Selecione"
+                                    >
+                                      <SelectTrigger className="w-full min-w-0">
+                                        <SelectValue
+                                          placeholder={
+                                            mechanicsQuery.isLoading ? "Carregando..." : "Selecione"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {mechanics.map((mechanic) => (
+                                          <SelectItem key={mechanic.id} value={mechanic.id}>
+                                            {mechanic.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid min-w-0 gap-1">
+                                    <Label className="text-[11px] text-muted-foreground">
+                                      Setor
+                                    </Label>
+                                    <Select
+                                      value={item.sectorId}
+                                      onValueChange={(value) =>
+                                        updateItem(item.id, "sectorId", value)
                                       }
-                                    />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {sectors.map((sector) => (
-                                      <SelectItem key={sector.id} value={sector.id}>
-                                        {sector.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                                    >
+                                      <SelectTrigger className="w-full min-w-0">
+                                        <SelectValue
+                                          placeholder={
+                                            sectorsQuery.isLoading ? "Carregando..." : "Selecione"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {sectors.map((sector) => (
+                                          <SelectItem key={sector.id} value={sector.id}>
+                                            {sector.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </>
+                              ) : null}
                               <div className="grid min-w-0 gap-1 sm:col-span-2 lg:col-span-1">
                                 <Label className="text-[11px] text-muted-foreground">
                                   Descrição
@@ -889,21 +902,21 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   }
                                 />
                               </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Base comissão
-                                </Label>
-                                <Input
-                                  inputMode="decimal"
-                                  value={item.commissionBase}
-                                  onChange={(event) =>
-                                    updateItem(item.id, "commissionBase", event.target.value)
-                                  }
-                                  placeholder={
-                                    item.type === "SERVICE" ? formatCurrency(lineTotal) : "R$ 0,00"
-                                  }
-                                />
-                              </div>
+                              {item.type === "SERVICE" ? (
+                                <div className="grid min-w-0 gap-1">
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    Base comissão
+                                  </Label>
+                                  <Input
+                                    inputMode="decimal"
+                                    value={item.commissionBase}
+                                    onChange={(event) =>
+                                      updateItem(item.id, "commissionBase", event.target.value)
+                                    }
+                                    placeholder={formatCurrency(lineTotal)}
+                                  />
+                                </div>
+                              ) : null}
                               <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-end">
                                 <span className="text-sm font-semibold text-foreground lg:text-xs">
                                   <span className="mr-2 text-xs font-medium text-muted-foreground lg:hidden">
@@ -911,9 +924,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   </span>
                                   {formatCurrency(lineTotal)}
                                 </span>
-                                <span className="text-xs text-muted-foreground">
-                                  Comissão: {formatCurrency(commissionBase)}
-                                </span>
+                                {item.type === "SERVICE" ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    Comissão: {formatCurrency(commissionBase)}
+                                  </span>
+                                ) : null}
                                 <Button
                                   type="button"
                                   variant="ghost"

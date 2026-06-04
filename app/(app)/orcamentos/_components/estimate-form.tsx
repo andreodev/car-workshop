@@ -290,7 +290,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
   const selectedMechanic = useMemo(() => {
     const firstItemMechanicId =
-      form.items.find((item) => item.mechanicId)?.mechanicId ?? "";
+      form.items.find((item) => item.type === "SERVICE" && item.mechanicId)?.mechanicId ?? "";
 
     return mechanics.find(
       (mechanic) => mechanic.id === firstItemMechanicId,
@@ -349,7 +349,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       const lineTotal = Math.max(quantity * unitPrice - discount, 0);
 
-      return sum + getCommissionBaseValue(item, lineTotal);
+      return item.type === "SERVICE" ? sum + getCommissionBaseValue(item, lineTotal) : sum;
     }, 0);
 
     return {
@@ -396,7 +396,14 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       ...prev,
       items: prev.items.map((item) =>
         item.id === itemId
-          ? { ...item, type, catalogItemId: "" }
+          ? {
+              ...item,
+              type,
+              catalogItemId: "",
+              mechanicId: type === "SERVICE" ? item.mechanicId : "",
+              sectorId: type === "SERVICE" ? item.sectorId : "",
+              commissionBase: type === "SERVICE" ? item.commissionBase : "",
+            }
           : item,
       ),
     }));
@@ -491,23 +498,23 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
       const lineTotal = Math.max(quantity * unitPrice - discount, 0);
       const commissionBase = getCommissionBaseValue(item, lineTotal);
+      const isService = item.type === "SERVICE";
 
       return (
         !item.description.trim() ||
-        !item.mechanicId ||
-        !item.sectorId ||
+        (isService && !item.mechanicId) ||
+        (isService && !item.sectorId) ||
         quantity <= 0 ||
         unitPrice <= 0 ||
         discountPercent < 0 ||
         discountPercent > 100 ||
-        commissionBase < 0 ||
-        commissionBase > lineTotal
+        (isService && (commissionBase < 0 || commissionBase > lineTotal))
       );
     });
 
     if (invalidItem) {
       setLocalError(
-        "Preencha descrição, mecânico, setor, quantidade, valor, desconto entre 0 e 100% e base de comissão até o total do item.",
+        "Preencha os campos obrigatórios do item conforme o tipo selecionado.",
       );
       return;
     }
@@ -526,8 +533,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       items: form.items.map((item) => ({
         type: item.type,
         catalogItemId: item.catalogItemId || null,
-        mechanicId: item.mechanicId || null,
-        sectorId: item.sectorId || null,
+        mechanicId: item.type === "SERVICE" ? item.mechanicId || null : null,
+        sectorId: item.type === "SERVICE" ? item.sectorId || null : null,
         description: item.description.trim().toLocaleUpperCase(),
         quantity: Math.trunc(normalizeAmount(item.quantity)),
         unitPrice: normalizeAmount(item.unitPrice),
@@ -536,7 +543,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           normalizeAmount(item.unitPrice),
           normalizeAmount(item.discount),
         ),
-        commissionBase: item.commissionBase.trim()
+        commissionBase: item.type === "SERVICE" && item.commissionBase.trim()
           ? normalizeAmount(item.commissionBase)
           : null,
       })),
@@ -946,66 +953,70 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                     </Select>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label>Mecânico do item</Label>
+                  {item.type === "SERVICE" ? (
+                    <>
+                      <div className="grid gap-2">
+                        <Label>Mecânico do item</Label>
 
-                    <Select
-                      value={item.mechanicId}
-                      onValueChange={(value) =>
-                        updateItem(item.id, "mechanicId", value)
-                      }
-                    >
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue
-                          placeholder={
-                            mechanicsQuery.isLoading
-                              ? "Carregando..."
-                              : "Selecione"
+                        <Select
+                          value={item.mechanicId}
+                          onValueChange={(value) =>
+                            updateItem(item.id, "mechanicId", value)
                           }
-                        />
-                      </SelectTrigger>
+                        >
+                          <SelectTrigger className="h-11 w-full">
+                            <SelectValue
+                              placeholder={
+                                mechanicsQuery.isLoading
+                                  ? "Carregando..."
+                                  : "Selecione"
+                              }
+                            />
+                          </SelectTrigger>
 
-                      <SelectContent>
-                        {mechanics.map((mechanic) => (
-                          <SelectItem key={mechanic.id} value={mechanic.id}>
-                            {mechanic.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                          <SelectContent>
+                            {mechanics.map((mechanic) => (
+                              <SelectItem key={mechanic.id} value={mechanic.id}>
+                                {mechanic.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="grid gap-2">
-                    <Label>Setor do item</Label>
+                      <div className="grid gap-2">
+                        <Label>Setor do item</Label>
 
-                    <Select
-                      value={item.sectorId}
-                      onValueChange={(value) =>
-                        updateItem(item.id, "sectorId", value)
-                      }
-                    >
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue
-                          placeholder={
-                            sectorsQuery.isLoading
-                              ? "Carregando..."
-                              : "Selecione"
+                        <Select
+                          value={item.sectorId}
+                          onValueChange={(value) =>
+                            updateItem(item.id, "sectorId", value)
                           }
-                        />
-                      </SelectTrigger>
+                        >
+                          <SelectTrigger className="h-11 w-full">
+                            <SelectValue
+                              placeholder={
+                                sectorsQuery.isLoading
+                                  ? "Carregando..."
+                                  : "Selecione"
+                              }
+                            />
+                          </SelectTrigger>
 
-                      <SelectContent>
-                        {sectors.map((sector) => (
-                          <SelectItem key={sector.id} value={sector.id}>
-                            {sector.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                          <SelectContent>
+                            {sectors.map((sector) => (
+                              <SelectItem key={sector.id} value={sector.id}>
+                                {sector.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  ) : null}
 
                   <div className="grid gap-2 md:col-span-2">
-                    <Label>Nome do serviço (Personalizado) </Label>
+                    <Label>{item.type === "SERVICE" ? "Nome do serviço" : "Nome do produto"}</Label>
 
                     <Input
                       className="h-11"
@@ -1072,34 +1083,36 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                     />
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label>Base comissão</Label>
+                  {item.type === "SERVICE" ? (
+                    <>
+                      <div className="grid gap-2">
+                        <Label>Base comissão</Label>
 
-                    <Input
-                      className="h-11"
-                      inputMode="decimal"
-                      value={item.commissionBase}
-                      onChange={(event) =>
-                        updateMaskedItem(
-                          item.id,
-                          "commissionBase",
-                          event.target.value,
-                        )
-                      }
-                      placeholder={
-                        item.type === "SERVICE" ? formatCurrency(lineTotal) : "R$ 0,00"
-                      }
-                    />
-                  </div>
+                        <Input
+                          className="h-11"
+                          inputMode="decimal"
+                          value={item.commissionBase}
+                          onChange={(event) =>
+                            updateMaskedItem(
+                              item.id,
+                              "commissionBase",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={formatCurrency(lineTotal)}
+                        />
+                      </div>
 
-                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">Base comissionável</span>
-                      <span className="font-mono font-semibold">
-                        {formatCurrency(commissionBase)}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-muted-foreground">Base comissionável</span>
+                          <span className="font-mono font-semibold">
+                            {formatCurrency(commissionBase)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </details>

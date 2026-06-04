@@ -114,15 +114,16 @@ async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
 }
 
 async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
+  const serviceItems = items.filter((item) => item.type === "SERVICE");
   const mechanicIds = Array.from(
-    new Set(items.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
+    new Set(serviceItems.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
   );
 
-  if (items.some((item) => !item.mechanicId)) {
+  if (serviceItems.some((item) => !item.mechanicId)) {
     return "Mecânico do item é obrigatório.";
   }
 
-  if (mechanicIds.length === 0) {
+  if (serviceItems.length > 0 && mechanicIds.length === 0) {
     return "Mecânico do item é obrigatório.";
   }
 
@@ -133,7 +134,7 @@ async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
     return "Mecânico do item não encontrado.";
   }
 
-  for (const item of items) {
+  for (const item of serviceItems) {
     const itemMechanicId = item.mechanicId;
 
     if (!itemMechanicId || !mechanicsById.get(itemMechanicId)?.active) {
@@ -145,15 +146,16 @@ async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
 }
 
 async function validateItemSectors(items: ParsedEstimateItems["items"]) {
+  const serviceItems = items.filter((item) => item.type === "SERVICE");
   const sectorIds = Array.from(
-    new Set(items.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
+    new Set(serviceItems.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
   );
 
-  if (items.some((item) => !item.sectorId)) {
+  if (serviceItems.some((item) => !item.sectorId)) {
     return "Setor do item é obrigatório.";
   }
 
-  if (sectorIds.length === 0) {
+  if (serviceItems.length > 0 && sectorIds.length === 0) {
     return "Setor do item é obrigatório.";
   }
 
@@ -164,7 +166,7 @@ async function validateItemSectors(items: ParsedEstimateItems["items"]) {
     return "Setor do item nÃ£o encontrado.";
   }
 
-  for (const item of items) {
+  for (const item of serviceItems) {
     const itemSectorId = item.sectorId;
 
     if (!itemSectorId || !sectorsById.get(itemSectorId)?.active) {

@@ -110,11 +110,11 @@ function parseSaleItems(rawItems: unknown[]) {
     const catalogItemId = normalizeString(item.catalogItemId);
 
     if (!description) {
-      return serviceError("DescriÃ§Ã£o do item Ã© obrigatÃ³ria.", 400);
+      return serviceError("Descrição do item é obrigatória.", 400);
     }
 
     if (!catalogItemId) {
-      return serviceError("Selecione um produto ou serviÃ§o cadastrado para vender.", 400);
+      return serviceError("Selecione um produto ou serviço cadastrado para vender.", 400);
     }
 
     if (quantity === null || quantity <= 0) {
@@ -122,7 +122,7 @@ function parseSaleItems(rawItems: unknown[]) {
     }
 
     if (unitPrice === null) {
-      return serviceError("Valor unitÃ¡rio invÃ¡lido.", 400);
+      return serviceError("Valor unitário inválido.", 400);
     }
 
     if (discountPercent < 0 || discountPercent > 100) {
@@ -266,7 +266,7 @@ async function createMechanicCommissionPayable(params: {
       where: {
         type: "PAGAR",
         documentNumber: `OS-${serviceOrder.code}`,
-        category: "ComissÃ£o mecÃ¢nico",
+        category: "Comissão mecânico",
         counterparty: mechanic.name,
         status: {
           not: "CANCELADA",
@@ -285,17 +285,17 @@ async function createMechanicCommissionPayable(params: {
       data: {
         type: "PAGAR",
         status: "ABERTA",
-        description: `ComissÃ£o do mecÃ¢nico - OS #${serviceOrder.code}`,
+        description: `Comissão do mecânico - OS #${serviceOrder.code}`,
         counterparty: mechanic.name,
-        category: "ComissÃ£o mecÃ¢nico",
+        category: "Comissão mecânico",
         documentNumber: `OS-${serviceOrder.code}`,
         dueDate: getNextWeeklyPaymentDate(),
         amount: commissionAmount,
         paidAmount: null,
         paymentMethod: null,
-        notes: `ComissÃ£o de ${commissionPercent.toFixed(
+        notes: `Comissão de ${commissionPercent.toFixed(
           2,
-        )}% sobre base comissionÃ¡vel da OS #${serviceOrder.code}. Base: ${base.toFixed(
+        )}% sobre base comissionável da OS #${serviceOrder.code}. Base: ${base.toFixed(
           2,
         )}.`,
       },
@@ -311,7 +311,7 @@ function extractServiceOrderCodeFromSale(sale: {
   cashMovements: Array<{ documentNumber: string | null }>;
 }) {
   const candidates = [
-    sale.notes && /ordem de serviÃ§o/i.test(sale.notes) ? sale.notes : null,
+    sale.notes && /ordem de serviço/i.test(sale.notes) ? sale.notes : null,
     ...sale.cashMovements
       .map((movement) => movement.documentNumber)
       .filter((documentNumber: string | null): documentNumber is string =>
@@ -457,7 +457,7 @@ async function cancelServiceOrderPaymentArtifacts(params: {
     where: {
       type: "PAGAR",
       documentNumber: `OS-${serviceOrder.code}`,
-      category: "ComissÃ£o mecÃ¢nico",
+      category: "Comissão mecânico",
     },
     select: { id: true },
   });
@@ -739,7 +739,7 @@ export const saleService = {
     const serviceOrder = await saleRepository.findServiceOrderById(id);
 
     if (!serviceOrder) {
-      return serviceError("Ordem de serviÃ§o nÃ£o encontrada.", 404);
+      return serviceError("Ordem de serviço não encontrada.", 404);
     }
 
     return {
@@ -907,17 +907,17 @@ export const saleService = {
     const serviceOrder = await saleRepository.findServiceOrderById(serviceOrderId);
 
     if (!serviceOrder) {
-      return serviceError("Ordem de serviÃ§o nÃ£o encontrada.", 404);
+      return serviceError("Ordem de serviço não encontrada.", 404);
     }
 
     if (serviceOrder.status === "PAGA") {
-      return serviceError("Esta ordem de serviÃ§o jÃ¡ foi paga.", 400);
+      return serviceError("Esta ordem de serviço já foi paga.", 400);
     }
 
     const payments = normalizePaymentsFromPayload(payload, serviceOrder.total);
 
     if (!payments?.length) {
-      return serviceError("Nenhuma forma de pagamento vÃ¡lida foi informada.", 400);
+      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
     }
 
     const totalPaid = sumPaymentAmounts(payments);
@@ -926,7 +926,7 @@ export const saleService = {
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
-        "Total pago invÃ¡lido.",
+        "Total pago inválido.",
         400,
         `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
       );
@@ -1062,7 +1062,7 @@ export const saleService = {
 
           if (updateResult.count !== 1) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. Atualize a ordem de serviÃ§o e tente novamente.`,
+              `Estoque insuficiente para ${catalogItem.name}. Atualize a ordem de serviço e tente novamente.`,
             );
           }
 
@@ -1098,7 +1098,7 @@ export const saleService = {
           code: sale.code,
           payments,
           categoryId: category.id,
-          description: `Pagamento da ordem de serviÃ§o #${serviceOrder.code}`,
+          description: `Pagamento da ordem de serviço #${serviceOrder.code}`,
           documentNumber: `OS-${serviceOrder.code}`,
           notes: "Pagamento realizado via PDV",
         });
@@ -1163,11 +1163,11 @@ export const saleService = {
       };
     } catch (error) {
       if (error instanceof Error && error.message === "SERVICE_ORDER_ALREADY_PAID") {
-        return serviceError("Esta ordem de serviÃƒÂ§o jÃƒÂ¡ foi paga.", 400);
+        return serviceError("Esta ordem de serviço já foi paga.", 400);
       }
 
       return serviceError(
-        "Erro ao finalizar pagamento da ordem de serviÃ§o.",
+        "Erro ao finalizar pagamento da ordem de serviço.",
         500,
         error instanceof Error ? error.message : JSON.stringify(error),
       );
@@ -1184,7 +1184,7 @@ export const saleService = {
     const payments = normalizePaymentsFromPayload(payload, currentSale.total);
 
     if (!payments?.length) {
-      return serviceError("Nenhuma forma de pagamento vÃ¡lida foi informada.", 400);
+      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
     }
 
     const totalPaid = sumPaymentAmounts(payments);
@@ -1193,7 +1193,7 @@ export const saleService = {
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
-        "Total pago invÃ¡lido.",
+        "Total pago inválido.",
         400,
         `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
       );
@@ -1226,7 +1226,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
                 currentStock,
               )}. Solicitado: ${formatStock(quantity)}.`,
             );

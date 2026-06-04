@@ -111,12 +111,17 @@ async function validateCatalogItems(items: ParsedServiceOrderItems["items"]) {
 }
 
 async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
+  const serviceItems = items.filter((item) => item.type === "SERVICE");
   const mechanicIds = Array.from(
-    new Set(items.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
+    new Set(serviceItems.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
   );
 
-  if (mechanicIds.length === 0) {
-    return null;
+  if (serviceItems.some((item) => !item.mechanicId)) {
+    return "Mecânico do item é obrigatório.";
+  }
+
+  if (serviceItems.length > 0 && mechanicIds.length === 0) {
+    return "Mecânico do item é obrigatório.";
   }
 
   const mechanics = await serviceOrderRepository.findMechanicsByIds(mechanicIds);
@@ -126,12 +131,10 @@ async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
     return "Mecânico do item não encontrado.";
   }
 
-  for (const item of items) {
-    if (!item.mechanicId) {
-      continue;
-    }
+  for (const item of serviceItems) {
+    const itemMechanicId = item.mechanicId;
 
-    if (!mechanicsById.get(item.mechanicId)?.active) {
+    if (!itemMechanicId || !mechanicsById.get(itemMechanicId)?.active) {
       return `Mecânico inativo não pode receber o item "${item.description}".`;
     }
   }
@@ -140,12 +143,17 @@ async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
 }
 
 async function validateItemSectors(items: ParsedServiceOrderItems["items"]) {
+  const serviceItems = items.filter((item) => item.type === "SERVICE");
   const sectorIds = Array.from(
-    new Set(items.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
+    new Set(serviceItems.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
   );
 
-  if (sectorIds.length === 0) {
-    return null;
+  if (serviceItems.some((item) => !item.sectorId)) {
+    return "Setor do item é obrigatório.";
+  }
+
+  if (serviceItems.length > 0 && sectorIds.length === 0) {
+    return "Setor do item é obrigatório.";
   }
 
   const sectors = await serviceOrderRepository.findSectorsByIds(sectorIds);
@@ -155,12 +163,10 @@ async function validateItemSectors(items: ParsedServiceOrderItems["items"]) {
     return "Setor do item nÃ£o encontrado.";
   }
 
-  for (const item of items) {
-    if (!item.sectorId) {
-      continue;
-    }
+  for (const item of serviceItems) {
+    const itemSectorId = item.sectorId;
 
-    if (!sectorsById.get(item.sectorId)?.active) {
+    if (!itemSectorId || !sectorsById.get(itemSectorId)?.active) {
       return `Setor inativo nÃ£o pode receber o item "${item.description}".`;
     }
   }
@@ -221,7 +227,8 @@ async function buildServiceOrderData(
 
   itemsParsed.items = itemsParsed.items.map((item) => ({
     ...item,
-    mechanicId: item.mechanicId ?? mechanicId,
+    mechanicId: item.type === "SERVICE" ? item.mechanicId ?? mechanicId : null,
+    sectorId: item.type === "SERVICE" ? item.sectorId : null,
   }));
 
   const catalogItemsError = await validateCatalogItems(itemsParsed.items);
