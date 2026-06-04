@@ -11,7 +11,6 @@ import {
   createSale,
   fetchCatalogItems,
   fetchServiceOrderPdv,
-  fetchSectors,
   payServiceOrderPdv,
 } from "../api/pdv.service";
 import type {
@@ -20,7 +19,6 @@ import type {
   SalePaymentPayload,
   SalePaymentMethod,
 } from "../types/pdv.types";
-import { NO_SECTOR_VALUE } from "../utils/pdv-sale-constants";
 import {
   calculateTotals,
   createSaleLine,
@@ -75,6 +73,10 @@ function toCurrencyNumber(value: unknown) {
   }
 
   return Number(parsed.toFixed(2));
+}
+
+function toCentsInput(value: number) {
+  return String(Math.round(toCurrencyNumber(value) * 100));
 }
 
 function calculateDiscountPercent(
@@ -170,7 +172,6 @@ export function usePdvSale({
     null
   );
   const [responsible, setResponsible] = useState(defaultResponsible);
-  const [sectorId, setSectorId] = useState(NO_SECTOR_VALUE);
   const [paymentMethod, setPaymentMethodState] =
     useState<SalePaymentMethod>("DINHEIRO");
   const [paymentLines, setPaymentLines] = useState<PaymentLine[]>([
@@ -225,20 +226,6 @@ export function usePdvSale({
     staleTime: 30_000,
   });
 
-  const sectorsQuery = useQuery({
-    queryKey: pdvKeys.sectorsList({
-      page: 1,
-      pageSize: 50,
-    }),
-    queryFn: () =>
-      fetchSectors({
-        page: 1,
-        pageSize: 50,
-      }),
-    enabled: open && !isServiceOrderMode,
-    staleTime: 60_000,
-  });
-
   const createCatalogMutation = useMutation({
     mutationFn: createCatalogItem,
     onSuccess: (item) => {
@@ -264,7 +251,7 @@ export function usePdvSale({
 
       setSelectedProduct(item);
       setProductSearch(item.name);
-      setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
+      setUnitPrice(maskCurrencyInput(toCentsInput(parseDecimal(String(item.unitPrice)))));
       setLocalError(null);
 
       toast({
@@ -498,7 +485,7 @@ export function usePdvSale({
             feeAmount: nextValue,
             amount:
               nextAmount > 0
-                ? maskCurrencyInput(String(Math.round(nextAmount * 100)))
+                ? maskCurrencyInput(toCentsInput(nextAmount))
                 : line.amount,
           };
         });
@@ -519,8 +506,8 @@ export function usePdvSale({
     setPaymentLines((current) => [
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
-        String(Math.round((saleTotal + feeAmount) * 100)),
-        String(Math.round(feeAmount * 100))
+        toCentsInput(saleTotal + feeAmount),
+        toCentsInput(feeAmount)
       ),
     ]);
   }, [paymentFeeTotal, paymentMethod, saleTotal]);
@@ -604,12 +591,11 @@ export function usePdvSale({
         setSelectedClient(serviceOrder.client ?? null);
         setClientSearch(serviceOrder.client?.name ?? "");
         setResponsible(defaultResponsible);
-        setSectorId(serviceOrder.sector?.id ?? NO_SECTOR_VALUE);
         setPaymentMethodState("DINHEIRO");
         setPaymentLines([
           createPaymentLine(
             "DINHEIRO",
-            serviceOrderTotal > 0 ? String(serviceOrderTotal * 100) : "",
+            serviceOrderTotal > 0 ? toCentsInput(serviceOrderTotal) : "",
             "0"
           ),
         ]);
@@ -661,7 +647,7 @@ export function usePdvSale({
   const selectProduct = useCallback((item: CatalogItem) => {
     setSelectedProduct(item);
     setProductSearch(item.name);
-    setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
+    setUnitPrice(maskCurrencyInput(toCentsInput(parseDecimal(String(item.unitPrice)))));
     setProductListOpen(false);
     quantityInputRef.current?.focus();
   }, []);
@@ -822,7 +808,7 @@ export function usePdvSale({
 
     const payload = {
       clientId: selectedClient?.id ?? null,
-      sectorId: sectorId === NO_SECTOR_VALUE ? null : sectorId,
+      sectorId: null,
       responsible: responsible.trim(),
       paymentMethod: paymentsPayload[0]?.paymentMethod ?? paymentMethod,
       payments: paymentsPayload,
@@ -847,7 +833,6 @@ export function usePdvSale({
     paymentsPayload,
     responsible,
     saleMutation,
-    sectorId,
     selectedClient?.id,
     serviceOrderId,
     serviceOrderPaymentMutation,
@@ -1062,7 +1047,6 @@ export function usePdvSale({
     queries: {
       clientsQuery,
       productsQuery,
-      sectorsQuery,
     },
     mutations: {
       createCatalogMutation,
@@ -1093,7 +1077,6 @@ export function usePdvSale({
       quantity,
       responsible,
       saleTotal,
-      sectorId,
       selectedClient,
       selectedProduct,
       serviceOrderLoading,
@@ -1131,7 +1114,6 @@ export function usePdvSale({
       setProductSearch,
       setQuantity,
       setResponsible,
-      setSectorId,
       setSelectedClient,
       setSelectedProduct,
       setUnitPrice: updateUnitPrice,

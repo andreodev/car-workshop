@@ -1,18 +1,10 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 
-import { NO_SECTOR_VALUE } from "../utils/pdv-sale-constants";
 import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type PdvSaleContextBarProps = {
   controller: PdvSaleController;
@@ -23,8 +15,8 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
   const { clientInputRef } = refs;
 
   return (
-    <div className="grid gap-3 border-b border-border bg-muted/30 px-3 py-3 sm:px-4 sm:grid-cols-2 lg:grid-cols-[minmax(320px,1.4fr)_300px_300px] lg:items-start">
-      <div className="min-w-0 space-y-1 sm:col-span-2 lg:col-span-1">
+    <div className="grid gap-3 border-b border-border bg-muted/30 px-3 py-3 sm:px-4 sm:grid-cols-[minmax(0,1fr)_300px] lg:grid-cols-[minmax(320px,1fr)_300px] lg:items-start">
+      <div className="min-w-0 space-y-1">
         <Label>Cliente</Label>
         <div className="relative flex">
           <Button
@@ -88,24 +80,6 @@ export function PdvSaleContextBar({ controller }: PdvSaleContextBarProps) {
           className="h-10"
         />
       </div>
-
-      <div className="min-w-0 space-y-1">
-        <Label>Setor</Label>
-        <Select value={state.sectorId} onValueChange={actions.setSectorId}>
-          <SelectTrigger className="h-10 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_SECTOR_VALUE}>Sem escolher setor</SelectItem>
-            {queries.sectorsQuery.data?.items.map((sector) => (
-              <SelectItem key={sector.id} value={sector.id}>
-                {sector.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
     </div>
   );
 }
