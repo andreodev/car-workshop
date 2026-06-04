@@ -1,12 +1,14 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
   CircleX,
   CreditCard,
+  Download,
+  Eye,
   Plus,
   Search,
 } from "lucide-react";
@@ -20,6 +22,13 @@ import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,6 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Sale, SalePayment } from "../../types/pdv.types";
 
 type SalesListProps = {
   defaultResponsible: string;
@@ -81,7 +91,234 @@ function paymentLabel(value: string) {
   return labels[value] ?? value;
 }
 
+function toNumber(value: string | number | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+type PaymentDisplay = Pick<
+  SalePayment,
+  "id" | "paymentMethod" | "amount" | "feeAmount" | "netAmount"
+>;
+
+function getSalePayments(sale: Sale): PaymentDisplay[] {
+  if (sale.payments?.length) {
+    return sale.payments;
+  }
+
+  const total = toNumber(sale.total);
+  const feeTotal = toNumber(sale.feeTotal);
+
+  return [
+    {
+      id: "single-payment",
+      paymentMethod: sale.paymentMethod,
+      amount: String(total),
+      feeAmount: String(feeTotal),
+      netAmount: String(total - feeTotal),
+    },
+  ];
+}
+
+function getPaymentSummaryLabel(sale: Sale) {
+  const payments = getSalePayments(sale);
+
+  return payments.length > 1
+    ? `${payments.length} formas`
+    : paymentLabel(payments[0]?.paymentMethod ?? sale.paymentMethod);
+}
+
+function vehicleLabel(sale: Sale) {
+  const vehicle = sale.serviceOrder?.vehicle;
+
+  if (!vehicle) {
+    return "-";
+  }
+
+  const model = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+  const details = [model, vehicle.modelYear, vehicle.color]
+    .filter(Boolean)
+    .join(" • ");
+
+  return `${vehicle.plate}${details ? ` - ${details}` : ""}`;
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/20 p-3">
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">
+        {value || "-"}
+      </p>
+    </div>
+  );
+}
+
+function PaymentDetailsDialog({
+  sale,
+  onOpenChange,
+}: {
+  sale: Sale | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const payments = sale ? getSalePayments(sale) : [];
+  const feeTotal = payments.reduce(
+    (sum, payment) => sum + toNumber(payment.feeAmount),
+    0,
+  );
+  const paidTotal = payments.reduce(
+    (sum, payment) => sum + toNumber(payment.amount),
+    0,
+  );
+  const netTotal = payments.reduce(
+    (sum, payment) => sum + toNumber(payment.netAmount),
+    0,
+  );
+
+  return (
+    <Dialog open={Boolean(sale)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        {sale ? (
+          <>
+            <DialogHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <DialogTitle>Detalhes do pagamento</DialogTitle>
+                  <DialogDescription>
+                    Venda #{sale.code} • {getPaymentSummaryLabel(sale)} •{" "}
+                    {formatDateTime(sale.createdAt)}
+                  </DialogDescription>
+                </div>
+
+                <Button asChild variant="outline" className="h-9 gap-2">
+                  <a
+                    href={`/api/sales/${sale.id}/receipt?download=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Download className="size-3.5" />
+                    Exportar PDF
+                  </a>
+                </Button>
+              </div>
+            </DialogHeader>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-border bg-primary/10 p-3">
+                <p className="text-[11px] font-medium uppercase text-primary">
+                  Total recebido
+                </p>
+                <p className="mt-1 text-lg font-semibold text-primary">
+                  {formatCurrency(paidTotal || sale.total)}
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-muted/20 p-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">
+                  Taxa cobrada
+                </p>
+                <p className="mt-1 text-lg font-semibold text-foreground">
+                  {formatCurrency(feeTotal)}
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-muted/20 p-3">
+                <p className="text-[11px] font-medium uppercase text-muted-foreground">
+                  Valor líquido
+                </p>
+                <p className="mt-1 text-lg font-semibold text-foreground">
+                  {formatCurrency(netTotal || toNumber(sale.total) - feeTotal)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <DetailItem
+                label="Cliente"
+                value={sale.client?.name ?? "Caixa livre"}
+              />
+              <DetailItem
+                label="Contato"
+                value={sale.client?.mobile ?? sale.client?.phone1 ?? "-"}
+              />
+              <DetailItem label="Funcionário" value={sale.responsible} />
+              <DetailItem
+                label="Mecânico"
+                value={sale.serviceOrder?.mechanic?.name ?? "-"}
+              />
+              <DetailItem label="Carro" value={vehicleLabel(sale)} />
+              <DetailItem
+                label="Origem"
+                value={
+                  sale.serviceOrder?.code
+                    ? `Ordem de serviço #${sale.serviceOrder.code}`
+                    : "Venda de balcão"
+                }
+              />
+              <DetailItem
+                label="Setor"
+                value={sale.sector?.name ?? sale.sectorName ?? "-"}
+              />
+              <DetailItem
+                label="Status"
+                value={sale.status === "CONCLUIDA" ? "Concluída" : "Cancelada"}
+              />
+            </div>
+
+            <div className="rounded-md border border-border">
+              <div className="border-b border-border px-3 py-2">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Formas de pagamento
+                </h3>
+              </div>
+              <div className="divide-y divide-border">
+                {payments.map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {paymentLabel(payment.paymentMethod)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Taxa {formatCurrency(payment.feeAmount)}
+                      </p>
+                    </div>
+                    <div className="sm:text-right">
+                      <p className="text-[11px] uppercase text-muted-foreground">
+                        Recebido
+                      </p>
+                      <p className="font-medium">{formatCurrency(payment.amount)}</p>
+                    </div>
+                    <div className="sm:text-right">
+                      <p className="text-[11px] uppercase text-muted-foreground">
+                        Taxa
+                      </p>
+                      <p className="font-medium">{formatCurrency(payment.feeAmount)}</p>
+                    </div>
+                    <div className="sm:text-right">
+                      <p className="text-[11px] uppercase text-muted-foreground">
+                        Líquido
+                      </p>
+                      <p className="font-semibold">
+                        {formatCurrency(payment.netAmount)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
+  const [selectedPaymentSale, setSelectedPaymentSale] = useState<Sale | null>(null);
   const {
     data,
     isLoading,
@@ -114,6 +351,11 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
     to,
     totalPages,
   } = useSalesPage();
+
+  function openPaymentDetails(sale: Sale) {
+    setSelectedPaymentSale(sale);
+  }
+
   return (
     <section className="flex flex-col gap-6">
       {cancelMutation.isPending ? (
@@ -555,7 +797,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                       </h3>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {sale.sector?.name ?? sale.sectorName ?? "Sem setor"} •{" "}
-                        {paymentLabel(sale.paymentMethod)}
+                        {getPaymentSummaryLabel(sale)}
                       </p>
                     </div>
 
@@ -630,6 +872,16 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                       type="button"
                       variant="outline"
                       className="h-10 gap-1.5"
+                      onClick={() => openPaymentDetails(sale)}
+                    >
+                      <Eye className="size-3" />
+                      Detalhes
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 gap-1.5"
                       onClick={() =>
                         setExpandedId((current) =>
                           current === sale.id ? null : sale.id,
@@ -643,7 +895,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                     <Button
                       type="button"
                       variant="destructive"
-                      className="h-10 gap-1.5"
+                      className="col-span-2 h-10 gap-1.5"
                       disabled={sale.status === "CANCELADA" || cancelMutation.isPending}
                       onClick={() => cancelMutation.mutate(sale)}
                     >
@@ -683,7 +935,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                   <TableHead className="text-center font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Status
                   </TableHead>
-                  <TableHead className="w-44 text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                  <TableHead className="w-64 text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Ações
                   </TableHead>
                 </TableRow>
@@ -710,7 +962,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
-                        {paymentLabel(sale.paymentMethod)}
+                        {getPaymentSummaryLabel(sale)}
                       </TableCell>
 
                       <TableCell className="font-mono text-sm text-muted-foreground">
@@ -743,6 +995,17 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
 
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 gap-1.5 px-3 text-xs font-medium opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            onClick={() => openPaymentDetails(sale)}
+                          >
+                            <Eye className="size-3" />
+                            Detalhes
+                          </Button>
+
                           <Button
                             type="button"
                             size="sm"
@@ -862,6 +1125,15 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
         mode={selectedServiceOrder ? "SERVICE_ORDER" : "PDV"}
         serviceOrderId={selectedServiceOrder?.id}
         serviceOrderCode={selectedServiceOrder?.code}
+      />
+
+      <PaymentDetailsDialog
+        sale={selectedPaymentSale}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPaymentSale(null);
+          }
+        }}
       />
     </section>
   );

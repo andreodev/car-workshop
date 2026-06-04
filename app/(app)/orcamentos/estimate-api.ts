@@ -4,6 +4,7 @@ import type {
   EstimateListResponse,
   EstimatePayload,
   EstimateStatusPayload,
+  EstimateVisibility,
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -47,12 +48,14 @@ export async function fetchEstimates(params: {
   pageSize?: number;
   search?: string;
   status?: string;
+  visibility?: EstimateVisibility;
 }) {
   const query = toQuery({
     page: params.page ?? 1,
     pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
     search: params.search,
     status: params.status,
+    visibility: params.visibility,
   });
 
   const response = await fetch(`/api/estimates?${query}`, {

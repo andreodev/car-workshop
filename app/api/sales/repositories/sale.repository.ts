@@ -10,8 +10,33 @@ type FindPaginatedParams = {
 };
 
 export const saleListInclude = {
-  client: { select: { id: true, name: true } },
+  client: { select: { id: true, name: true, mobile: true, phone1: true } },
   sector: { select: { id: true, name: true } },
+  serviceOrder: {
+    select: {
+      id: true,
+      code: true,
+      mechanic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          plate: true,
+          brand: true,
+          model: true,
+          modelYear: true,
+          color: true,
+        },
+      },
+    },
+  },
+  payments: {
+    orderBy: { createdAt: "asc" },
+  },
   items: {
     orderBy: { createdAt: "asc" },
     include: {

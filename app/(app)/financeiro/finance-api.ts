@@ -12,6 +12,8 @@ import type {
   FinancialCategoryFormValues,
   FinancialCategoryListResponse,
   FinancialCategoryType,
+  MechanicCommissionPeriod,
+  MechanicCommissionReport,
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -74,6 +76,20 @@ export async function fetchFinancialAccounts(params: {
   });
 
   return parseResponse<FinancialAccountListResponse>(response);
+}
+
+export async function fetchMechanicCommissions(params: {
+  period?: MechanicCommissionPeriod;
+}) {
+  const query = toQuery({
+    period: params.period,
+  });
+
+  const response = await fetch(`/api/mechanics/commissions?${query}`, {
+    method: "GET",
+  });
+
+  return parseResponse<MechanicCommissionReport>(response);
 }
 
 export async function fetchFinancialAccount(id: string) {

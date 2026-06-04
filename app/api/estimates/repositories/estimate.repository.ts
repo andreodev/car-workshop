@@ -20,7 +20,7 @@ export const estimateListInclude = {
   client: { select: { id: true, name: true } },
   vehicle: { select: { id: true, plate: true, model: true } },
   mechanic: { select: { id: true, name: true } },
-  convertedServiceOrder: { select: { id: true, code: true } },
+  convertedServiceOrder: { select: { id: true, code: true, status: true } },
 } satisfies Prisma.EstimateInclude;
 
 export const estimateDetailInclude = {

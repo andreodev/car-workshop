@@ -276,29 +276,60 @@ export type SaleItem = {
   } | null;
 };
 
+export type SalePayment = {
+  id: string;
+  saleId: string;
+  paymentMethod: SalePaymentMethod;
+  amount: string;
+  feeAmount: string;
+  netAmount: string;
+  createdAt: string;
+};
+
 export type Sale = {
   id: string;
   code: number;
   status: SaleStatus;
   clientId: string | null;
   sectorId: string | null;
+  serviceOrderId?: string | null;
   responsible: string;
   sectorName: string | null;
   paymentMethod: SalePaymentMethod;
   notes: string | null;
   subtotal: string;
   discountTotal: string;
+  feeTotal: string;
   total: string;
   createdAt: string;
   updatedAt: string;
   client: {
     id: string;
     name: string;
+    mobile?: string | null;
+    phone1?: string | null;
   } | null;
   sector: {
     id: string;
     name: string;
   } | null;
+  serviceOrder?: {
+    id: string;
+    code: number;
+    mechanic: {
+      id: string;
+      name: string;
+    } | null;
+    vehicle: {
+      id: string;
+      plate: string;
+      brand: string | null;
+      model: string | null;
+      modelYear: number | null;
+      color: string | null;
+    } | null;
+  } | null;
+  payments?: SalePayment[];
   items: SaleItem[];
 };
 

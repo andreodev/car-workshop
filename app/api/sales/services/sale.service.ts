@@ -1,5 +1,5 @@
 ﻿import type { NextRequest } from "next/server";
-import { Prisma, type SalePaymentMethod } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import {
   saleListInclude,
@@ -146,37 +146,6 @@ function parseSaleItems(rawItems: unknown[]) {
   return {
     data: items,
   };
-}
-
-async function createSaleCashEntry(
-  tx: Prisma.TransactionClient,
-  sale: {
-    id: string;
-    code: number;
-    total: Prisma.Decimal;
-    paymentMethod: SalePaymentMethod;
-    client?: { name: string } | null;
-  },
-) {
-  if (new Prisma.Decimal(sale.total).lessThanOrEqualTo(0)) {
-    return;
-  }
-
-  const category = await ensurePdvCategory(tx);
-
-  await tx.cashMovement.create({
-    data: {
-      type: "ENTRADA",
-      categoryId: category.id,
-      saleId: sale.id,
-      description: `Venda PDV #${sale.code}`,
-      movementDate: new Date(),
-      amount: sale.total,
-      paymentMethod: sale.paymentMethod,
-      documentNumber: `PDV-${sale.code}`,
-      notes: sale.client?.name ? `Cliente: ${sale.client.name}` : "Caixa livre",
-    },
-  });
 }
 
 async function createMechanicCommissionPayable(params: {
@@ -623,6 +592,24 @@ export const saleService = {
     const subtotal = items.reduce((sum, item) => sum + item.total + item.discount, 0);
     const discountTotal = items.reduce((sum, item) => sum + item.discount, 0);
     const total = items.reduce((sum, item) => sum + item.total, 0);
+    const baseTotal = new Prisma.Decimal(Math.round(total * 100) / 100);
+    const payments = normalizePaymentsFromPayload(payload, baseTotal);
+
+    if (!payments?.length) {
+      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
+    }
+
+    const totalPaid = sumPaymentAmounts(payments);
+    const feeTotal = sumPaymentFees(payments);
+    const expectedTotal = baseTotal.plus(feeTotal);
+
+    if (!totalPaid.equals(expectedTotal)) {
+      return serviceError(
+        "Total pago inválido.",
+        400,
+        `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
+      );
+    }
 
     try {
       const sale = await saleRepository.runTransaction(async (tx) => {
@@ -632,11 +619,12 @@ export const saleService = {
             sectorId,
             responsible,
             sectorName: sector?.name ?? null,
-            paymentMethod,
+            paymentMethod: payments[0].paymentMethod,
             notes: normalizeString(payload.notes),
             subtotal: Math.round(subtotal * 100) / 100,
             discountTotal: Math.round(discountTotal * 100) / 100,
-            total: Math.round(total * 100) / 100,
+            feeTotal,
+            total: totalPaid,
             items: {
               create: items.map((item) => ({
                 catalogItemId: item.catalogItemId,
@@ -647,17 +635,16 @@ export const saleService = {
                 total: item.total,
               })),
             },
-          },
-          include: {
-            client: { select: { id: true, name: true } },
-            sector: { select: { id: true, name: true } },
-            items: {
-              orderBy: { createdAt: "asc" },
-              include: {
-                catalogItem: { select: { id: true, code: true, name: true, type: true } },
-              },
+            payments: {
+              create: payments.map((payment) => ({
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                feeAmount: payment.feeAmount,
+                netAmount: payment.amount.minus(payment.feeAmount),
+              })),
             },
           },
+          include: saleListInclude,
         });
 
         for (const item of createdSale.items) {
@@ -718,7 +705,20 @@ export const saleService = {
           });
         }
 
-        await createSaleCashEntry(tx, createdSale);
+        const category = await ensurePdvCategory(tx);
+
+        await createPaymentCashMovements({
+          tx,
+          saleId: createdSale.id,
+          code: createdSale.code,
+          payments,
+          categoryId: category.id,
+          description: `Venda PDV #${createdSale.code}`,
+          documentNumber: `PDV-${createdSale.code}`,
+          notes: createdSale.client?.name
+            ? `Cliente: ${createdSale.client.name}`
+            : "Caixa livre",
+        });
 
         return createdSale;
       });

@@ -502,9 +502,12 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: Request, { params }: RouteContext) {
   const session = await getServerAuthSession();
   const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const contentDisposition =
+    searchParams.get("download") === "1" ? "attachment" : "inline";
 
   if (!session?.user) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
@@ -1024,7 +1027,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   return new Response(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename=recibo-${sale.code}.pdf`,
+      "Content-Disposition": `${contentDisposition}; filename=recibo-${sale.code}.pdf`,
       "Cache-Control": "private, max-age=300",
     },
   });

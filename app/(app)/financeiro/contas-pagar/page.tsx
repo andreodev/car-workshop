@@ -1,20 +1,29 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Download, Eye, Wrench } from "lucide-react";
 
-import { fetchFinancialAccounts } from "../finance-api";
+import { fetchFinancialAccounts, fetchMechanicCommissions } from "../finance-api";
 import type {
   FinancialAccount,
   FinancialAccountStatus,
   FinancialAccountType,
+  MechanicCommissionAccount,
+  MechanicCommissionPeriod,
 } from "../types";
 
 import Header from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   Table,
@@ -24,6 +33,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+const periodOptions: Array<{ value: MechanicCommissionPeriod; label: string }> = [
+  { value: "daily", label: "Diário" },
+  { value: "weekly", label: "Semanal" },
+  { value: "monthly", label: "Mensal" },
+];
 
 function formatCurrency(value: string | number | null | undefined) {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
@@ -46,6 +61,200 @@ function formatDate(value: string | null) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function formatPercent(value: string | null) {
+  const parsed = Number(value ?? Number.NaN);
+
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  return `${new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: parsed % 1 === 0 ? 0 : 2,
+  }).format(parsed)}%`;
+}
+
+function formatVehicle(account: MechanicCommissionAccount) {
+  const vehicle = account.serviceOrder?.vehicle;
+
+  if (!vehicle) {
+    return "-";
+  }
+
+  return [vehicle.plate, vehicle.brand, vehicle.model].filter(Boolean).join(" - ");
+}
+
+function formatSource(account: MechanicCommissionAccount) {
+  if (account.sourceItems.length === 0) {
+    return account.notes ?? account.description;
+  }
+
+  return account.sourceItems
+    .map((item) => `${item.description} (${formatCurrency(item.commissionBase)})`)
+    .join("; ");
+}
+
+function DetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function CommissionDetailsDialog({
+  account,
+  open,
+  onOpenChange,
+}: {
+  account: MechanicCommissionAccount | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da comissão</DialogTitle>
+          <DialogDescription>
+            Origem do valor que será pago ao mecânico.
+          </DialogDescription>
+        </DialogHeader>
+
+        {account ? (
+          <div className="space-y-5">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailItem
+                label="Comissão"
+                value={formatCurrency(account.amount)}
+              />
+              <DetailItem
+                label="Base comissionável"
+                value={formatCurrency(account.commissionBase)}
+              />
+              <DetailItem
+                label="Percentual"
+                value={formatPercent(account.commissionPercent)}
+              />
+              <DetailItem
+                label="Vencimento"
+                value={formatDate(account.dueDate)}
+              />
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailItem
+                label="Ordem de serviço"
+                value={
+                  account.serviceOrder
+                    ? `#${account.serviceOrder.code}`
+                    : account.documentNumber ?? "-"
+                }
+              />
+              <DetailItem label="Placa" value={formatVehicle(account)} />
+              <DetailItem
+                label="Cliente"
+                value={account.serviceOrder?.client?.name ?? "-"}
+              />
+              <DetailItem
+                label="Total da OS"
+                value={formatCurrency(account.serviceOrder?.total)}
+              />
+            </section>
+
+            <section className="rounded-md border">
+              <div className="border-b p-4">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Itens que geraram a comissão
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  A base usa a base comissionável do item; quando ela não existe, usa o total dos serviços.
+                </p>
+              </div>
+
+              {account.sourceItems.length ? (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[760px]">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Item</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead className="text-right">Qtd.</TableHead>
+                        <TableHead className="text-right">Unitário</TableHead>
+                        <TableHead className="text-right">Desconto</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Base</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {account.sourceItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">
+                            {item.description}
+                          </TableCell>
+                          <TableCell>
+                            {item.type === "SERVICE" ? "Serviço" : "Produto"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.quantity}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.unitPrice)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.discount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.total)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(item.commissionBase)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="p-6 text-sm text-muted-foreground">
+                  Nenhum item de origem vinculado a esta comissão. Confira a observação da conta financeira.
+                </div>
+              )}
+            </section>
+
+            <section className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Conta financeira</p>
+                <p className="mt-1 font-medium text-foreground">
+                  #{account.code} {account.description}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Documento: {account.documentNumber ?? "-"}
+                </p>
+              </div>
+
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Observação</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {account.notes ?? "-"}
+                </p>
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function statusBadge(status: FinancialAccountStatus) {
@@ -90,6 +299,10 @@ function SummaryCard({
 
 export default function Page() {
   const router = useRouter();
+  const [commissionPeriod, setCommissionPeriod] =
+    useState<MechanicCommissionPeriod>("weekly");
+  const [selectedCommission, setSelectedCommission] =
+    useState<MechanicCommissionAccount | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: ["financial-payables"],
@@ -100,6 +313,12 @@ export default function Page() {
         search: "",
         type: "PAGAR" as FinancialAccountType,
       }),
+    staleTime: 30_000,
+  });
+
+  const mechanicCommissionsQuery = useQuery({
+    queryKey: ["mechanic-commissions-payable", commissionPeriod],
+    queryFn: () => fetchMechanicCommissions({ period: commissionPeriod }),
     staleTime: 30_000,
   });
 
@@ -117,6 +336,10 @@ export default function Page() {
       0
     );
   }, [pendingAccounts]);
+
+  const mechanicCommissionTotal = Number(
+    mechanicCommissionsQuery.data?.summary.total ?? 0
+  );
 
   const groupedPayables = useMemo(() => {
     return pendingAccounts.reduce<
@@ -175,99 +398,170 @@ export default function Page() {
         value={formatCurrency(totalPayable)}
       />
 
-      {accountsQuery.isLoading ? (
-        <div className="rounded-md border bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">
-          Carregando contas a pagar...
-        </div>
-      ) : groupedEntries.length ? (
-        <div className="space-y-6">
-          {groupedEntries.map(([responsible, group]) => (
-            <div
-              key={responsible}
-              className="overflow-hidden rounded-md border bg-card shadow-sm"
-            >
-              <div className="flex flex-col gap-4 border-b p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {responsible}
-                  </h2>
-
-                  <p className="text-sm text-muted-foreground">
-                    {group.items.length} conta(s) pendente(s)
-                  </p>
-                </div>
-
-                <div className="text-left lg:text-right">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Total a pagar
-                  </p>
-
-                  <p className="text-2xl font-bold text-rose-700">
-                    {formatCurrency(group.total)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <Table className="min-w-[920px]">
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Conta</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Vencimento</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Observação</TableHead>
-                      <TableHead className="text-right">
-                        Valor
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {group.items.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell>
-                          <div className="font-medium">
-                            #{account.code} {account.description}
-                          </div>
-
-                          <div className="text-xs text-muted-foreground">
-                            {account.documentNumber || "-"}
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          {account.category ?? "-"}
-                        </TableCell>
-
-                        <TableCell>
-                          {formatDate(account.dueDate)}
-                        </TableCell>
-
-                        <TableCell>
-                          {statusBadge(account.status)}
-                        </TableCell>
-
-                        <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
-                          {account.notes ?? "-"}
-                        </TableCell>
-
-                        <TableCell className="text-right font-semibold text-rose-700">
-                          {formatCurrency(account.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+      <section className="rounded-md border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 border-b p-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-700">
+              <Wrench className="size-5" />
             </div>
-          ))}
+
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Mecânicos a pagar
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Comissões pendentes por vencimento, com placa, OS e base de cálculo.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex rounded-md border bg-background p-1">
+              {periodOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={commissionPeriod === option.value ? "default" : "ghost"}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setCommissionPeriod(option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="text-left sm:text-right">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Total do período
+              </p>
+              <p className="text-2xl font-bold text-rose-700">
+                {formatCurrency(mechanicCommissionTotal)}
+              </p>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="rounded-md border bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">
-          Nenhuma conta pendente encontrada.
-        </div>
-      )}
+
+        {mechanicCommissionsQuery.isLoading ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Carregando comissões de mecânicos...
+          </div>
+        ) : mechanicCommissionsQuery.data?.groups.length ? (
+          <div className="divide-y">
+            {mechanicCommissionsQuery.data.groups.map((group) => (
+              <div key={group.mechanicName} className="p-5">
+                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {group.mechanicName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {group.accountsCount} comissão(ões) em {group.ordersCount} OS
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        A pagar
+                      </p>
+                      <p className="text-xl font-bold text-rose-700">
+                        {formatCurrency(group.total)}
+                      </p>
+                    </div>
+
+                    <Button variant="outline" size="sm" asChild className="gap-2">
+                      <a
+                        href={`/api/mechanics/commissions/pdf?period=${commissionPeriod}&mechanicName=${encodeURIComponent(group.mechanicName)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Download className="size-4" />
+                        PDF
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-md border">
+                  <Table className="min-w-[1120px]">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>OS</TableHead>
+                        <TableHead>Placa</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Detalhes da comissão</TableHead>
+                        <TableHead className="text-right">Base</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                        <TableHead className="text-right">Comissão</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {group.accounts.map((account) => (
+                        <TableRow key={account.id}>
+                          <TableCell className="font-mono">
+                            {account.serviceOrder
+                              ? `#${account.serviceOrder.code}`
+                              : account.documentNumber ?? "-"}
+                          </TableCell>
+                          <TableCell>{formatVehicle(account)}</TableCell>
+                          <TableCell>
+                            {account.serviceOrder?.client?.name ?? "-"}
+                          </TableCell>
+                          <TableCell>{formatDate(account.dueDate)}</TableCell>
+                          <TableCell className="max-w-[360px] text-sm text-muted-foreground">
+                            <div className="line-clamp-2">{formatSource(account)}</div>
+                            <div className="mt-1 text-xs">
+                              Conta #{account.code} · {account.description}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(account.commissionBase)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatPercent(account.commissionPercent)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-rose-700">
+                            {formatCurrency(account.amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => setSelectedCommission(account)}
+                            >
+                              <Eye className="size-4" />
+                              Detalhes
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Nenhuma comissão de mecânico a pagar neste período.
+          </div>
+        )}
+      </section>
+      <CommissionDetailsDialog
+        account={selectedCommission}
+        open={Boolean(selectedCommission)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCommission(null);
+          }
+        }}
+      />
     </section>
   );
 }

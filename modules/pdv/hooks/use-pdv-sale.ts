@@ -473,14 +473,35 @@ export function usePdvSale({
         field === "paymentMethod" ? value : maskCurrencyInput(value);
 
       setPaymentLines((current) => {
-        const updated = current.map((line) =>
-          line.localId === lineId
-            ? {
-                ...line,
-                [field]: nextValue,
-              }
-            : line
-        );
+        const updated = current.map((line) => {
+          if (line.localId !== lineId) {
+            return line;
+          }
+
+          if (field !== "feeAmount") {
+            return {
+              ...line,
+              [field]: nextValue,
+            };
+          }
+
+          const currentAmount = toCurrencyNumber(parseDecimal(line.amount));
+          const currentFee = toCurrencyNumber(parseDecimal(line.feeAmount));
+          const nextFee = toCurrencyNumber(parseDecimal(nextValue));
+          const nextAmount =
+            currentAmount > 0
+              ? toCurrencyNumber(currentAmount - currentFee + nextFee)
+              : 0;
+
+          return {
+            ...line,
+            feeAmount: nextValue,
+            amount:
+              nextAmount > 0
+                ? maskCurrencyInput(String(Math.round(nextAmount * 100)))
+                : line.amount,
+          };
+        });
 
         if (field === "paymentMethod" && updated[0]?.localId === lineId) {
           setPaymentMethodState(value as SalePaymentMethod);
@@ -493,14 +514,16 @@ export function usePdvSale({
   );
 
   const fillSinglePaymentWithTotal = useCallback(() => {
+    const feeAmount = paymentFeeTotal;
+
     setPaymentLines((current) => [
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
-        String(expectedPaymentTotal * 100),
-        "0"
+        String(Math.round((saleTotal + feeAmount) * 100)),
+        String(Math.round(feeAmount * 100))
       ),
     ]);
-  }, [expectedPaymentTotal, paymentMethod]);
+  }, [paymentFeeTotal, paymentMethod, saleTotal]);
 
   const openPaymentDialog = useCallback(() => {
     setPaymentDialogOpen(true);
