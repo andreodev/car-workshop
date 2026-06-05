@@ -179,6 +179,9 @@ const styles = StyleSheet.create({
   dueDateCell: {
     width: 58,
   },
+  createdAtCell: {
+    width: 58,
+  },
   baseCell: {
     width: 70,
     textAlign: "right",
@@ -457,6 +460,7 @@ export async function GET(request: NextRequest) {
                 h(Text, { style: [styles.cell, styles.osCell, styles.headerText] }, "OS"),
                 h(Text, { style: [styles.cell, styles.vehicleCell, styles.headerText] }, "Placa"),
                 h(Text, { style: [styles.cell, styles.clientCell, styles.headerText] }, "Origem"),
+                h(Text, { style: [styles.cell, styles.createdAtCell, styles.headerText] }, "Criada"),
                 h(Text, { style: [styles.cell, styles.dueDateCell, styles.headerText] }, "Venc."),
                 h(Text, { style: [styles.cell, styles.baseCell, styles.headerText] }, "Base"),
                 h(Text, { style: [styles.cell, styles.percentCell, styles.headerText] }, "%"),
@@ -479,6 +483,7 @@ export async function GET(request: NextRequest) {
                       .map((item) => item.description)
                       .join(", ") || account.notes || account.description}`
                   ),
+                  h(Text, { style: [styles.cell, styles.createdAtCell] }, formatDate(new Date(account.createdAt))),
                   h(Text, { style: [styles.cell, styles.dueDateCell] }, formatDate(new Date(account.dueDate))),
                   h(Text, { style: [styles.cell, styles.baseCell] }, formatCurrency(account.commissionBase)),
                   h(Text, { style: [styles.cell, styles.percentCell] }, formatPercent(account.commissionPercent)),

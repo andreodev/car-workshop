@@ -155,6 +155,7 @@ export type MechanicCommissionAccount = {
   description: string;
   documentNumber: string | null;
   dueDate: string;
+  createdAt: string;
   amount: string;
   status: "ABERTA" | "VENCIDA";
   notes: string | null;

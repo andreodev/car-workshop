@@ -22,6 +22,7 @@ export type MechanicCommissionAccount = {
   description: string;
   documentNumber: string | null;
   dueDate: Date;
+  createdAt: Date;
   amount: string;
   status: "ABERTA" | "VENCIDA";
   notes: string | null;
@@ -243,7 +244,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
     where: {
       type: "PAGAR",
       status: { in: [...commissionStatuses] },
-      dueDate: {
+      createdAt: {
         gte: periodRange.from,
         lte: periodRange.to,
       },
@@ -254,7 +255,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
         { notes: { contains: "Comissão de", mode: "insensitive" } },
       ],
     },
-    orderBy: [{ counterparty: "asc" }, { dueDate: "asc" }, { code: "asc" }],
+    orderBy: [{ counterparty: "asc" }, { createdAt: "asc" }, { code: "asc" }],
     take: 5000,
   });
 
@@ -400,6 +401,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       description: account.description,
       documentNumber: account.documentNumber,
       dueDate: account.dueDate,
+      createdAt: account.createdAt,
       amount: decimalToString(account.amount),
       status: account.status as "ABERTA" | "VENCIDA",
       notes: normalizeCommissionNotes(

@@ -192,6 +192,10 @@ function CommissionDetailsDialog({
                 label="Vencimento"
                 value={formatDate(account.dueDate)}
               />
+              <DetailItem
+                label="Criada em"
+                value={formatDateTime(account.createdAt)}
+              />
             </section>
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -708,7 +712,7 @@ export default function Page() {
                 Mecânicos a pagar
               </h2>
               <p className="text-sm text-muted-foreground">
-                Comissões pendentes por vencimento, com placa, OS e base de cálculo.
+                Comissões pendentes por data de criação, com placa, OS e base de cálculo.
               </p>
             </div>
           </div>
@@ -782,12 +786,13 @@ export default function Page() {
                 </div>
 
                 <div className="overflow-x-auto rounded-md border">
-                  <Table className="min-w-[1120px]">
+                  <Table className="min-w-[1220px]">
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead>OS</TableHead>
                         <TableHead>Placa</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Criação</TableHead>
                         <TableHead>Vencimento</TableHead>
                         <TableHead>Detalhes da comissão</TableHead>
                         <TableHead className="text-right">Base</TableHead>
@@ -809,6 +814,7 @@ export default function Page() {
                           <TableCell>
                             {account.serviceOrder?.client?.name ?? "-"}
                           </TableCell>
+                          <TableCell>{formatDate(account.createdAt)}</TableCell>
                           <TableCell>{formatDate(account.dueDate)}</TableCell>
                           <TableCell className="max-w-[360px] text-sm text-muted-foreground">
                             <div className="line-clamp-2">{formatSource(account)}</div>
