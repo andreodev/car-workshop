@@ -583,7 +583,7 @@ export const saleService = {
 
       if (currentStock.lessThan(requestedQuantity)) {
         return serviceError(
-          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
+          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
           400,
         );
       }
@@ -666,7 +666,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
             );
           }
 
@@ -1039,7 +1039,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
                 currentStock,
               )}. Solicitado: ${formatStock(quantity)}.`,
             );

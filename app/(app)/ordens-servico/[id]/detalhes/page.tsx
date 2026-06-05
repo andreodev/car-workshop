@@ -72,6 +72,9 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
     onSuccess: (order) => {
       queryClient.setQueryData(["service-order", id], order);
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["service-order-catalog-items"] });
     },
   });
 

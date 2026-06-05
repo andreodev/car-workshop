@@ -21,6 +21,12 @@ export const serviceOrderStatusOptions: Array<{
   },
   { value: "IMPEDIDA", label: "Impedida", variant: "destructive" },
   { value: "FINALIZADA", label: "Concluída", variant: "default" },
+  {
+    value: "PAGA",
+    label: "Paga",
+    variant: "default",
+    className: "bg-emerald-600/10 text-emerald-700",
+  },
   { value: "CANCELADA", label: "Cancelada", variant: "outline" },
 ];
 

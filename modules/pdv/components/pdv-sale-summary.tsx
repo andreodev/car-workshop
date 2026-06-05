@@ -369,6 +369,15 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
               Diferença de {formatCurrency(Math.abs(state.paymentDifference))}
             </div>
           )}
+
+          {state.localError ? (
+            <div
+              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {state.localError}
+            </div>
+          ) : null}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

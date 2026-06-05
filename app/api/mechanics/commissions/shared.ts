@@ -154,6 +154,86 @@ function serviceItemCommissionBase(item: {
   return isService ? new Prisma.Decimal(item.total) : new Prisma.Decimal(0);
 }
 
+function deriveCommissionBaseFromAccount(
+  amount: Prisma.Decimal,
+  commissionPercent: Prisma.Decimal | null
+) {
+  if (!commissionPercent || commissionPercent.lessThanOrEqualTo(0)) {
+    return null;
+  }
+
+  return new Prisma.Decimal(amount)
+    .mul(100)
+    .div(commissionPercent)
+    .toDecimalPlaces(2);
+}
+
+function decimalToCents(value: Prisma.Decimal) {
+  return Number(value.mul(100).toDecimalPlaces(0).toString());
+}
+
+function findSourceItemsForBase<
+  T extends {
+    commissionBaseValue: Prisma.Decimal;
+  },
+>(items: T[], targetBase: Prisma.Decimal) {
+  const targetCents = decimalToCents(targetBase);
+
+  if (targetCents <= 0 || items.length === 0) {
+    return items;
+  }
+
+  const candidates = items
+    .map((item, index) => ({
+      item,
+      index,
+      cents: decimalToCents(item.commissionBaseValue),
+    }))
+    .filter((entry) => entry.cents > 0)
+    .sort((a, b) => b.cents - a.cents || a.index - b.index);
+
+  const matches = new Map<number, number[]>([[0, []]]);
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    const currentMatches = Array.from(matches.entries());
+
+    for (const [sum, selected] of currentMatches) {
+      const nextSum = sum + candidate.cents;
+
+      if (nextSum > targetCents || matches.has(nextSum)) {
+        continue;
+      }
+
+      const nextSelected = [...selected, index];
+
+      if (nextSum === targetCents) {
+        const selectedIndexes = new Set(nextSelected);
+        return candidates
+          .filter((_, candidateIndex) => selectedIndexes.has(candidateIndex))
+          .sort((a, b) => a.index - b.index)
+          .map((entry) => entry.item);
+      }
+
+      matches.set(nextSum, nextSelected);
+    }
+  }
+
+  return items;
+}
+
+function normalizeCommissionNotes(
+  notes: string | null,
+  commissionBase: Prisma.Decimal,
+  shouldNormalize: boolean
+) {
+  if (!notes || !shouldNormalize || !/comiss/i.test(notes) || !/Base:\s*[\d.,]+/i.test(notes)) {
+    return notes;
+  }
+
+  return notes.replace(/Base:\s*[\d.,]+/i, `Base: ${commissionBase.toFixed(2)}`);
+}
+
 export async function getMechanicCommissionReport(params: CommissionReportParams = {}) {
   const period = normalizePeriod(params.period);
   const periodRange = buildPeriodRange(period);
@@ -249,7 +329,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
         ? serviceOrder.mechanic.commissionPercent
         : null);
 
-    const sourceItems =
+    const sourceItemsWithBase =
       serviceOrder?.items
         .filter((item) => {
           const itemMechanicName = item.mechanic?.name ?? serviceOrder.mechanic?.name ?? null;
@@ -266,14 +346,35 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
             unitPrice: decimalToString(item.unitPrice),
             discount: decimalToString(item.discount),
             total: decimalToString(item.total),
-            commissionBase: decimalToString(base),
+            commissionBaseValue: base,
           };
         }) ?? [];
 
-    const commissionBase = sourceItems.reduce(
-      (sum, item) => sum.add(item.commissionBase),
+    const sourceItemsCommissionBase = sourceItemsWithBase.reduce(
+      (sum, item) => sum.add(item.commissionBaseValue),
       new Prisma.Decimal(0)
     );
+    const accountCommissionBase = deriveCommissionBaseFromAccount(
+      account.amount,
+      commissionPercent ?? null
+    );
+    const commissionBase = accountCommissionBase ?? sourceItemsCommissionBase;
+    const hasAccountCommissionBaseOverride =
+      accountCommissionBase !== null && !accountCommissionBase.equals(sourceItemsCommissionBase);
+    const reconciledSourceItems =
+      hasAccountCommissionBaseOverride
+        ? findSourceItemsForBase(sourceItemsWithBase, accountCommissionBase)
+        : sourceItemsWithBase;
+    const sourceItems = reconciledSourceItems.map((item) => ({
+      id: item.id,
+      description: item.description,
+      type: item.type,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount: item.discount,
+      total: item.total,
+      commissionBase: decimalToString(item.commissionBaseValue),
+    }));
 
     if (!groups.has(groupName)) {
       groups.set(groupName, {
@@ -301,7 +402,11 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       dueDate: account.dueDate,
       amount: decimalToString(account.amount),
       status: account.status as "ABERTA" | "VENCIDA",
-      notes: account.notes,
+      notes: normalizeCommissionNotes(
+        account.notes,
+        commissionBase,
+        hasAccountCommissionBaseOverride
+      ),
       commissionPercent: commissionPercent ? decimalToString(commissionPercent) : null,
       commissionBase: decimalToString(commissionBase),
       serviceOrder: serviceOrder

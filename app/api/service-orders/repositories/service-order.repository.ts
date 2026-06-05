@@ -54,6 +54,19 @@ export const serviceOrderInclude = {
   vehicleInspection: vehicleInspectionInclude,
 } satisfies Prisma.ServiceOrderInclude;
 
+async function findSyncedServiceOrder(tx: Prisma.TransactionClient, id: string) {
+  const order = await tx.serviceOrder.findUnique({
+    where: { id },
+    include: serviceOrderInclude,
+  });
+
+  if (!order) {
+    throw new Error("Ordem de serviço não encontrada após sincronização.");
+  }
+
+  return order;
+}
+
 export const serviceOrderRepository = {
   async findPaginated({ where, page, pageSize }: FindPaginatedParams) {
     const [total, items] = await prisma.$transaction([
@@ -139,7 +152,7 @@ export const serviceOrderRepository = {
       await syncServiceOrderReceivable(tx, createdOrder.id);
       await syncServiceOrderStockMovements(tx, createdOrder.id);
 
-      return createdOrder;
+      return findSyncedServiceOrder(tx, createdOrder.id);
     });
   },
 
@@ -155,7 +168,7 @@ export const serviceOrderRepository = {
         await syncServiceOrderReceivable(tx, id);
         await syncServiceOrderStockMovements(tx, id);
 
-        return updatedOrder;
+        return findSyncedServiceOrder(tx, updatedOrder.id);
       },
       {
         timeout: 15000,
@@ -175,7 +188,7 @@ export const serviceOrderRepository = {
       await syncServiceOrderReceivable(tx, id);
       await syncServiceOrderStockMovements(tx, id);
 
-      return updatedOrder;
+      return findSyncedServiceOrder(tx, updatedOrder.id);
     });
   },
 

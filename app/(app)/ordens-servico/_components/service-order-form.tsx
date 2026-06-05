@@ -284,6 +284,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["service-order-catalog-items"] });
       if (mode === "edit" && initialData?.id) {
         queryClient.invalidateQueries({ queryKey: ["service-order", initialData.id] });
       }
