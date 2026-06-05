@@ -25,7 +25,7 @@ export function useSalesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<SalesStatusFilter>("TODOS");
+  const [status, setStatus] = useState<SalesStatusFilter>("CONCLUIDA");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);

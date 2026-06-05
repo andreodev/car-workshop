@@ -2,10 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpRight, Download, Eye, Wrench } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ArrowUpRight, Check, Download, Eye, Wrench } from "lucide-react";
 
-import { fetchFinancialAccounts, fetchMechanicCommissions } from "../finance-api";
+import {
+  fetchFinancialAccounts,
+  fetchMechanicCommissions,
+  updateFinancialAccountStatus,
+} from "../finance-api";
+import {
+  getFinancialStatusLabel,
+  getFinancialTypeLabel,
+  getPaymentMethodLabel,
+} from "../status";
 import type {
   FinancialAccount,
   FinancialAccountStatus,
@@ -17,6 +26,7 @@ import type {
 import Header from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -108,6 +118,39 @@ function DetailItem({
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 font-medium text-foreground">{value}</p>
     </div>
+  );
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatValue(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return String(value);
+}
+
+function accountResponsible(account: FinancialAccount) {
+  return (
+    account.supplier?.name ??
+    account.client?.name ??
+    account.counterparty ??
+    "Sem responsável"
   );
 }
 
@@ -269,8 +312,118 @@ function statusBadge(status: FinancialAccountStatus) {
 
   return (
     <Badge className={className}>
-      {status}
+      {getFinancialStatusLabel(status)}
     </Badge>
+  );
+}
+
+function PayableDetailsDialog({
+  account,
+  open,
+  onOpenChange,
+}: {
+  account: FinancialAccount | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da conta a pagar</DialogTitle>
+          <DialogDescription>
+            Informações completas da conta pendente selecionada.
+          </DialogDescription>
+        </DialogHeader>
+
+        {account ? (
+          <div className="space-y-5">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailItem
+                label="Valor"
+                value={formatCurrency(account.amount)}
+              />
+              <DetailItem
+                label="Valor pago"
+                value={formatCurrency(account.paidAmount)}
+              />
+              <DetailItem
+                label="Vencimento"
+                value={formatDate(account.dueDate)}
+              />
+              <div className="rounded-md border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Status</p>
+                <div className="mt-2">{statusBadge(account.status)}</div>
+              </div>
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Conta financeira</p>
+                <p className="mt-1 font-medium text-foreground">
+                  #{account.code} {account.description}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {getFinancialTypeLabel(account.type)} · {formatValue(account.category)}
+                </p>
+              </div>
+
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Responsável</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {accountResponsible(account)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Forma: {getPaymentMethodLabel(account.paymentMethod)}
+                </p>
+              </div>
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <DetailItem
+                label="Documento"
+                value={formatValue(account.documentNumber)}
+              />
+              <DetailItem
+                label="Pagamento"
+                value={formatDate(account.paymentDate)}
+              />
+              <DetailItem
+                label="Criada em"
+                value={formatDateTime(account.createdAt)}
+              />
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Origem vinculada</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {account.serviceOrder
+                    ? `OS #${account.serviceOrder.code}`
+                    : account.supplierOrder
+                      ? `Pedido #${account.supplierOrder.code}`
+                      : "-"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {account.serviceOrder
+                    ? `Status da OS: ${account.serviceOrder.status}`
+                    : account.supplierOrder
+                      ? `Status do pedido: ${account.supplierOrder.status}`
+                      : "Sem origem vinculada."}
+                </p>
+              </div>
+
+              <div className="rounded-md border p-4">
+                <p className="text-xs text-muted-foreground">Observações</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {formatValue(account.notes)}
+                </p>
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -299,10 +452,14 @@ function SummaryCard({
 
 export default function Page() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [commissionPeriod, setCommissionPeriod] =
     useState<MechanicCommissionPeriod>("weekly");
   const [selectedCommission, setSelectedCommission] =
     useState<MechanicCommissionAccount | null>(null);
+  const [selectedPayable, setSelectedPayable] =
+    useState<FinancialAccount | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: ["financial-payables"],
@@ -320,6 +477,33 @@ export default function Page() {
     queryKey: ["mechanic-commissions-payable", commissionPeriod],
     queryFn: () => fetchMechanicCommissions({ period: commissionPeriod }),
     staleTime: 30_000,
+  });
+
+  const markAsPaidMutation = useMutation({
+    mutationFn: (accountId: string) =>
+      updateFinancialAccountStatus(accountId, "PAGA"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["financial-payables"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["mechanic-commissions-payable"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
+
+      toast({
+        title: "Conta marcada como paga",
+        description: "O pagamento foi registrado e o caixa foi atualizado.",
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao marcar como paga",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível registrar o pagamento.",
+        variant: "destructive",
+      });
+    },
   });
 
   const pendingAccounts = useMemo(() => {
@@ -342,37 +526,47 @@ export default function Page() {
   );
 
   const groupedPayables = useMemo(() => {
-    return pendingAccounts.reduce<
-      Record<
-        string,
-        {
-          total: number;
-          items: FinancialAccount[];
+    return pendingAccounts
+      .filter((account) => account.category?.toLowerCase() !== "comissão mecânico")
+      .reduce<
+        Record<
+          string,
+          {
+            total: number;
+            items: FinancialAccount[];
+          }
+        >
+      >((acc, account) => {
+        const key =
+          account.client?.name ??
+          account.counterparty ??
+          "Sem responsável";
+
+        if (!acc[key]) {
+          acc[key] = {
+            total: 0,
+            items: [],
+          };
         }
-      >
-    >((acc, account) => {
-      const key =
-        account.client?.name ??
-        account.counterparty ??
-        "Sem responsável";
 
-      if (!acc[key]) {
-        acc[key] = {
-          total: 0,
-          items: [],
-        };
-      }
+        acc[key].total += Number(account.amount ?? 0);
+        acc[key].items.push(account);
 
-      acc[key].total += Number(account.amount ?? 0);
-      acc[key].items.push(account);
-
-      return acc;
-    }, {});
+        return acc;
+      }, {});
   }, [pendingAccounts]);
 
   const groupedEntries = Object.entries(groupedPayables).sort(
     (a, b) => b[1].total - a[1].total
   );
+
+  const handleMarkAsPaid = (accountId: string) => {
+    if (!confirm("Marcar esta conta como paga? O lançamento será registrado no caixa.")) {
+      return;
+    }
+
+    markAsPaidMutation.mutate(accountId);
+  };
 
   return (
     <section className="flex flex-col gap-6">
@@ -397,6 +591,110 @@ export default function Page() {
         label="Total pendente a pagar"
         value={formatCurrency(totalPayable)}
       />
+
+      <section className="rounded-md border bg-card shadow-sm">
+        <div className="border-b p-5">
+          <h2 className="text-lg font-semibold text-foreground">
+            Demais contas pendentes
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Contas a pagar agrupadas por responsável, fornecedor ou cliente.
+          </p>
+        </div>
+
+        {accountsQuery.isLoading ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Carregando contas a pagar...
+          </div>
+        ) : groupedEntries.length ? (
+          <div className="divide-y">
+            {groupedEntries.map(([groupName, group]) => (
+              <div key={groupName} className="p-5">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {groupName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {group.items.length} conta(s) pendente(s)
+                    </p>
+                  </div>
+
+                  <p className="text-xl font-bold text-rose-700">
+                    {formatCurrency(group.total)}
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto rounded-md border">
+                  <Table className="min-w-[880px]">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Conta</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {group.items.map((account) => (
+                        <TableRow key={account.id}>
+                          <TableCell>
+                            <div className="font-medium text-foreground">
+                              #{account.code} {account.description}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {account.documentNumber || account.notes || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>{account.category ?? "-"}</TableCell>
+                          <TableCell>{formatDate(account.dueDate)}</TableCell>
+                          <TableCell>{statusBadge(account.status)}</TableCell>
+                          <TableCell className="text-right font-semibold text-rose-700">
+                            {formatCurrency(account.amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                disabled={markAsPaidMutation.isPending}
+                                onClick={() => handleMarkAsPaid(account.id)}
+                              >
+                                <Check className="size-4" />
+                                Pagar
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => setSelectedPayable(account)}
+                              >
+                                <Eye className="size-4" />
+                                Detalhes
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Nenhuma conta a pagar fora das comissões de mecânico.
+          </div>
+        )}
+      </section>
 
       <section className="rounded-md border bg-card shadow-sm">
         <div className="flex flex-col gap-4 border-b p-5 xl:flex-row xl:items-center xl:justify-between">
@@ -528,16 +826,30 @@ export default function Page() {
                             {formatCurrency(account.amount)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => setSelectedCommission(account)}
-                            >
-                              <Eye className="size-4" />
-                              Detalhes
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                disabled={markAsPaidMutation.isPending}
+                                onClick={() => handleMarkAsPaid(account.id)}
+                              >
+                                <Check className="size-4" />
+                                Pagar
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => setSelectedCommission(account)}
+                              >
+                                <Eye className="size-4" />
+                                Detalhes
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -559,6 +871,15 @@ export default function Page() {
         onOpenChange={(open) => {
           if (!open) {
             setSelectedCommission(null);
+          }
+        }}
+      />
+      <PayableDetailsDialog
+        account={selectedPayable}
+        open={Boolean(selectedPayable)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPayable(null);
           }
         }}
       />

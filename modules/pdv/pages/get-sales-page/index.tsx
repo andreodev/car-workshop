@@ -321,6 +321,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
   const [selectedPaymentSale, setSelectedPaymentSale] = useState<Sale | null>(null);
   const {
     data,
+    isFetching,
     isLoading,
     isError,
     error,
@@ -355,6 +356,8 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
   function openPaymentDetails(sale: Sale) {
     setSelectedPaymentSale(sale);
   }
+
+  const isRefreshing = isFetching && !isLoading;
 
   return (
     <section className="flex flex-col gap-6">
@@ -414,9 +417,9 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="TODOS">Todos</SelectItem>
-            <SelectItem value="CONCLUIDA">Concluídas</SelectItem>
+            <SelectItem value="CONCLUIDA">Ativas</SelectItem>
             <SelectItem value="CANCELADA">Canceladas</SelectItem>
+            <SelectItem value="TODOS">Todas</SelectItem>
           </SelectContent>
         </Select>
 
@@ -758,6 +761,13 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
           </div>
         ) : null}
 
+        {isRefreshing ? (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <Spinner size="sm" className="text-primary" />
+            Buscando vendas...
+          </div>
+        ) : null}
+
         {isError ? (
           <Alert variant="destructive">
             <AlertTitle>Erro ao carregar vendas</AlertTitle>
@@ -814,7 +824,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                         variant="secondary"
                         className="gap-1.5 text-muted-foreground"
                       >
-                        <span className="status-dot-inactive" />
+                        <span className="status-dot-inactive text-white" />
                         Cancelada
                       </Badge>
                     )}
@@ -895,7 +905,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                     <Button
                       type="button"
                       variant="destructive"
-                      className="col-span-2 h-10 gap-1.5"
+                      className="col-span-2 h-10 gap-1.5 text-white"
                       disabled={sale.status === "CANCELADA" || cancelMutation.isPending}
                       onClick={() => cancelMutation.mutate(sale)}
                     >
@@ -973,11 +983,11 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                         {formatCurrency(sale.total)}
                       </TableCell>
 
-                      <TableCell className="text-center">
+                      <TableCell className="text-center text-white">
                         {sale.status === "CONCLUIDA" ? (
                           <Badge
                             variant="default"
-                            className="gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                            className="gap-1.5 border-0 bg-primary/15 text-white hover:bg-primary/20"
                           >
                             <span className="status-dot-active" />
                             Concluída
@@ -985,7 +995,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                         ) : (
                           <Badge
                             variant="secondary"
-                            className="gap-1.5 text-muted-foreground"
+                            className="gap-1.5 text-white"
                           >
                             <span className="status-dot-inactive" />
                             Cancelada
@@ -1090,6 +1100,11 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
             Página <span className="font-medium text-foreground">{data.page ?? page}</span> de{" "}
             <span className="font-medium text-foreground">{totalPages}</span>
             {data.total ? ` - ${data.total} vendas` : ""}
+            {status === "CONCLUIDA"
+              ? " ativas"
+              : status === "CANCELADA"
+                ? " canceladas"
+                : ""}
           </p>
 
           <div className="flex items-center gap-2">

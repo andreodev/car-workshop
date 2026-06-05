@@ -98,6 +98,16 @@ function buildCompletedServiceOrderWhere(search: string) {
   return where;
 }
 
+function normalizeListStatus(value: string | null) {
+  const normalized = normalizeString(value);
+
+  if (normalized === "TODOS") {
+    return null;
+  }
+
+  return normalizeStatus(normalized) ?? "CONCLUIDA";
+}
+
 function parseSaleItems(rawItems: unknown[]) {
   const items: ParsedSaleItem[] = [];
 
@@ -456,7 +466,7 @@ export const saleService = {
         MAX_PAGE_SIZE,
       );
       const search = normalizeString(searchParams.get("search")) ?? "";
-      const status = normalizeStatus(searchParams.get("status"));
+      const status = normalizeListStatus(searchParams.get("status"));
       const from = normalizeDateStart(searchParams.get("from"));
       const to = normalizeDateEnd(searchParams.get("to"));
 
@@ -479,13 +489,15 @@ export const saleService = {
         page,
         pageSize,
       });
-      const serviceOrderWhere = buildCompletedServiceOrderWhere(search);
+      const serviceOrderWhere =
+        status === "CANCELADA" ? null : buildCompletedServiceOrderWhere(search);
 
       console.log("[PDV_GET] SERVICE ORDER WHERE:", serviceOrderWhere);
       console.log("[PDV_GET] BEFORE SERVICE ORDER FIND MANY");
 
-      const serviceOrdersCompleted =
-        await saleRepository.findCompletedServiceOrders(serviceOrderWhere);
+      const serviceOrdersCompleted = serviceOrderWhere
+        ? await saleRepository.findCompletedServiceOrders(serviceOrderWhere)
+        : [];
 
       console.log("[PDV_GET] SUCCESS:", {
         total,
