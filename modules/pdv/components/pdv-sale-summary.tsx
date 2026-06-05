@@ -49,6 +49,15 @@ const paymentMethodOptions = [
   },
 ] as const;
 
+const creditInstallmentOptions = Array.from({ length: 12 }, (_, index) => {
+  const installments = index + 1;
+
+  return {
+    value: String(installments),
+    label: `${installments}x`,
+  };
+});
+
 function toCurrencyNumber(value: unknown) {
   const parsed = Number(value);
 
@@ -366,6 +375,37 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                     </p>
                   </div>
                 </div>
+
+                {payment.paymentMethod === "CARTAO_CREDITO" ? (
+                  <div className="max-w-full sm:max-w-40">
+                    <p className="mb-1 text-xs text-muted-foreground">
+                      Parcelas
+                    </p>
+
+                    <Select
+                      value={String(payment.installments)}
+                      onValueChange={(value) =>
+                        actions.updatePaymentLine(
+                          payment.localId,
+                          "installments",
+                          value
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="Parcelas" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {creditInstallmentOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

@@ -24,6 +24,7 @@ export type ParsedPayment = {
   paymentMethod: PdvPaymentMethod;
   amount: Prisma.Decimal;
   feeAmount: Prisma.Decimal;
+  installments: number;
 };
 
 export class StockError extends Error {}
@@ -171,6 +172,11 @@ export function normalizePayments(value: unknown): ParsedPayment[] | null {
 
     const amount = normalizeDecimal(record.amount);
     const feeAmount = normalizeDecimal(record.feeAmount ?? 0);
+    const installmentsValue = normalizeNumber(record.installments ?? 1);
+    const installments =
+      paymentMethod === "CARTAO_CREDITO"
+        ? Math.min(Math.max(Math.trunc(installmentsValue ?? 1), 1), 12)
+        : 1;
 
     if (!amount || amount.lessThanOrEqualTo(0)) {
       return null;
@@ -184,6 +190,7 @@ export function normalizePayments(value: unknown): ParsedPayment[] | null {
       paymentMethod,
       amount,
       feeAmount,
+      installments,
     });
   }
 
@@ -211,6 +218,7 @@ export function normalizePaymentsFromPayload(
       paymentMethod,
       amount: fallbackTotal,
       feeAmount: new Prisma.Decimal(0),
+      installments: 1,
     },
   ];
 }

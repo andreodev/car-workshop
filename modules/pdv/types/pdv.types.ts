@@ -283,6 +283,7 @@ export type SalePayment = {
   amount: string;
   feeAmount: string;
   netAmount: string;
+  installments: number;
   createdAt: string;
 };
 
@@ -403,6 +404,7 @@ export type SalePaymentPayload = {
   paymentMethod: SalePaymentMethod;
   amount: number;
   feeAmount: number;
+  installments: number;
 };
 
 export type ServiceOrderPdvResponse = {

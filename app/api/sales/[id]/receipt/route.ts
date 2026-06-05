@@ -489,11 +489,30 @@ function paymentLabel(value: string) {
   return labels[value] ?? value;
 }
 
+function formatPaymentMethodWithInstallments(payment: ReceiptPayment | undefined) {
+  if (!payment) {
+    return "-";
+  }
+
+  const installments = Number(payment.installments ?? 1);
+
+  if (
+    payment.paymentMethod !== "CARTAO_CREDITO" ||
+    !Number.isFinite(installments) ||
+    installments < 1
+  ) {
+    return paymentLabel(payment.paymentMethod);
+  }
+
+  return `${paymentLabel(payment.paymentMethod)} ${installments}x`;
+}
+
 type ReceiptPayment = {
   id: string;
   paymentMethod: string;
   amount: unknown;
   feeAmount?: unknown;
+  installments?: unknown;
 };
 
 type RouteContext = {
@@ -558,6 +577,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           paymentMethod: payment.paymentMethod,
           amount: payment.amount,
           feeAmount: payment.feeAmount,
+          installments: payment.installments,
         }))
       : [
           {
@@ -565,13 +585,14 @@ export async function GET(request: Request, { params }: RouteContext) {
             paymentMethod: sale.paymentMethod,
             amount: sale.total,
             feeAmount: 0,
+            installments: 1,
           },
         ];
 
   const paymentSummaryLabel =
     receiptPayments.length > 1
       ? "Múltiplas formas"
-      : paymentLabel(receiptPayments[0]?.paymentMethod || sale.paymentMethod);
+      : formatPaymentMethodWithInstallments(receiptPayments[0]);
 
   const h = React.createElement;
 
@@ -968,7 +989,7 @@ export async function GET(request: Request, { params }: RouteContext) {
             h(
               Text,
               { style: [styles.cellPaymentMethod, styles.paymentMethodText] },
-              paymentLabel(payment.paymentMethod)
+              formatPaymentMethodWithInstallments(payment)
             ),
 
             h(

@@ -47,12 +47,14 @@ type PaymentLine = {
   paymentMethod: SalePaymentMethod;
   amount: string;
   feePercent: string;
+  installments: number;
 };
 
 function createPaymentLine(
   paymentMethod: SalePaymentMethod = "DINHEIRO",
   amount = "",
-  feePercent = "0"
+  feePercent = "0",
+  installments = 1
 ): PaymentLine {
   return {
     localId:
@@ -62,6 +64,7 @@ function createPaymentLine(
     paymentMethod,
     amount: amount ? maskCurrencyInput(amount) : "",
     feePercent: maskPercentInput(feePercent),
+    installments,
   };
 }
 
@@ -123,6 +126,10 @@ function normalizePaymentLines(
         paymentMethod: payment.paymentMethod,
         amount: toCurrencyNumber(baseAmount + feeAmount),
         feeAmount,
+        installments:
+          payment.paymentMethod === "CARTAO_CREDITO"
+            ? Math.min(Math.max(payment.installments, 1), 12)
+            : 1,
       };
     })
     .filter((payment) => payment.amount > 0);
@@ -136,6 +143,7 @@ function normalizePaymentLines(
       paymentMethod: fallbackPaymentMethod,
       amount: fallbackAmount,
       feeAmount: 0,
+      installments: 1,
     },
   ];
 }
@@ -457,7 +465,7 @@ export function usePdvSale({
   const updatePaymentLine = useCallback(
     (
       lineId: string,
-      field: "paymentMethod" | "amount" | "feePercent",
+      field: "paymentMethod" | "amount" | "feePercent" | "installments",
       value: string
     ) => {
       const nextValue =
@@ -465,12 +473,29 @@ export function usePdvSale({
           ? value
           : field === "feePercent"
             ? maskPercentInput(value)
+            : field === "installments"
+              ? String(Math.min(Math.max(Number(value) || 1, 1), 12))
             : maskCurrencyInput(value);
 
       setPaymentLines((current) => {
         const updated = current.map((line) => {
           if (line.localId !== lineId) {
             return line;
+          }
+
+          if (field === "paymentMethod") {
+            return {
+              ...line,
+              paymentMethod: value as SalePaymentMethod,
+              installments: value === "CARTAO_CREDITO" ? line.installments : 1,
+            };
+          }
+
+          if (field === "installments") {
+            return {
+              ...line,
+              installments: Math.min(Math.max(Number(nextValue) || 1, 1), 12),
+            };
           }
 
           return {
@@ -496,7 +521,8 @@ export function usePdvSale({
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
         toCentsInput(saleTotal),
-        feePercent
+        feePercent,
+        current[0]?.installments ?? 1
       ),
     ]);
   }, [paymentLines, paymentMethod, saleTotal]);

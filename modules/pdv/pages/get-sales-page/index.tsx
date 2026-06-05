@@ -99,7 +99,7 @@ function toNumber(value: string | number | null | undefined) {
 
 type PaymentDisplay = Pick<
   SalePayment,
-  "id" | "paymentMethod" | "amount" | "feeAmount" | "netAmount"
+  "id" | "paymentMethod" | "amount" | "feeAmount" | "netAmount" | "installments"
 >;
 
 function getSalePayments(sale: Sale): PaymentDisplay[] {
@@ -117,16 +117,38 @@ function getSalePayments(sale: Sale): PaymentDisplay[] {
       amount: String(total),
       feeAmount: String(feeTotal),
       netAmount: String(total - feeTotal),
+      installments: 1,
     },
   ];
+}
+
+function getPaymentInstallmentsLabel(payment: PaymentDisplay) {
+  const installments = Number(payment.installments ?? 1);
+
+  if (
+    payment.paymentMethod !== "CARTAO_CREDITO" ||
+    !Number.isFinite(installments) ||
+    installments < 1
+  ) {
+    return null;
+  }
+
+  return `${installments}x`;
 }
 
 function getPaymentSummaryLabel(sale: Sale) {
   const payments = getSalePayments(sale);
 
-  return payments.length > 1
-    ? `${payments.length} formas`
-    : paymentLabel(payments[0]?.paymentMethod ?? sale.paymentMethod);
+  if (payments.length > 1) {
+    return `${payments.length} formas`;
+  }
+
+  const payment = payments[0];
+  const installmentsLabel = payment ? getPaymentInstallmentsLabel(payment) : null;
+
+  return installmentsLabel
+    ? `${paymentLabel(payment.paymentMethod)} ${installmentsLabel}`
+    : paymentLabel(payment?.paymentMethod ?? sale.paymentMethod);
 }
 
 function vehicleLabel(sale: Sale) {
@@ -283,6 +305,9 @@ function PaymentDetailsDialog({
                         {paymentLabel(payment.paymentMethod)}
                       </p>
                       <p className="text-xs text-muted-foreground">
+                        {getPaymentInstallmentsLabel(payment)
+                          ? `Parcelas ${getPaymentInstallmentsLabel(payment)} • `
+                          : ""}
                         Taxa {formatCurrency(payment.feeAmount)}
                       </p>
                     </div>
