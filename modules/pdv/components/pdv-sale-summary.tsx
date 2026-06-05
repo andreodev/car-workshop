@@ -7,7 +7,7 @@ import {
   PaymentSuccess01Icon,
 } from "@hugeicons/core-free-icons";
 
-import { formatCurrency } from "../utils/pdv-sale-utils";
+import { formatCurrency, parseDecimal } from "../utils/pdv-sale-utils";
 import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +48,29 @@ const paymentMethodOptions = [
     label: "Cartão débito",
   },
 ] as const;
+
+function toCurrencyNumber(value: unknown) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Number(parsed.toFixed(2));
+}
+
+function calculatePaymentLineFee(payment: {
+  amount: string;
+  feePercent: string;
+}) {
+  const amount = toCurrencyNumber(parseDecimal(payment.amount));
+  const feePercent = Math.min(
+    Math.max(toCurrencyNumber(parseDecimal(payment.feePercent)), 0),
+    100
+  );
+
+  return toCurrencyNumber(amount * (feePercent / 100));
+}
 
 export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
   const { refs, state, actions, mutations } = controller;
@@ -232,7 +255,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             </div>
 
             <div>
-              <p className="text-xs text-muted-foreground">Total pago</p>
+              <p className="text-xs text-muted-foreground">Total cobrado</p>
               <p className="text-sm font-semibold sm:text-lg">
                 {formatCurrency(state.paymentTotal)}
               </p>
@@ -304,7 +327,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Valor</p>
+                    <p className="mb-1 text-xs text-muted-foreground">Valor base</p>
 
                     <Input
                       className="h-10"
@@ -322,21 +345,25 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Taxa</p>
+                    <p className="mb-1 text-xs text-muted-foreground">Taxa (%)</p>
 
                     <Input
                       className="h-10"
-                      value={payment.feeAmount}
+                      value={payment.feePercent}
                       onChange={(event) =>
                         actions.updatePaymentLine(
                           payment.localId,
-                          "feeAmount",
+                          "feePercent",
                           event.target.value
                         )
                       }
                       inputMode="decimal"
-                      placeholder="0,00"
+                      placeholder="0"
                     />
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Valor: {formatCurrency(calculatePaymentLineFee(payment))}
+                    </p>
                   </div>
                 </div>
               </div>

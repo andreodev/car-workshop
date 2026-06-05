@@ -46,13 +46,13 @@ type PaymentLine = {
   localId: string;
   paymentMethod: SalePaymentMethod;
   amount: string;
-  feeAmount: string;
+  feePercent: string;
 };
 
 function createPaymentLine(
   paymentMethod: SalePaymentMethod = "DINHEIRO",
   amount = "",
-  feeAmount = "0"
+  feePercent = "0"
 ): PaymentLine {
   return {
     localId:
@@ -61,7 +61,7 @@ function createPaymentLine(
         : `${Date.now()}-${Math.random()}`,
     paymentMethod,
     amount: amount ? maskCurrencyInput(amount) : "",
-    feeAmount: maskCurrencyInput(feeAmount),
+    feePercent: maskPercentInput(feePercent),
   };
 }
 
@@ -112,12 +112,16 @@ function normalizePaymentLines(
 ): SalePaymentPayload[] {
   const validPayments = paymentLines
     .map((payment) => {
-      const amount = toCurrencyNumber(parseDecimal(payment.amount));
-      const feeAmount = toCurrencyNumber(parseDecimal(payment.feeAmount));
+      const baseAmount = toCurrencyNumber(parseDecimal(payment.amount));
+      const feePercent = Math.min(
+        Math.max(toCurrencyNumber(parseDecimal(payment.feePercent)), 0),
+        100
+      );
+      const feeAmount = toCurrencyNumber(baseAmount * (feePercent / 100));
 
       return {
         paymentMethod: payment.paymentMethod,
-        amount,
+        amount: toCurrencyNumber(baseAmount + feeAmount),
         feeAmount,
       };
     })
@@ -453,11 +457,15 @@ export function usePdvSale({
   const updatePaymentLine = useCallback(
     (
       lineId: string,
-      field: "paymentMethod" | "amount" | "feeAmount",
+      field: "paymentMethod" | "amount" | "feePercent",
       value: string
     ) => {
       const nextValue =
-        field === "paymentMethod" ? value : maskCurrencyInput(value);
+        field === "paymentMethod"
+          ? value
+          : field === "feePercent"
+            ? maskPercentInput(value)
+            : maskCurrencyInput(value);
 
       setPaymentLines((current) => {
         const updated = current.map((line) => {
@@ -465,28 +473,9 @@ export function usePdvSale({
             return line;
           }
 
-          if (field !== "feeAmount") {
-            return {
-              ...line,
-              [field]: nextValue,
-            };
-          }
-
-          const currentAmount = toCurrencyNumber(parseDecimal(line.amount));
-          const currentFee = toCurrencyNumber(parseDecimal(line.feeAmount));
-          const nextFee = toCurrencyNumber(parseDecimal(nextValue));
-          const nextAmount =
-            currentAmount > 0
-              ? toCurrencyNumber(currentAmount - currentFee + nextFee)
-              : 0;
-
           return {
             ...line,
-            feeAmount: nextValue,
-            amount:
-              nextAmount > 0
-                ? maskCurrencyInput(toCentsInput(nextAmount))
-                : line.amount,
+            [field]: nextValue,
           };
         });
 
@@ -501,16 +490,16 @@ export function usePdvSale({
   );
 
   const fillSinglePaymentWithTotal = useCallback(() => {
-    const feeAmount = paymentFeeTotal;
+    const feePercent = paymentLines[0]?.feePercent ?? "0";
 
     setPaymentLines((current) => [
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
-        toCentsInput(saleTotal + feeAmount),
-        toCentsInput(feeAmount)
+        toCentsInput(saleTotal),
+        feePercent
       ),
     ]);
-  }, [paymentFeeTotal, paymentMethod, saleTotal]);
+  }, [paymentLines, paymentMethod, saleTotal]);
 
   const openPaymentDialog = useCallback(() => {
     setPaymentDialogOpen(true);
