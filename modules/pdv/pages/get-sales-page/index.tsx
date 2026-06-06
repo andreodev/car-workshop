@@ -47,7 +47,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Sale, SalePayment } from "../../types/pdv.types";
+import type {
+  Sale,
+  SalePayment,
+  ServiceOrderCompleted,
+} from "../../types/pdv.types";
 
 type SalesListProps = {
   defaultResponsible: string;
@@ -176,6 +180,175 @@ function DetailItem({ label, value }: { label: string; value: string }) {
         {value || "-"}
       </p>
     </div>
+  );
+}
+
+function ServiceOrderItemsDetails({ order }: { order: ServiceOrderCompleted }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/20">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+          Detalhes da OS
+        </h3>
+        <span className="text-xs font-medium text-muted-foreground">
+          {order.items.length} {order.items.length === 1 ? "item" : "itens"}
+        </span>
+      </div>
+
+      {order.items.length > 0 ? (
+        <div className="divide-y divide-border">
+          {order.items.map((item) => (
+            <div
+              key={item.id}
+              className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+            >
+              <div className="min-w-0">
+                <p className="break-words text-sm font-medium text-foreground">
+                  {item.description}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {Number(item.quantity)} x {formatCurrency(item.unitPrice)}
+                </p>
+              </div>
+
+              <div className="sm:text-right">
+                <p className="text-[11px] uppercase text-muted-foreground">
+                  Qtde.
+                </p>
+                <p className="font-medium">{Number(item.quantity)}</p>
+              </div>
+
+              <div className="sm:text-right">
+                <p className="text-[11px] uppercase text-muted-foreground">
+                  Desc.
+                </p>
+                <p className="font-medium">{formatCurrency(item.discount)}</p>
+              </div>
+
+              <div className="sm:text-right">
+                <p className="text-[11px] uppercase text-muted-foreground">
+                  Total
+                </p>
+                <p className="font-semibold text-foreground">
+                  {formatCurrency(item.total)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-3 text-sm text-muted-foreground">
+          Nenhum item vinculado a esta ordem de serviço.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function serviceOrderVehicleLabel(order: ServiceOrderCompleted) {
+  if (!order.vehicle) {
+    return "-";
+  }
+
+  return `${order.vehicle.plate}${order.vehicle.model ? ` - ${order.vehicle.model}` : ""}`;
+}
+
+function ServiceOrderDetailsDialog({
+  order,
+  onOpenChange,
+  onPay,
+}: {
+  order: ServiceOrderCompleted | null;
+  onOpenChange: (open: boolean) => void;
+  onPay: (order: ServiceOrderCompleted) => void;
+}) {
+  return (
+    <Dialog open={Boolean(order)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        {order ? (
+          <>
+            <DialogHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <DialogTitle>Detalhes da OS #{order.code}</DialogTitle>
+                  <DialogDescription>
+                    Ordem finalizada aguardando pagamento no caixa.
+                  </DialogDescription>
+                </div>
+
+                {order.financialAccount?.status === "PAGA" ? (
+                  <Badge
+                    variant="default"
+                    className="w-fit gap-1.5 border-0 bg-primary/15 text-primary hover:bg-primary/20"
+                  >
+                    <span className="status-dot-active" />
+                    Pago
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className="w-fit gap-1.5 bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/20"
+                  >
+                    <span className="status-dot-inactive" />
+                    Aguardando
+                  </Badge>
+                )}
+              </div>
+            </DialogHeader>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-border bg-primary/10 p-3">
+                <p className="text-[11px] font-medium uppercase text-primary">
+                  Total da OS
+                </p>
+                <p className="mt-1 text-lg font-semibold text-primary">
+                  {formatCurrency(order.total)}
+                </p>
+              </div>
+              <DetailItem label="Cliente" value={order.client?.name ?? "-"} />
+              <DetailItem label="Veículo" value={serviceOrderVehicleLabel(order)} />
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <DetailItem label="Mecânico" value={order.mechanic?.name ?? "-"} />
+              <DetailItem label="Responsável" value={order.responsible ?? "-"} />
+              <DetailItem
+                label="Atualizada em"
+                value={formatDateTime(order.updatedAt)}
+              />
+              <DetailItem
+                label="Conta vinculada"
+                value={
+                  order.financialAccount?.code
+                    ? `#${order.financialAccount.code}`
+                    : "-"
+                }
+              />
+            </div>
+
+            <ServiceOrderItemsDetails order={order} />
+
+            <div className="flex flex-col-reverse gap-2 border-t border-border pt-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                className="gap-1.5"
+                onClick={() => onPay(order)}
+              >
+                <CreditCard className="size-3" />
+                Efetuar pagamento
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -344,6 +517,8 @@ function PaymentDetailsDialog({
 
 export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
   const [selectedPaymentSale, setSelectedPaymentSale] = useState<Sale | null>(null);
+  const [selectedServiceOrderDetails, setSelectedServiceOrderDetails] =
+    useState<ServiceOrderCompleted | null>(null);
   const {
     data,
     isFetching,
@@ -353,7 +528,6 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
     cancelMutation,
     canceledCount,
     expandedId,
-    expandedServiceOrderId,
     from,
     handleClosePdv,
     handleOpenNormalPdv,
@@ -367,7 +541,6 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
     serviceOrdersCompleted,
     serviceOrdersPendingPaymentTotal,
     setExpandedId,
-    setExpandedServiceOrderId,
     setFrom,
     setPage,
     setSearchInput,
@@ -380,6 +553,15 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
 
   function openPaymentDetails(sale: Sale) {
     setSelectedPaymentSale(sale);
+  }
+
+  function openServiceOrderDetails(order: ServiceOrderCompleted) {
+    setSelectedServiceOrderDetails(order);
+  }
+
+  function payServiceOrderFromDetails(order: ServiceOrderCompleted) {
+    setSelectedServiceOrderDetails(null);
+    handlePayServiceOrder(order);
   }
 
   const isRefreshing = isFetching && !isLoading;
@@ -574,42 +756,15 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                   </div>
                 </div>
 
-                {expandedServiceOrderId === order.id ? (
-                  <div className="mt-3 rounded-md border border-border bg-muted/20">
-                    {order.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-border p-3 last:border-b-0"
-                      >
-                        <div className="min-w-0">
-                          <p className="break-words text-sm font-medium">
-                            {item.description}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {Number(item.quantity)} x {formatCurrency(item.unitPrice)}
-                          </p>
-                        </div>
-                        <p className="font-semibold">
-                          {formatCurrency(item.total)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div className="mt-3 grid gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     className="h-10 gap-1.5"
-                    onClick={() =>
-                      setExpandedServiceOrderId((current) =>
-                        current === order.id ? null : order.id,
-                      )
-                    }
+                    onClick={() => openServiceOrderDetails(order)}
                   >
-                    <ChevronsUpDown className="size-3" />
-                    {expandedServiceOrderId === order.id ? "Ocultar itens" : "Ver itens"}
+                    <Eye className="size-3" />
+                    Detalhes
                   </Button>
 
                   <Button
@@ -697,14 +852,10 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                           size="sm"
                           variant="ghost"
                           className="h-7 gap-1.5 px-3 text-xs font-medium"
-                          onClick={() =>
-                            setExpandedServiceOrderId((current) =>
-                              current === order.id ? null : order.id,
-                            )
-                          }
+                          onClick={() => openServiceOrderDetails(order)}
                         >
-                          <ChevronsUpDown className="size-3" />
-                          Itens
+                          <Eye className="size-3" />
+                          Detalhes
                         </Button>
 
                         <Button
@@ -719,46 +870,6 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
                       </div>
                     </TableCell>
                   </TableRow>
-
-                  {expandedServiceOrderId === order.id ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="bg-muted/30 p-0">
-                        <div className="p-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="hover:bg-transparent">
-                                <TableHead>Item</TableHead>
-                                <TableHead className="text-right">Qtde.</TableHead>
-                                <TableHead className="text-right">Unit.</TableHead>
-                                <TableHead className="text-right">Desc.</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                              </TableRow>
-                            </TableHeader>
-
-                            <TableBody>
-                              {order.items.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell>{item.description}</TableCell>
-                                  <TableCell className="text-right">
-                                    {Number(item.quantity)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {formatCurrency(item.unitPrice)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {formatCurrency(item.discount)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold">
-                                    {formatCurrency(item.total)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
                 </Fragment>
               ))}
             </TableBody>
@@ -777,6 +888,16 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
           </AlertDescription>
         </Alert>
       ) : null}
+
+      <ServiceOrderDetailsDialog
+        order={selectedServiceOrderDetails}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedServiceOrderDetails(null);
+          }
+        }}
+        onPay={payServiceOrderFromDetails}
+      />
 
       <div className="flex min-h-[560px] flex-col gap-4">
         {isLoading ? (

@@ -29,9 +29,6 @@ export function useSalesPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedServiceOrderId, setExpandedServiceOrderId] = useState<
-    string | null
-  >(null);
   const [pdvOpen, setPdvOpen] = useState(false);
   const [selectedServiceOrder, setSelectedServiceOrder] =
     useState<ServiceOrderCompleted | null>(null);
@@ -123,7 +120,6 @@ export function useSalesPage() {
     cancelMutation,
     canceledCount,
     expandedId,
-    expandedServiceOrderId,
     from,
     handleClosePdv,
     handleOpenNormalPdv,
@@ -137,7 +133,6 @@ export function useSalesPage() {
     serviceOrdersCompleted,
     serviceOrdersPendingPaymentTotal,
     setExpandedId,
-    setExpandedServiceOrderId,
     setFrom,
     setPage,
     setSearchInput,
