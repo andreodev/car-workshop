@@ -539,6 +539,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
     searchInput,
     selectedServiceOrder,
     serviceOrdersCompleted,
+    serviceOrdersPendingPaymentCount,
     serviceOrdersPendingPaymentTotal,
     setExpandedId,
     setFrom,
@@ -674,7 +675,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
         <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">OS aguardando caixa</p>
           <p className="mt-1 text-2xl font-semibold text-primary">
-            {serviceOrdersCompleted.length}
+            {serviceOrdersPendingPaymentCount}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {formatCurrency(serviceOrdersPendingPaymentTotal)}

@@ -380,6 +380,10 @@ export type SaleListResponse = {
   page: number;
   pageSize: number;
   serviceOrdersCompleted?: ServiceOrderCompleted[];
+  serviceOrdersCompletedSummary?: {
+    count: number;
+    total: string | number | null;
+  };
 };
 
 export type SalePayloadItem = {

@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/table";
 import { useVehiclesPage } from "../../hooks/use-vehicles-page";
 
-
 export default function VehiclesPage() {
   const {
     data,
@@ -50,59 +49,55 @@ export default function VehiclesPage() {
 
   return (
     <section className="flex min-h-[calc(100vh-3rem)] flex-col gap-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <Header
-          title="Veículos"
-        />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <Header title="Veículos" />
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full">
-          <form
-            onSubmit={handleSearch}
-            className="flex w-full items-center gap-2 rounded-lg border border-border bg-card p-2 shadow-sm "
-          >
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-
-              <Input
-                placeholder="Buscar por placa, modelo, marca, cliente..."
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                className="h-9 border-0 bg-transparent pl-9 pr-8 text-sm shadow-none focus-visible:ring-0"
-              />
-
-              {searchInput ? (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                >
-                  <X className="size-3.5" />
-                </button>
-              ) : null}
-            </div>
-
-            <Button
-              type="submit"
-              size="sm"
-              className="h-9 px-4 font-medium"
-              disabled={isFetching}
-            >
-              {showBackgroundLoading ? (
-                <Spinner size="sm" className="text-primary-foreground" />
-              ) : (
-                "Buscar"
-              )}
-            </Button>
-          </form>
-
-          <Button asChild className="shrink-0 gap-2 font-medium">
-            <Link href="/veiculos/create">
-              <Plus className="size-3.5" />
-              Cadastrar veículo
-            </Link>
-          </Button>
-        </div>
+        <Button asChild className="shrink-0 gap-2 font-medium">
+          <Link href="/veiculos/create">
+            <Plus className="size-3.5" />
+            Cadastrar veículo
+          </Link>
+        </Button>
       </div>
+
+      <form
+        onSubmit={handleSearch}
+        className="flex w-full items-center gap-2 rounded-lg border border-border bg-card p-2 shadow-sm"
+      >
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+
+          <Input
+            placeholder="Buscar por placa, modelo, marca, cliente..."
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            className="h-9 border-0 bg-transparent pl-9 pr-8 text-sm shadow-none focus-visible:ring-0"
+          />
+
+          {searchInput ? (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-2 top-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+
+        <Button
+          type="submit"
+          size="sm"
+          className="h-9 px-4 font-medium"
+          disabled={isFetching}
+        >
+          {showBackgroundLoading ? (
+            <Spinner size="sm" className="text-primary-foreground" />
+          ) : (
+            "Buscar"
+          )}
+        </Button>
+      </form>
 
       {search ? (
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

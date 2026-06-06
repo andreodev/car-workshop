@@ -76,10 +76,17 @@ function buildSaleWhere(search: string, status: ReturnType<typeof normalizeStatu
   return where;
 }
 
-function buildCompletedServiceOrderWhere(search: string) {
+function buildCompletedServiceOrderWhere(search: string, from: Date | null, to: Date | null) {
   const where: Prisma.ServiceOrderWhereInput = {
     status: "FINALIZADA",
   };
+
+  if (from || to) {
+    where.updatedAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    };
+  }
 
   if (search) {
     const code = Number(search);
@@ -490,19 +497,28 @@ export const saleService = {
         pageSize,
       });
       const serviceOrderWhere =
-        status === "CANCELADA" ? null : buildCompletedServiceOrderWhere(search);
+        status === "CANCELADA" ? null : buildCompletedServiceOrderWhere(search, from, to);
 
       console.log("[PDV_GET] SERVICE ORDER WHERE:", serviceOrderWhere);
       console.log("[PDV_GET] BEFORE SERVICE ORDER FIND MANY");
 
-      const serviceOrdersCompleted = serviceOrderWhere
-        ? await saleRepository.findCompletedServiceOrders(serviceOrderWhere)
-        : [];
+      const [serviceOrdersCompleted, serviceOrdersCompletedSummary] = serviceOrderWhere
+        ? await Promise.all([
+            saleRepository.findCompletedServiceOrders(serviceOrderWhere),
+            saleRepository.summarizeCompletedServiceOrders(serviceOrderWhere),
+          ])
+        : [
+            [],
+            {
+              _count: { _all: 0 },
+              _sum: { total: 0 },
+            },
+          ];
 
       console.log("[PDV_GET] SUCCESS:", {
         total,
         sales: items.length,
-        serviceOrdersCompleted: serviceOrdersCompleted.length,
+        serviceOrdersCompleted: serviceOrdersCompletedSummary._count._all,
       });
 
       return {
@@ -512,6 +528,10 @@ export const saleService = {
           page,
           pageSize,
           serviceOrdersCompleted,
+          serviceOrdersCompletedSummary: {
+            count: serviceOrdersCompletedSummary._count._all,
+            total: serviceOrdersCompletedSummary._sum.total,
+          },
         },
       };
     } catch (error) {

@@ -200,6 +200,14 @@ export const saleRepository = {
     });
   },
 
+  async summarizeCompletedServiceOrders(where: Prisma.ServiceOrderWhereInput) {
+    return prisma.serviceOrder.aggregate({
+      where,
+      _sum: { total: true },
+      _count: { _all: true },
+    });
+  },
+
   async findClientById(clientId: string) {
     return prisma.client.findUnique({
       where: { id: clientId },
