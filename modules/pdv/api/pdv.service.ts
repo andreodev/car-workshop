@@ -284,9 +284,11 @@ export async function fetchServiceOrderPdv(serviceOrderId: string) {
 
 export async function payServiceOrderPdv({
   serviceOrderId,
+  discountAmount,
   payments,
 }: {
   serviceOrderId: string;
+  discountAmount?: number;
   payments: SalePaymentPayload[];
 }) {
   const response = await fetch(`/api/sales/${serviceOrderId}`, {
@@ -297,6 +299,7 @@ export async function payServiceOrderPdv({
     },
     body: JSON.stringify({
       serviceOrderId,
+      discountAmount,
       payments,
     }),
   });

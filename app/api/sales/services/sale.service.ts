@@ -165,6 +165,108 @@ function parseSaleItems(rawItems: unknown[]) {
   };
 }
 
+function normalizeServiceOrderPaymentDiscount(
+  value: unknown,
+  serviceOrderTotal: Prisma.Decimal,
+) {
+  if (value === undefined || value === null || value === "") {
+    return {
+      data: new Prisma.Decimal(0),
+    };
+  }
+
+  const discountAmount = normalizeMoney(value);
+
+  if (discountAmount === null) {
+    return serviceError("Desconto inválido.", 400);
+  }
+
+  const discount = new Prisma.Decimal(discountAmount);
+
+  if (discount.greaterThanOrEqualTo(serviceOrderTotal)) {
+    return serviceError("Desconto deve ser menor que o total da OS.", 400);
+  }
+
+  return {
+    data: discount,
+  };
+}
+
+function buildServiceOrderSaleItems(params: {
+  items: Array<{
+    id: string;
+    catalogItemId: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: Prisma.Decimal;
+    discount: Prisma.Decimal;
+    total: Prisma.Decimal;
+    catalogItem: {
+      name: string;
+    } | null;
+  }>;
+  additionalDiscount: Prisma.Decimal;
+}) {
+  const { items, additionalDiscount } = params;
+  const positiveItemTotals = items
+    .map((item) => new Prisma.Decimal(item.total))
+    .filter((item) => item.greaterThan(0));
+  const positiveTotal = positiveItemTotals.reduce(
+    (sum, item) => sum.plus(item),
+    new Prisma.Decimal(0),
+  );
+  let remainingDiscount = additionalDiscount.toDecimalPlaces(2);
+  let positiveIndexPosition = 0;
+
+  return items.map((item) => {
+    const quantity = new Prisma.Decimal(item.quantity);
+    const unitPrice = new Prisma.Decimal(item.unitPrice);
+    const lineSubtotal = quantity.mul(unitPrice);
+    const originalDiscount = new Prisma.Decimal(item.discount);
+    const originalTotal = new Prisma.Decimal(item.total);
+    let paymentDiscount = new Prisma.Decimal(0);
+
+    if (
+      remainingDiscount.greaterThan(0) &&
+      originalTotal.greaterThan(0) &&
+      positiveTotal.greaterThan(0)
+    ) {
+      const isLastPositiveItem =
+        positiveIndexPosition === positiveItemTotals.length - 1;
+
+      paymentDiscount = isLastPositiveItem
+        ? remainingDiscount
+        : additionalDiscount
+            .mul(originalTotal)
+            .div(positiveTotal)
+            .toDecimalPlaces(2);
+
+      if (paymentDiscount.greaterThan(originalTotal)) {
+        paymentDiscount = originalTotal;
+      }
+
+      if (paymentDiscount.greaterThan(remainingDiscount)) {
+        paymentDiscount = remainingDiscount;
+      }
+
+      remainingDiscount = remainingDiscount.minus(paymentDiscount);
+      positiveIndexPosition += 1;
+    }
+
+    const discount = originalDiscount.plus(paymentDiscount).toDecimalPlaces(2);
+
+    return {
+      serviceOrderItemId: item.id,
+      catalogItemId: item.catalogItemId,
+      description: item.catalogItem?.name ?? item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount,
+      total: lineSubtotal.minus(discount).toDecimalPlaces(2),
+    };
+  });
+}
+
 async function createMechanicCommissionPayable(params: {
   tx: Prisma.TransactionClient;
   serviceOrder: {
@@ -947,7 +1049,19 @@ export const saleService = {
       return serviceError("Esta ordem de serviço já foi paga.", 400);
     }
 
-    const payments = normalizePaymentsFromPayload(payload, serviceOrder.total);
+    const serviceOrderTotal = new Prisma.Decimal(serviceOrder.total);
+    const paymentDiscountResult = normalizeServiceOrderPaymentDiscount(
+      payload.discountAmount,
+      serviceOrderTotal,
+    );
+
+    if ("error" in paymentDiscountResult) {
+      return paymentDiscountResult;
+    }
+
+    const paymentDiscount = paymentDiscountResult.data;
+    const paymentBaseTotal = serviceOrderTotal.minus(paymentDiscount).toDecimalPlaces(2);
+    const payments = normalizePaymentsFromPayload(payload, paymentBaseTotal);
 
     if (!payments?.length) {
       return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
@@ -955,7 +1069,7 @@ export const saleService = {
 
     const totalPaid = sumPaymentAmounts(payments);
     const feeTotal = sumPaymentFees(payments);
-    const expectedTotal = new Prisma.Decimal(serviceOrder.total).plus(feeTotal);
+    const expectedTotal = paymentBaseTotal.plus(feeTotal);
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
@@ -1007,6 +1121,16 @@ export const saleService = {
           throw new Error("SERVICE_ORDER_ALREADY_PAID");
         }
 
+        const saleItems = buildServiceOrderSaleItems({
+          items: serviceOrder.items,
+          additionalDiscount: paymentDiscount,
+        });
+        const discountTotal = new Prisma.Decimal(serviceOrder.discountTotal)
+          .plus(paymentDiscount)
+          .toDecimalPlaces(2);
+        const paymentDiscountNote = paymentDiscount.greaterThan(0)
+          ? ` Desconto no pagamento: R$ ${paymentDiscount.toFixed(2)}.`
+          : "";
         const sale = await tx.sale.create({
           data: {
             clientId: serviceOrder.clientId,
@@ -1014,19 +1138,19 @@ export const saleService = {
             status: "CONCLUIDA",
             paymentMethod: payments[0].paymentMethod,
             subtotal: serviceOrder.subtotal,
-            discountTotal: serviceOrder.discountTotal,
+            discountTotal,
             feeTotal,
             total: totalPaid,
             responsible: serviceOrder.responsible ?? "PDV",
-            notes: `Pagamento da ordem de serviÃƒÂ§o #${serviceOrder.code}`,
+            notes: `Pagamento da ordem de serviço #${serviceOrder.code}.${paymentDiscountNote}`,
             items: {
-              create: serviceOrder.items.map((item) => ({
+              create: saleItems.map((item) => ({
                 catalogItemId: item.catalogItemId,
-                description: item.catalogItem?.name ?? item.description,
+                description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 discount: item.discount,
-                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice).minus(item.discount),
+                total: item.total,
               })),
             },
             payments: {
@@ -1042,8 +1166,8 @@ export const saleService = {
           include: salePaymentInclude,
         });
         const saleItemsByServiceOrderItemId = new Map(
-          serviceOrder.items.map((serviceOrderItem, index) => [
-            serviceOrderItem.id,
+          saleItems.map((saleItem, index) => [
+            saleItem.serviceOrderItemId,
             sale.items[index],
           ]),
         );
@@ -1161,9 +1285,9 @@ export const saleService = {
           data: {
             status: "PAGA",
             paymentDate: new Date(),
-            paidAmount: serviceOrder.total,
+            paidAmount: paymentBaseTotal,
             paymentMethod: payments[0].paymentMethod,
-            notes: `Conta baixada automaticamente pelo pagamento da OS #${serviceOrder.code} via PDV.`,
+            notes: `Conta baixada automaticamente pelo pagamento da OS #${serviceOrder.code} via PDV.${paymentDiscountNote}`,
           },
         });
 

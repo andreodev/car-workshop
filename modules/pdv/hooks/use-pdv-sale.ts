@@ -196,6 +196,8 @@ export function usePdvSale({
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [discountPercent, setDiscountPercent] = useState("0");
+  const [serviceOrderDiscountPercent, setServiceOrderDiscountPercent] =
+    useState("0");
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -297,6 +299,7 @@ export function usePdvSale({
     setQuantity("1");
     setUnitPrice("");
     setDiscountPercent("0");
+    setServiceOrderDiscountPercent("0");
     setPaymentMethodState("DINHEIRO");
     setPaymentLines([createPaymentLine("DINHEIRO")]);
     setLocalError(null);
@@ -384,14 +387,36 @@ export function usePdvSale({
 
   const saleTotal = useMemo(() => getTotalsAmount(totals), [totals]);
 
+  const serviceOrderPaymentDiscountAmount = useMemo(() => {
+    if (!isServiceOrderMode) {
+      return 0;
+    }
+
+    const discountPercentValue = Math.min(
+      Math.max(toCurrencyNumber(parseDecimal(serviceOrderDiscountPercent)), 0),
+      100
+    );
+
+    return toCurrencyNumber(saleTotal * (discountPercentValue / 100));
+  }, [isServiceOrderMode, saleTotal, serviceOrderDiscountPercent]);
+
+  const paymentBaseTotal = useMemo(
+    () =>
+      toCurrencyNumber(
+        saleTotal -
+          (isServiceOrderMode ? serviceOrderPaymentDiscountAmount : 0)
+      ),
+    [isServiceOrderMode, saleTotal, serviceOrderPaymentDiscountAmount]
+  );
+
   const paymentsPayload = useMemo(
     () =>
       normalizePaymentLines(
         paymentLines,
         paymentLines[0]?.paymentMethod ?? paymentMethod,
-        saleTotal
+        paymentBaseTotal
       ),
-    [paymentLines, paymentMethod, saleTotal]
+    [paymentBaseTotal, paymentLines, paymentMethod]
   );
 
   const paymentTotal = useMemo(
@@ -405,8 +430,8 @@ export function usePdvSale({
   );
 
   const expectedPaymentTotal = useMemo(
-    () => toCurrencyNumber(saleTotal + paymentFeeTotal),
-    [paymentFeeTotal, saleTotal]
+    () => toCurrencyNumber(paymentBaseTotal + paymentFeeTotal),
+    [paymentBaseTotal, paymentFeeTotal]
   );
 
   const paymentDifference = useMemo(
@@ -461,6 +486,41 @@ export function usePdvSale({
   const updateDiscountPercent = useCallback((value: string) => {
     setDiscountPercent(maskPercentInput(value));
   }, []);
+
+  const updateServiceOrderDiscountPercent = useCallback(
+    (value: string) => {
+      const masked = maskPercentInput(value);
+
+      setServiceOrderDiscountPercent(masked);
+
+      if (!isServiceOrderMode) {
+        return;
+      }
+
+      const discountPercentValue = Math.min(
+        Math.max(toCurrencyNumber(parseDecimal(masked)), 0),
+        100
+      );
+      const nextBaseTotal = toCurrencyNumber(
+        saleTotal - saleTotal * (discountPercentValue / 100)
+      );
+
+      setPaymentLines((current) => {
+        if (current.length !== 1) {
+          return current;
+        }
+
+        return [
+          {
+            ...current[0],
+            amount:
+              nextBaseTotal > 0 ? maskCurrencyInput(toCentsInput(nextBaseTotal)) : "",
+          },
+        ];
+      });
+    },
+    [isServiceOrderMode, saleTotal]
+  );
 
   const updatePaymentLine = useCallback(
     (
@@ -520,12 +580,12 @@ export function usePdvSale({
     setPaymentLines((current) => [
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
-        toCentsInput(saleTotal),
+        toCentsInput(paymentBaseTotal),
         feePercent,
         current[0]?.installments ?? 1
       ),
     ]);
-  }, [paymentLines, paymentMethod, saleTotal]);
+  }, [paymentBaseTotal, paymentLines, paymentMethod]);
 
   const openPaymentDialog = useCallback(() => {
     setPaymentDialogOpen(true);
@@ -619,6 +679,7 @@ export function usePdvSale({
         setQuantity("1");
         setUnitPrice("");
         setDiscountPercent("0");
+        setServiceOrderDiscountPercent("0");
         setSuccessMessage(null);
         setLocalError(null);
       } catch (error) {
@@ -808,8 +869,14 @@ export function usePdvSale({
         return;
       }
 
+      if (saleTotal > 0 && serviceOrderPaymentDiscountAmount >= saleTotal) {
+        setLocalError("Desconto deve ser menor que o total da OS.");
+        return;
+      }
+
       serviceOrderPaymentMutation.mutate({
         serviceOrderId,
+        discountAmount: serviceOrderPaymentDiscountAmount,
         payments: paymentsPayload,
       });
 
@@ -848,8 +915,10 @@ export function usePdvSale({
     paymentsPayload,
     responsible,
     saleMutation,
+    saleTotal,
     selectedClient?.id,
     serviceOrderId,
+    serviceOrderPaymentDiscountAmount,
     serviceOrderPaymentMutation,
   ]);
 
@@ -1085,6 +1154,7 @@ export function usePdvSale({
       paymentMethod,
       paymentsPayload,
       paymentTotal,
+      paymentBaseTotal,
       productHighlightIndex,
       productListOpen,
       productOptions,
@@ -1094,6 +1164,8 @@ export function usePdvSale({
       saleTotal,
       selectedClient,
       selectedProduct,
+      serviceOrderDiscountPercent,
+      serviceOrderPaymentDiscountAmount,
       serviceOrderLoading,
       successMessage,
       totals,
@@ -1122,6 +1194,7 @@ export function usePdvSale({
       setClientSearch,
       setDiscountPercent: updateDiscountPercent,
       setPaymentMethod,
+      setServiceOrderDiscountPercent: updateServiceOrderDiscountPercent,
       setPaymentLines,
       setPaymentDialogOpen,
       setProductHighlightIndex,
