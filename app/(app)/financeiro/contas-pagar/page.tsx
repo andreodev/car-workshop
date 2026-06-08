@@ -21,6 +21,8 @@ import type {
   FinancialAccountType,
   MechanicCommissionAccount,
   MechanicCommissionPeriod,
+  MechanicCommissionStatusFilter,
+  MechanicPaymentInfo,
 } from "../types";
 
 import Header from "@/components/ui/header";
@@ -48,6 +50,32 @@ const periodOptions: Array<{ value: MechanicCommissionPeriod; label: string }> =
   { value: "daily", label: "Diário" },
   { value: "weekly", label: "Semanal" },
   { value: "monthly", label: "Mensal" },
+];
+
+const commissionStatusOptions: Array<{
+  value: MechanicCommissionStatusFilter;
+  label: string;
+  totalLabel: string;
+  empty: string;
+}> = [
+  {
+    value: "pending",
+    label: "A pagar",
+    totalLabel: "A pagar",
+    empty: "Nenhuma comissão de mecânico a pagar neste período.",
+  },
+  {
+    value: "paid",
+    label: "Pagas",
+    totalLabel: "Pago",
+    empty: "Nenhuma comissão de mecânico paga neste período.",
+  },
+  {
+    value: "all",
+    label: "Todas",
+    totalLabel: "Total",
+    empty: "Nenhuma comissão de mecânico neste período.",
+  },
 ];
 
 function formatCurrency(value: string | number | null | undefined) {
@@ -104,6 +132,28 @@ function formatSource(account: MechanicCommissionAccount) {
   return account.sourceItems
     .map((item) => `${item.description} (${formatCurrency(item.commissionBase)})`)
     .join("; ");
+}
+
+function formatPixKeyType(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    CPF: "CPF",
+    CNPJ: "CNPJ",
+    CELULAR: "Celular",
+    EMAIL: "E-mail",
+    ALEATORIA: "Chave aleatória",
+    OUTRA: "Outra",
+  };
+
+  return value ? labels[value] ?? value : "-";
+}
+
+function hasPaymentInfo(payment: MechanicPaymentInfo | null | undefined) {
+  return Boolean(
+    payment?.paymentKey ||
+      payment?.paymentKeyHolder ||
+      payment?.paymentBank ||
+      payment?.paymentKeyType
+  );
 }
 
 function DetailItem({
@@ -217,6 +267,27 @@ function CommissionDetailsDialog({
                 value={formatCurrency(account.serviceOrder?.total)}
               />
             </section>
+
+            {hasPaymentInfo(account.mechanicPayment) ? (
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <DetailItem
+                  label="Chave PIX"
+                  value={formatValue(account.mechanicPayment?.paymentKey)}
+                />
+                <DetailItem
+                  label="Nome da chave"
+                  value={formatValue(account.mechanicPayment?.paymentKeyHolder)}
+                />
+                <DetailItem
+                  label="Banco"
+                  value={formatValue(account.mechanicPayment?.paymentBank)}
+                />
+                <DetailItem
+                  label="Tipo da chave"
+                  value={formatPixKeyType(account.mechanicPayment?.paymentKeyType)}
+                />
+              </section>
+            ) : null}
 
             <section className="rounded-md border">
               <div className="border-b p-4">
@@ -460,6 +531,8 @@ export default function Page() {
   const { toast } = useToast();
   const [commissionPeriod, setCommissionPeriod] =
     useState<MechanicCommissionPeriod>("weekly");
+  const [commissionStatus, setCommissionStatus] =
+    useState<MechanicCommissionStatusFilter>("pending");
   const [selectedCommission, setSelectedCommission] =
     useState<MechanicCommissionAccount | null>(null);
   const [selectedPayable, setSelectedPayable] =
@@ -478,8 +551,12 @@ export default function Page() {
   });
 
   const mechanicCommissionsQuery = useQuery({
-    queryKey: ["mechanic-commissions-payable", commissionPeriod],
-    queryFn: () => fetchMechanicCommissions({ period: commissionPeriod }),
+    queryKey: ["mechanic-commissions-payable", commissionPeriod, commissionStatus],
+    queryFn: () =>
+      fetchMechanicCommissions({
+        period: commissionPeriod,
+        status: commissionStatus,
+      }),
     staleTime: 30_000,
   });
 
@@ -528,6 +605,9 @@ export default function Page() {
   const mechanicCommissionTotal = Number(
     mechanicCommissionsQuery.data?.summary.total ?? 0
   );
+  const selectedCommissionStatusOption =
+    commissionStatusOptions.find((option) => option.value === commissionStatus) ??
+    commissionStatusOptions[0];
 
   const groupedPayables = useMemo(() => {
     return pendingAccounts
@@ -709,33 +789,50 @@ export default function Page() {
 
             <div>
               <h2 className="text-lg font-semibold text-foreground">
-                Mecânicos a pagar
+                Comissões de mecânicos
               </h2>
               <p className="text-sm text-muted-foreground">
-                Comissões pendentes por data de criação, com placa, OS e base de cálculo.
+                Relatório por data de criação, com pendentes, pagas, placa, OS e base de cálculo.
               </p>
             </div>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex rounded-md border bg-background p-1">
-              {periodOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={commissionPeriod === option.value ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setCommissionPeriod(option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
+            <div className="flex flex-col gap-2">
+              <div className="flex rounded-md border bg-background p-1">
+                {commissionStatusOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={commissionStatus === option.value ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setCommissionStatus(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="flex rounded-md border bg-background p-1">
+                {periodOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={commissionPeriod === option.value ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setCommissionPeriod(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="text-left sm:text-right">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Total do período
+                {selectedCommissionStatusOption.totalLabel} no período
               </p>
               <p className="text-2xl font-bold text-rose-700">
                 {formatCurrency(mechanicCommissionTotal)}
@@ -760,12 +857,20 @@ export default function Page() {
                     <p className="text-sm text-muted-foreground">
                       {group.accountsCount} comissão(ões) em {group.ordersCount} OS
                     </p>
+                    {hasPaymentInfo(group.mechanicPayment) ? (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        PIX: {formatValue(group.mechanicPayment?.paymentKey)} ·{" "}
+                        {formatValue(group.mechanicPayment?.paymentKeyHolder)} ·{" "}
+                        {formatValue(group.mechanicPayment?.paymentBank)} ·{" "}
+                        {formatPixKeyType(group.mechanicPayment?.paymentKeyType)}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div className="text-left sm:text-right">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        A pagar
+                        {selectedCommissionStatusOption.totalLabel}
                       </p>
                       <p className="text-xl font-bold text-rose-700">
                         {formatCurrency(group.total)}
@@ -774,7 +879,7 @@ export default function Page() {
 
                     <Button variant="outline" size="sm" asChild className="gap-2">
                       <a
-                        href={`/api/mechanics/commissions/pdf?period=${commissionPeriod}&mechanicName=${encodeURIComponent(group.mechanicName)}`}
+                        href={`/api/mechanics/commissions/pdf?period=${commissionPeriod}&status=${commissionStatus}&mechanicName=${encodeURIComponent(group.mechanicName)}`}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -794,6 +899,7 @@ export default function Page() {
                         <TableHead>Cliente</TableHead>
                         <TableHead>Criação</TableHead>
                         <TableHead>Vencimento</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Detalhes da comissão</TableHead>
                         <TableHead className="text-right">Base</TableHead>
                         <TableHead className="text-right">%</TableHead>
@@ -816,6 +922,7 @@ export default function Page() {
                           </TableCell>
                           <TableCell>{formatDate(account.createdAt)}</TableCell>
                           <TableCell>{formatDate(account.dueDate)}</TableCell>
+                          <TableCell>{statusBadge(account.status)}</TableCell>
                           <TableCell className="max-w-[360px] text-sm text-muted-foreground">
                             <div className="line-clamp-2">{formatSource(account)}</div>
                             <div className="mt-1 text-xs">
@@ -833,17 +940,19 @@ export default function Page() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                disabled={markAsPaidMutation.isPending}
-                                onClick={() => handleMarkAsPaid(account.id)}
-                              >
-                                <Check className="size-4" />
-                                Pagar
-                              </Button>
+                              {account.status === "PAGA" ? null : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  disabled={markAsPaidMutation.isPending}
+                                  onClick={() => handleMarkAsPaid(account.id)}
+                                >
+                                  <Check className="size-4" />
+                                  Pagar
+                                </Button>
+                              )}
 
                               <Button
                                 type="button"
@@ -867,7 +976,7 @@ export default function Page() {
           </div>
         ) : (
           <div className="p-10 text-center text-sm text-muted-foreground">
-            Nenhuma comissão de mecânico a pagar neste período.
+            {selectedCommissionStatusOption.empty}
           </div>
         )}
       </section>

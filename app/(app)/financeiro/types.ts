@@ -137,6 +137,7 @@ export type CashMovementListResponse = {
 };
 
 export type MechanicCommissionPeriod = "daily" | "weekly" | "monthly";
+export type MechanicCommissionStatusFilter = "pending" | "paid" | "all";
 
 export type MechanicCommissionSourceItem = {
   id: string;
@@ -149,6 +150,13 @@ export type MechanicCommissionSourceItem = {
   commissionBase: string;
 };
 
+export type MechanicPaymentInfo = {
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
+};
+
 export type MechanicCommissionAccount = {
   id: string;
   code: number;
@@ -157,7 +165,7 @@ export type MechanicCommissionAccount = {
   dueDate: string;
   createdAt: string;
   amount: string;
-  status: "ABERTA" | "VENCIDA";
+  status: "ABERTA" | "VENCIDA" | "PAGA";
   notes: string | null;
   commissionPercent: string | null;
   commissionBase: string;
@@ -177,10 +185,12 @@ export type MechanicCommissionAccount = {
     subtotal: string;
   } | null;
   sourceItems: MechanicCommissionSourceItem[];
+  mechanicPayment: MechanicPaymentInfo | null;
 };
 
 export type MechanicCommissionGroup = {
   mechanicName: string;
+  mechanicPayment: MechanicPaymentInfo | null;
   total: string;
   accountsCount: number;
   ordersCount: number;
@@ -189,6 +199,7 @@ export type MechanicCommissionGroup = {
 
 export type MechanicCommissionReport = {
   period: MechanicCommissionPeriod;
+  status: MechanicCommissionStatusFilter;
   periodLabel: string;
   from: string;
   to: string;

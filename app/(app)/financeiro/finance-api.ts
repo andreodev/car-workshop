@@ -14,6 +14,7 @@ import type {
   FinancialCategoryType,
   MechanicCommissionPeriod,
   MechanicCommissionReport,
+  MechanicCommissionStatusFilter,
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -80,9 +81,11 @@ export async function fetchFinancialAccounts(params: {
 
 export async function fetchMechanicCommissions(params: {
   period?: MechanicCommissionPeriod;
+  status?: MechanicCommissionStatusFilter;
 }) {
   const query = toQuery({
     period: params.period,
+    status: params.status,
   });
 
   const response = await fetch(`/api/mechanics/commissions?${query}`, {

@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const report = await getMechanicCommissionReport({
     period: searchParams.get("period"),
     mechanicName: searchParams.get("mechanicName"),
+    status: searchParams.get("status"),
   });
 
   return Response.json(JSON.parse(JSON.stringify(report)));

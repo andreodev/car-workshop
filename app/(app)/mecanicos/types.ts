@@ -6,6 +6,10 @@ export type Mechanic = {
   name: string;
   active: boolean;
   commissionPercent: string;
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -22,6 +26,10 @@ export type MechanicFormValues = {
   name: string;
   active: boolean;
   commissionPercent: string;
+  paymentKey: string;
+  paymentKeyHolder: string;
+  paymentBank: string;
+  paymentKeyType: string;
   notes: string;
 };
 

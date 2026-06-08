@@ -22,12 +22,22 @@ const percentageField = z
     message: "Comissão deve estar entre 0% e 100%.",
   });
 
+export const pixKeyTypeValues = ["CPF", "CNPJ", "CELULAR", "EMAIL", "ALEATORIA", "OUTRA"] as const;
+
+const pixKeyTypeField = z
+  .enum(pixKeyTypeValues, { error: "Tipo da chave PIX inválido." })
+  .or(z.literal(""));
+
 export const mechanicFormSchema = z.object({
   name: textField("Nome", 120).refine((value) => value.length > 0, {
     message: "Nome é obrigatório.",
   }),
   active: z.boolean({ error: "Situação inválida." }),
   commissionPercent: percentageField,
+  paymentKey: textField("Chave PIX", 180),
+  paymentKeyHolder: textField("Nome da chave PIX", 120),
+  paymentBank: textField("Banco da chave PIX", 120),
+  paymentKeyType: pixKeyTypeField,
   notes: textField("Observações", 1000),
 });
 

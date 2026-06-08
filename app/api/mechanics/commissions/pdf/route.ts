@@ -146,6 +146,11 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     marginBottom: 5,
   },
+  mechanicPayment: {
+    fontSize: 7.5,
+    color: colors.secondary,
+    marginBottom: 6,
+  },
   tableHeader: {
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -168,30 +173,33 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   osCell: {
-    width: 58,
+    width: 44,
   },
   vehicleCell: {
-    width: 94,
+    width: 80,
   },
   clientCell: {
     flex: 1,
   },
   dueDateCell: {
-    width: 58,
+    width: 48,
   },
   createdAtCell: {
-    width: 58,
+    width: 48,
+  },
+  statusCell: {
+    width: 50,
   },
   baseCell: {
-    width: 70,
+    width: 58,
     textAlign: "right",
   },
   percentCell: {
-    width: 48,
+    width: 35,
     textAlign: "right",
   },
   amountCell: {
-    width: 74,
+    width: 62,
     textAlign: "right",
   },
   detail: {
@@ -242,6 +250,62 @@ function formatPercent(value: string | null) {
     maximumFractionDigits: 2,
     minimumFractionDigits: parsed % 1 === 0 ? 0 : 2,
   }).format(parsed)}%`;
+}
+
+function formatPixKeyType(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    CPF: "CPF",
+    CNPJ: "CNPJ",
+    CELULAR: "Celular",
+    EMAIL: "E-mail",
+    ALEATORIA: "Chave aleatoria",
+    OUTRA: "Outra",
+  };
+
+  return value ? labels[value] ?? value : "-";
+}
+
+function formatMechanicPayment(payment: {
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
+} | null) {
+  if (
+    !payment?.paymentKey &&
+    !payment?.paymentKeyHolder &&
+    !payment?.paymentBank &&
+    !payment?.paymentKeyType
+  ) {
+    return null;
+  }
+
+  return [
+    `Chave PIX: ${payment.paymentKey ?? "-"}`,
+    `Nome: ${payment.paymentKeyHolder ?? "-"}`,
+    `Banco: ${payment.paymentBank ?? "-"}`,
+    `Tipo: ${formatPixKeyType(payment.paymentKeyType)}`,
+  ].join(" | ");
+}
+
+function formatCommissionStatusFilter(status: string) {
+  const labels: Record<string, string> = {
+    pending: "A pagar",
+    paid: "Pagas",
+    all: "Todas",
+  };
+
+  return labels[status] ?? "A pagar";
+}
+
+function formatFinancialStatus(status: string) {
+  const labels: Record<string, string> = {
+    ABERTA: "Aberta",
+    VENCIDA: "Vencida",
+    PAGA: "Paga",
+  };
+
+  return labels[status] ?? status;
 }
 
 function formatDateTime(value: Date) {
@@ -332,6 +396,7 @@ export async function GET(request: NextRequest) {
   const report = await getMechanicCommissionReport({
     period: searchParams.get("period"),
     mechanicName: searchParams.get("mechanicName"),
+    status: searchParams.get("status"),
   });
   const companySettings = await prisma.companySettings.findUnique({
     where: { singletonKey: COMPANY_SETTINGS_KEY },
@@ -366,9 +431,10 @@ export async function GET(request: NextRequest) {
       })
     : "";
   const mechanicSignatureLabel =
-    report.groups.length === 1
+    report.status !== "paid" && report.groups.length === 1
       ? `Assinatura do mecânico - ${report.groups[0].mechanicName}`
       : "Assinatura do mecânico";
+  const statusLabel = formatCommissionStatusFilter(report.status);
   const h = React.createElement;
 
   const doc = h(
@@ -376,7 +442,7 @@ export async function GET(request: NextRequest) {
     null,
     h(
       Page,
-      { size: "A4", orientation: "landscape", style: styles.page },
+      { size: "A4", orientation: "portrait", style: styles.page },
       h(
         View,
         { style: styles.topBar },
@@ -416,8 +482,8 @@ export async function GET(request: NextRequest) {
           View,
           { style: styles.docBox },
           h(Text, { style: styles.labelLight }, "Documento"),
-          h(Text, { style: styles.docNumber }, `Comissões ${report.periodLabel}`),
-          h(Text, { style: styles.badge }, "A pagar"),
+          h(Text, { style: styles.docNumber }, `Comissões ${statusLabel}`),
+          h(Text, { style: styles.badge }, report.periodLabel),
           h(Text, { style: styles.docMeta }, `Emissão: ${formatDateTime(new Date())}`),
           h(Text, { style: styles.docMeta }, `Período: ${formatPeriod(report.from, report.to)}`)
         )
@@ -428,7 +494,7 @@ export async function GET(request: NextRequest) {
         h(
           View,
           { style: styles.summaryBox },
-          h(Text, { style: styles.summaryLabel }, "Total a pagar"),
+          h(Text, { style: styles.summaryLabel }, `Total - ${statusLabel}`),
           h(Text, { style: styles.summaryValue }, formatCurrency(report.summary.total))
         ),
         h(
@@ -454,6 +520,13 @@ export async function GET(request: NextRequest) {
                 { style: styles.mechanicTitle },
                 `${group.mechanicName} - ${formatCurrency(group.total)}`
               ),
+              formatMechanicPayment(group.mechanicPayment)
+                ? h(
+                    Text,
+                    { style: styles.mechanicPayment },
+                    formatMechanicPayment(group.mechanicPayment)
+                  )
+                : null,
               h(
                 View,
                 { style: styles.tableHeader },
@@ -462,6 +535,7 @@ export async function GET(request: NextRequest) {
                 h(Text, { style: [styles.cell, styles.clientCell, styles.headerText] }, "Origem"),
                 h(Text, { style: [styles.cell, styles.createdAtCell, styles.headerText] }, "Criada"),
                 h(Text, { style: [styles.cell, styles.dueDateCell, styles.headerText] }, "Venc."),
+                h(Text, { style: [styles.cell, styles.statusCell, styles.headerText] }, "Status"),
                 h(Text, { style: [styles.cell, styles.baseCell, styles.headerText] }, "Base"),
                 h(Text, { style: [styles.cell, styles.percentCell, styles.headerText] }, "%"),
                 h(Text, { style: [styles.cell, styles.amountCell, styles.headerText] }, "Comissão")
@@ -485,6 +559,7 @@ export async function GET(request: NextRequest) {
                   ),
                   h(Text, { style: [styles.cell, styles.createdAtCell] }, formatDate(new Date(account.createdAt))),
                   h(Text, { style: [styles.cell, styles.dueDateCell] }, formatDate(new Date(account.dueDate))),
+                  h(Text, { style: [styles.cell, styles.statusCell] }, formatFinancialStatus(account.status)),
                   h(Text, { style: [styles.cell, styles.baseCell] }, formatCurrency(account.commissionBase)),
                   h(Text, { style: [styles.cell, styles.percentCell] }, formatPercent(account.commissionPercent)),
                   h(Text, { style: [styles.cell, styles.amountCell] }, formatCurrency(toNumber(account.amount)))
@@ -529,7 +604,7 @@ export async function GET(request: NextRequest) {
   return new Response(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename=comissoes-${fileSlug}-${report.period}-${stamp}.pdf`,
+      "Content-Disposition": `inline; filename=comissoes-${fileSlug}-${report.status}-${report.period}-${stamp}.pdf`,
       "Cache-Control": "private, max-age=300",
     },
   });

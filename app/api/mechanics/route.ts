@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
 import { mechanicFormSchema, toNullableString } from "@/app/(app)/mecanicos/mechanic-form-schema";
+import { apiErrorResponse } from "@/app/api/_utils/api-error";
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
 
@@ -27,6 +28,21 @@ function normalizeString(value: unknown) {
 function getZodErrorMessage(error: { issues: Array<{ message: string }> }) {
   return error.issues[0]?.message ?? "Dados inválidos.";
 }
+
+const mechanicSelect = {
+  id: true,
+  code: true,
+  name: true,
+  active: true,
+  commissionPercent: true,
+  paymentKey: true,
+  paymentKeyHolder: true,
+  paymentBank: true,
+  paymentKeyType: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MechanicSelect;
 
 export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
@@ -58,17 +74,24 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  const [total, items] = await prisma.$transaction([
-    prisma.mechanic.count({ where }),
-    prisma.mechanic.findMany({
-      where,
-      orderBy: [{ active: "desc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
+  try {
+    const [total, items] = await prisma.$transaction([
+      prisma.mechanic.count({ where }),
+      prisma.mechanic.findMany({
+        where,
+        select: mechanicSelect,
+        orderBy: [{ active: "desc" }, { name: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
 
-  return Response.json({ items, total, page, pageSize });
+    return Response.json({ items, total, page, pageSize });
+  } catch (error) {
+    return apiErrorResponse(error, {
+      fallback: "Não foi possível carregar os mecânicos.",
+    });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -78,7 +101,14 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const payload = await request.json();
+  let payload: unknown;
+
+  try {
+    payload = await request.json();
+  } catch {
+    return Response.json({ error: "JSON inválido.", code: "INVALID_JSON" }, { status: 400 });
+  }
+
   const parsed = mechanicFormSchema.safeParse(payload);
 
   if (!parsed.success) {
@@ -91,22 +121,19 @@ export async function POST(request: NextRequest) {
         name: parsed.data.name,
         active: parsed.data.active,
         commissionPercent: parsed.data.commissionPercent,
+        paymentKey: toNullableString(parsed.data.paymentKey),
+        paymentKeyHolder: toNullableString(parsed.data.paymentKeyHolder),
+        paymentBank: toNullableString(parsed.data.paymentBank),
+        paymentKeyType: toNullableString(parsed.data.paymentKeyType),
         notes: toNullableString(parsed.data.notes),
       },
     });
 
     return Response.json(mechanic, { status: 201 });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return Response.json(
-        { error: "Ja existe um mecânico com este nome." },
-        { status: 409 }
-      );
-    }
-
-    throw error;
+    return apiErrorResponse(error, {
+      fallback: "Não foi possível cadastrar o mecânico.",
+      uniqueMessage: "Já existe um mecânico com este nome.",
+    });
   }
 }

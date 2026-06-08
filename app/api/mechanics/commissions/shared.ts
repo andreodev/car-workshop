@@ -2,9 +2,10 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/app/lib/prisma";
 
-const commissionStatuses = ["ABERTA", "VENCIDA"] as const;
+const commissionStatusFilters = ["pending", "paid", "all"] as const;
 const periodOptions = ["daily", "weekly", "monthly"] as const;
 
+export type MechanicCommissionStatusFilter = (typeof commissionStatusFilters)[number];
 export type MechanicCommissionPeriod = (typeof periodOptions)[number];
 export type MechanicCommissionSourceItem = {
   id: string;
@@ -16,6 +17,12 @@ export type MechanicCommissionSourceItem = {
   total: string;
   commissionBase: string;
 };
+export type MechanicPaymentInfo = {
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
+};
 export type MechanicCommissionAccount = {
   id: string;
   code: number;
@@ -24,7 +31,7 @@ export type MechanicCommissionAccount = {
   dueDate: Date;
   createdAt: Date;
   amount: string;
-  status: "ABERTA" | "VENCIDA";
+  status: "ABERTA" | "VENCIDA" | "PAGA";
   notes: string | null;
   commissionPercent: string | null;
   commissionBase: string;
@@ -44,9 +51,11 @@ export type MechanicCommissionAccount = {
     subtotal: string;
   } | null;
   sourceItems: MechanicCommissionSourceItem[];
+  mechanicPayment: MechanicPaymentInfo | null;
 };
 export type MechanicCommissionGroup = {
   mechanicName: string;
+  mechanicPayment: MechanicPaymentInfo | null;
   total: string;
   accountsCount: number;
   ordersCount: number;
@@ -56,6 +65,7 @@ export type MechanicCommissionGroup = {
 type CommissionReportParams = {
   period?: string | null;
   mechanicName?: string | null;
+  status?: string | null;
 };
 
 function startOfDay(date: Date) {
@@ -74,6 +84,24 @@ function normalizePeriod(value: string | null | undefined): MechanicCommissionPe
   return periodOptions.includes(value as MechanicCommissionPeriod)
     ? (value as MechanicCommissionPeriod)
     : "weekly";
+}
+
+function normalizeStatusFilter(value: string | null | undefined): MechanicCommissionStatusFilter {
+  return commissionStatusFilters.includes(value as MechanicCommissionStatusFilter)
+    ? (value as MechanicCommissionStatusFilter)
+    : "pending";
+}
+
+function statusesForFilter(status: MechanicCommissionStatusFilter) {
+  if (status === "paid") {
+    return ["PAGA"] as const;
+  }
+
+  if (status === "all") {
+    return ["ABERTA", "VENCIDA", "PAGA"] as const;
+  }
+
+  return ["ABERTA", "VENCIDA"] as const;
 }
 
 function buildPeriodRange(period: MechanicCommissionPeriod) {
@@ -235,10 +263,37 @@ function normalizeCommissionNotes(
   return notes.replace(/Base:\s*[\d.,]+/i, `Base: ${commissionBase.toFixed(2)}`);
 }
 
+function mechanicPaymentInfo(
+  mechanic:
+    | {
+        paymentKey: string | null;
+        paymentKeyHolder: string | null;
+        paymentBank: string | null;
+        paymentKeyType: string | null;
+      }
+    | null
+    | undefined
+) {
+  if (!mechanic) {
+    return null;
+  }
+
+  const payment = {
+    paymentKey: mechanic.paymentKey,
+    paymentKeyHolder: mechanic.paymentKeyHolder,
+    paymentBank: mechanic.paymentBank,
+    paymentKeyType: mechanic.paymentKeyType,
+  };
+
+  return Object.values(payment).some(Boolean) ? payment : null;
+}
+
 export async function getMechanicCommissionReport(params: CommissionReportParams = {}) {
   const period = normalizePeriod(params.period);
+  const status = normalizeStatusFilter(params.status);
   const periodRange = buildPeriodRange(period);
   const mechanicName = normalizeString(params.mechanicName);
+  const commissionStatuses = statusesForFilter(status);
 
   const accounts = await prisma.financialAccount.findMany({
     where: {
@@ -283,12 +338,28 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
             client: { select: { id: true, name: true } },
             vehicle: { select: { id: true, plate: true, brand: true, model: true } },
             mechanic: {
-              select: { id: true, name: true, commissionPercent: true },
+              select: {
+                id: true,
+                name: true,
+                commissionPercent: true,
+                paymentKey: true,
+                paymentKeyHolder: true,
+                paymentBank: true,
+                paymentKeyType: true,
+              },
             },
             items: {
               include: {
                 mechanic: {
-                  select: { id: true, name: true, commissionPercent: true },
+                  select: {
+                    id: true,
+                    name: true,
+                    commissionPercent: true,
+                    paymentKey: true,
+                    paymentKeyHolder: true,
+                    paymentBank: true,
+                    paymentKeyType: true,
+                  },
                 },
                 catalogItem: { select: { type: true } },
               },
@@ -300,7 +371,15 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
     mechanicNames.length
       ? prisma.mechanic.findMany({
           where: { name: { in: mechanicNames } },
-          select: { id: true, name: true, commissionPercent: true },
+          select: {
+            id: true,
+            name: true,
+            commissionPercent: true,
+            paymentKey: true,
+            paymentKeyHolder: true,
+            paymentBank: true,
+            paymentKeyType: true,
+          },
         })
       : Promise.resolve([]),
   ]);
@@ -312,6 +391,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
     string,
     {
       mechanicName: string;
+      mechanicPayment: MechanicPaymentInfo | null;
       total: Prisma.Decimal;
       accountsCount: number;
       orderCodes: Set<number>;
@@ -328,6 +408,11 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       mechanic?.commissionPercent ??
       (serviceOrder?.mechanic?.name === groupName
         ? serviceOrder.mechanic.commissionPercent
+        : null);
+    const paymentInfo =
+      mechanicPaymentInfo(mechanic) ??
+      (serviceOrder?.mechanic?.name === groupName
+        ? mechanicPaymentInfo(serviceOrder.mechanic)
         : null);
 
     const sourceItemsWithBase =
@@ -380,6 +465,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
     if (!groups.has(groupName)) {
       groups.set(groupName, {
         mechanicName: groupName,
+        mechanicPayment: paymentInfo,
         total: new Prisma.Decimal(0),
         accountsCount: 0,
         orderCodes: new Set(),
@@ -403,7 +489,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       dueDate: account.dueDate,
       createdAt: account.createdAt,
       amount: decimalToString(account.amount),
-      status: account.status as "ABERTA" | "VENCIDA",
+      status: account.status as "ABERTA" | "VENCIDA" | "PAGA",
       notes: normalizeCommissionNotes(
         account.notes,
         commissionBase,
@@ -424,12 +510,14 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
           }
         : null,
       sourceItems,
+      mechanicPayment: paymentInfo,
     });
   }
 
   const normalizedGroups = Array.from(groups.values())
     .map((group) => ({
       mechanicName: group.mechanicName,
+      mechanicPayment: group.mechanicPayment,
       total: decimalToString(group.total),
       accountsCount: group.accountsCount,
       ordersCount: group.orderCodes.size,
@@ -444,6 +532,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
 
   return {
     period,
+    status,
     periodLabel: periodRange.label,
     from: periodRange.from,
     to: periodRange.to,
