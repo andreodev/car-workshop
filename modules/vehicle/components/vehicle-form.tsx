@@ -49,6 +49,7 @@ const brands = [
   { value: "peugeot", label: "Peugeot" },
   { value: "fiat", label: "Fiat" },
   { value: "citroen", label: "Citroën" },
+  { value: "mercedes", label: "Mercedes" },
 ];
 
 export function VehicleForm({ mode, initialData }: VehicleFormProps) {
