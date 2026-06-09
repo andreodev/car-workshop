@@ -1,6 +1,7 @@
 ﻿import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
+import { sendPdvSaleFinancialEmail } from "@/app/lib/pdv-sale-email";
 import {
   saleListInclude,
   createPaymentCashMovements,
@@ -44,6 +45,14 @@ function serviceError(error: string, status: number, details?: string) {
     status,
     ...(details ? { details } : {}),
   } as const;
+}
+
+async function notifyPdvSaleMovedToFinancial(saleId: string) {
+  try {
+    await sendPdvSaleFinancialEmail(saleId);
+  } catch (error) {
+    console.error("[PDV_SALE_FINANCIAL_EMAIL] Falha ao enviar notificacao:", error);
+  }
 }
 
 function buildSaleWhere(search: string, status: ReturnType<typeof normalizeStatus>, from: Date | null, to: Date | null) {
@@ -858,6 +867,8 @@ export const saleService = {
         return createdSale;
       });
 
+      await notifyPdvSaleMovedToFinancial(sale.id);
+
       return {
         data: sale,
       };
@@ -1115,6 +1126,7 @@ export const saleService = {
               serviceOrder: currentServiceOrder,
               mechanicCommissionPayable: null,
               updatedFinancialAccountsCount: 0,
+              shouldSendFinancialEmail: false,
             };
           }
 
@@ -1313,11 +1325,18 @@ export const saleService = {
           serviceOrder: updatedServiceOrder,
           mechanicCommissionPayable,
           updatedFinancialAccountsCount: updatedFinancialAccounts.count,
+          shouldSendFinancialEmail: true,
         };
       });
 
+      const { shouldSendFinancialEmail, ...responseData } = result;
+
+      if (shouldSendFinancialEmail) {
+        await notifyPdvSaleMovedToFinancial(result.sale.id);
+      }
+
       return {
-        data: result,
+        data: responseData,
       };
     } catch (error) {
       if (error instanceof Error && error.message === "SERVICE_ORDER_ALREADY_PAID") {
@@ -1477,6 +1496,8 @@ export const saleService = {
 
         return updatedSale;
       });
+
+      await notifyPdvSaleMovedToFinancial(sale.id);
 
       return {
         data: sale,
