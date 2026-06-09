@@ -40,6 +40,13 @@ export type SalesParams = {
   to?: string;
 };
 
+type ApiErrorPayload = {
+  error?: unknown;
+  message?: unknown;
+  details?: unknown;
+  errors?: unknown;
+};
+
 function toQuery(params: Record<string, string | number | boolean | undefined>) {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -51,15 +58,61 @@ function toQuery(params: Record<string, string | number | boolean | undefined>) 
   return searchParams.toString();
 }
 
+function stringifyApiMessage(value: unknown): string | null {
+  if (typeof value === "string") {
+    const message = value.trim();
+    return message || null;
+  }
+
+  if (Array.isArray(value)) {
+    const message = value
+      .map((item) => stringifyApiMessage(item))
+      .filter(Boolean)
+      .join(" ");
+    return message || null;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as ApiErrorPayload;
+    return (
+      stringifyApiMessage(record.error) ??
+      stringifyApiMessage(record.message) ??
+      stringifyApiMessage(record.details) ??
+      stringifyApiMessage(record.errors)
+    );
+  }
+
+  return null;
+}
+
+function getApiErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  const record = payload as ApiErrorPayload;
+  const primary =
+    stringifyApiMessage(record.error) ??
+    stringifyApiMessage(record.message) ??
+    stringifyApiMessage(record.errors);
+  const details = stringifyApiMessage(record.details);
+
+  if (primary && details && !primary.includes(details)) {
+    return `${primary} ${details}`;
+  }
+
+  return primary ?? details ?? fallback;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
-  const json = text ? safeJsonParse<T & { error?: string }>(text) : null;
+  const json = text ? safeJsonParse<T>(text) : null;
 
   if (!response.ok) {
-    const message =
-      typeof json === "object" && json && "error" in json
-        ? String(json.error)
-        : response.statusText || "Erro ao processar a requisicao.";
+    const message = getApiErrorMessage(
+      json,
+      response.statusText || "Erro ao processar a requisicao."
+    );
     throw new Error(message);
   }
 
@@ -231,9 +284,11 @@ export async function fetchServiceOrderPdv(serviceOrderId: string) {
 
 export async function payServiceOrderPdv({
   serviceOrderId,
+  discountAmount,
   payments,
 }: {
   serviceOrderId: string;
+  discountAmount?: number;
   payments: SalePaymentPayload[];
 }) {
   const response = await fetch(`/api/sales/${serviceOrderId}`, {
@@ -244,6 +299,7 @@ export async function payServiceOrderPdv({
     },
     body: JSON.stringify({
       serviceOrderId,
+      discountAmount,
       payments,
     }),
   });

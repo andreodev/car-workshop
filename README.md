@@ -60,6 +60,43 @@ Auth routes:
 - Sign up: http://localhost:3000/signup
 - Sign in: http://localhost:3000/login
 
+## Daily Report Email
+
+Configure these variables in `.env` or in the deployment environment:
+
+```bash
+RESEND_API_KEY=
+RESEND_FROM_EMAIL="Car Workshop <relatorios@seudominio.com>"
+DAILY_REPORT_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
+PDV_SALE_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
+CRON_SECRET=change-me
+DAILY_REPORT_TIME_ZONE=America/Manaus
+```
+
+`DAILY_REPORT_EMAIL_RECIPIENTS` accepts one or more email addresses separated by comma or semicolon. The automation sends the daily financial PDF through Resend and says in the email text whether the day was good or bad based on the cash balance.
+
+`PDV_SALE_EMAIL_RECIPIENTS` receives a notification whenever a PDV sale is launched into finance. If it is not configured, the app uses `DAILY_REPORT_EMAIL_RECIPIENTS`.
+
+The project includes a Vercel Cron in `vercel.json`:
+
+```json
+{
+  "path": "/api/automations/daily-report-email",
+  "schedule": "30 22 * * *"
+}
+```
+
+Vercel cron expressions run in UTC, so `30 22 * * *` sends the report every day at 18:30 in `America/Manaus`.
+
+Trigger the automation with:
+
+```bash
+curl -X POST http://localhost:3000/api/automations/daily-report-email \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+On Vercel, configure `CRON_SECRET` in the production environment. Vercel will send it as the `Authorization` header when the daily cron calls the route.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

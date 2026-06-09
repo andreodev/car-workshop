@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, ReactNode } from "react";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,7 @@ import { fetchAddressByCep } from "@/modules/client/api/client-cep.service";
 import { onlyDigits } from "@/modules/client/utils/client-input-masks";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -43,7 +44,7 @@ import {
   type CompanySettingsFormErrors,
 } from "../company-settings-form-utils";
 import { maskCompanySettingsField } from "../company-settings-input-masks";
-import type { CompanySettingsFormValues } from "../types";
+import type { CompanySettings, CompanySettingsFormValues } from "../types";
 
 type FieldConfig = {
   field: keyof CompanySettingsFormValues;
@@ -239,6 +240,8 @@ export function CompanySettingsForm() {
           </div>
         ) : (
           <>
+            <RegisteredCompanyCard settings={settingsQuery.data ?? null} />
+
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
               <div className="space-y-6">
                 <FormSection
@@ -717,6 +720,135 @@ export function CompanySettingsForm() {
       </form>
     </section>
   );
+}
+
+function RegisteredCompanyCard({
+  settings,
+}: {
+  settings: CompanySettings | null;
+}) {
+  const companyName = settings?.tradeName || settings?.legalName || null;
+
+  if (!settings || !companyName) {
+    return (
+      <Card className="border-dashed border-border/70 bg-muted/20 shadow-sm">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <Building2 className="size-4" />
+            </span>
+
+            <div className="min-w-0">
+              <h2 className="font-heading text-base font-700 text-foreground">
+                Nenhuma empresa cadastrada
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Preencha os dados abaixo para identificar a oficina nos
+                documentos e comprovantes.
+              </p>
+            </div>
+          </div>
+
+          <Badge variant="secondary" className="h-fit w-fit">
+            Pendente
+          </Badge>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const address = buildSavedCompanyAddress(settings);
+  const contact = [
+    settings.phone,
+    settings.whatsapp,
+    settings.email,
+    settings.website,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return (
+    <Card className="border-border/70 bg-primary/5 shadow-sm">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Building2 className="size-5" />
+            </span>
+
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="break-words font-heading text-lg font-700 text-foreground">
+                  {companyName}
+                </h2>
+                <Badge className="h-fit w-fit">Cadastrada</Badge>
+              </div>
+
+              {settings.tradeName && settings.legalName ? (
+                <p className="mt-1 break-words text-sm text-muted-foreground">
+                  Razao social: {settings.legalName}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Atualizada em {formatSavedCompanyDate(settings.updatedAt)}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SavedCompanyInfo label="CNPJ" value={settings.document} />
+          <SavedCompanyInfo
+            label="Inscricao estadual"
+            value={settings.stateRegistration}
+          />
+          <SavedCompanyInfo label="Endereço" value={address} />
+          <SavedCompanyInfo label="Contato" value={contact} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SavedCompanyInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border border-border/70 bg-card/80 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">
+        {value || "Nao informado"}
+      </p>
+    </div>
+  );
+}
+
+function buildSavedCompanyAddress(settings: CompanySettings) {
+  return [
+    settings.address,
+    settings.number,
+    settings.neighborhood,
+    settings.city,
+    settings.state,
+    settings.cep,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatSavedCompanyDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 function useDebouncedValue<T>(value: T, delay: number) {

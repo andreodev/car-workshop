@@ -22,7 +22,7 @@ import {
 import { convertEstimate, fetchEstimate, fetchEstimates, updateEstimateStatus } from "./estimate-api";
 import { buildEstimateShareLinks, getEstimatePrintHref } from "./share";
 import { estimateStatusOptions, getEstimateStatusOption } from "./status";
-import type { Estimate, EstimateStatus } from "./types";
+import type { Estimate, EstimateStatus, EstimateVisibility } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +55,44 @@ import { useToast } from "@/components/ui/toast";
 const PAGE_SIZE = 10;
 
 type StatusFilter = EstimateStatus | "TODOS";
+
+const estimateVisibilityOptions: Array<{
+  value: EstimateVisibility;
+  label: string;
+}> = [
+  { value: "ATIVOS", label: "Em andamento" },
+  { value: "ARQUIVADOS", label: "Arquivados" },
+  { value: "TODOS", label: "Todos" },
+];
+
+const archivedOrderStatuses = ["FINALIZADA", "PAGA", "CANCELADA"] as const;
+
+function serviceOrderStatusLabel(status: string | undefined) {
+  const labels: Record<string, string> = {
+    ABERTA: "Aberta",
+    EM_ANDAMENTO: "Em andamento",
+    AGUARDANDO_PECAS: "Aguardando peças",
+    IMPEDIDA: "Impedida",
+    FINALIZADA: "Finalizada",
+    CANCELADA: "Cancelada",
+    PAGA: "Paga",
+  };
+
+  return status ? labels[status] ?? status : "-";
+}
+
+function isArchivedEstimate(estimate: Estimate) {
+  return (
+    estimate.status === "REJEITADO" ||
+    estimate.status === "CANCELADO" ||
+    Boolean(
+      estimate.convertedServiceOrder?.status &&
+        archivedOrderStatuses.includes(
+          estimate.convertedServiceOrder.status as (typeof archivedOrderStatuses)[number],
+        ),
+    )
+  );
+}
 
 function formatCurrency(value: string) {
   const parsed = Number(value);
@@ -187,6 +225,7 @@ export default function EstimatesPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<StatusFilter>("TODOS");
+  const [visibility, setVisibility] = useState<EstimateVisibility>("ATIVOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
@@ -196,9 +235,16 @@ export default function EstimatesPage() {
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const { toast } = useToast();
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["estimates", { page, status, search }],
-    queryFn: () => fetchEstimates({ page, pageSize: PAGE_SIZE, status, search }),
+  const { data, isLoading, isFetching, isError, error } = useQuery({
+    queryKey: ["estimates", { page, status, search, visibility }],
+    queryFn: () =>
+      fetchEstimates({
+        page,
+        pageSize: PAGE_SIZE,
+        status,
+        search,
+        visibility,
+      }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
@@ -272,16 +318,22 @@ export default function EstimatesPage() {
     return Math.max(1, Math.ceil(data.total / data.pageSize));
   }, [data]);
 
+  const showInitialLoading = isLoading;
+  const showBackgroundLoading = isFetching && !isLoading;
+
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
     setSearch(searchInput.trim());
   }
 
-  console.log(data);
-
   function handleStatusChange(value: string) {
     setStatus(value as StatusFilter);
+    setPage(1);
+  }
+
+  function handleVisibilityChange(value: string) {
+    setVisibility(value as EstimateVisibility);
     setPage(1);
   }
 
@@ -319,9 +371,6 @@ export default function EstimatesPage() {
     }
   }
 
-  console.log(data)
-  console.log(isLoading, isError, error)
-
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -340,9 +389,9 @@ export default function EstimatesPage() {
 
       <form
         onSubmit={handleSearch}
-        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
+        className="grid gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto]"
       >
-        <div className="flex-1">
+        <div className="sm:col-span-2 lg:col-span-1">
           <Input
             placeholder="Buscar por cliente, veículo, mecânico, setor, responsável ou número..."
             value={searchInput}
@@ -367,14 +416,34 @@ export default function EstimatesPage() {
           </Select>
         </div>
 
-        <Button type="submit" variant="secondary" size="sm" className="h-9 gap-2 px-5 font-medium">
+        <div className="w-full sm:w-56">
+          <Select value={visibility} onValueChange={handleVisibilityChange}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Exibição" />
+            </SelectTrigger>
+            <SelectContent>
+              {estimateVisibilityOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          type="submit"
+          variant="secondary"
+          size="sm"
+          className="h-9 gap-2 px-5 font-medium"
+        >
           <Search className="size-3.5" />
           Buscar
         </Button>
       </form>
 
       <div className="flex min-h-[560px] flex-col gap-4">
-        {isLoading && (
+        {showInitialLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             Carregando orçamentos...
@@ -387,7 +456,14 @@ export default function EstimatesPage() {
           </div>
         )}
 
-        {data && data.items.length === 0 && !isLoading && (
+        {showBackgroundLoading ? (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-8 text-sm text-muted-foreground shadow-sm">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Atualizando orçamentos...
+          </div>
+        ) : null}
+
+        {data && data.items.length === 0 && !isFetching && (
           <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
             <FileText className="size-8 opacity-40" strokeWidth={1.5} />
             Nenhum orçamento encontrado para os filtros aplicados.
@@ -395,7 +471,11 @@ export default function EstimatesPage() {
         )}
 
         {data && data.items.length > 0 && (
-          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <div className="relative overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            {showBackgroundLoading ? (
+              <div className="absolute inset-x-0 top-0 z-10 h-0.5 bg-primary/70" />
+            ) : null}
+
             <Table className="min-w-[1120px]">
               <TableHeader>
                 <TableRow className="bg-muted/60 hover:bg-muted/60">
@@ -437,11 +517,14 @@ export default function EstimatesPage() {
                   const statusOption = getEstimateStatusOption(estimate.status);
                   const isUpdatingRow =
                     statusMutation.isPending && statusMutation.variables?.id === estimate.id;
+                  const archived = isArchivedEstimate(estimate);
 
                   return (
                     <TableRow
                       key={estimate.id}
-                      className="group transition-colors hover:bg-accent/40"
+                      className={`group transition-colors hover:bg-accent/40 ${
+                        archived ? "bg-muted/20 opacity-75" : ""
+                      }`}
                     >
                       <TableCell className="font-mono text-sm font-medium text-foreground">
                         #{estimate.code}
@@ -473,9 +556,22 @@ export default function EstimatesPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusOption.variant} className={statusOption.className}>
-                          {statusOption.label}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <Badge
+                            variant={statusOption.variant}
+                            className={statusOption.className}
+                          >
+                            {statusOption.label}
+                          </Badge>
+                          {estimate.convertedServiceOrder ? (
+                            <span className="text-xs text-muted-foreground">
+                              OS #{estimate.convertedServiceOrder.code} -{" "}
+                              {serviceOrderStatusLabel(
+                                estimate.convertedServiceOrder.status,
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm text-muted-foreground">
                         {formatCurrency(estimate.subtotal)}
@@ -560,6 +656,11 @@ export default function EstimatesPage() {
             Página <span className="font-medium text-foreground">{data.page ?? page}</span>{" "}
             de <span className="font-medium text-foreground">{totalPages}</span>
             {data.total ? ` - ${data.total} orçamentos` : ""}
+            {visibility === "ATIVOS"
+              ? " em andamento"
+              : visibility === "ARQUIVADOS"
+                ? " arquivados"
+                : ""}
           </p>
 
           <div className="flex items-center gap-2">
@@ -719,6 +820,26 @@ export default function EstimatesPage() {
                       {selectedEstimate.responsible}
                     </p>
                   </div>
+                  {selectedEstimate.convertedServiceOrder ? (
+                    <div className="rounded-lg border border-border p-3 md:col-span-3">
+                      <p className="text-xs text-muted-foreground">Ordem de serviço convertida</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-foreground">
+                          OS #{selectedEstimate.convertedServiceOrder.code} -{" "}
+                          {serviceOrderStatusLabel(
+                            selectedEstimate.convertedServiceOrder.status,
+                          )}
+                        </p>
+                        <Button asChild variant="outline" className="h-7 px-2 text-xs">
+                          <Link
+                            href={`/ordens-servico/${selectedEstimate.convertedServiceOrder.id}/detalhes`}
+                          >
+                            Ver OS
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="overflow-hidden rounded-lg border border-border">

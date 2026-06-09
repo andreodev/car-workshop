@@ -138,6 +138,47 @@ function normalizePaymentMethod(value: unknown) {
   return normalized as SalePaymentMethod;
 }
 
+async function normalizePaidSummary<
+  TSummary extends Array<{
+    type: FinancialAccountType;
+    status: FinancialAccountStatus;
+    _sum?: { amount?: unknown; paidAmount?: unknown } | null;
+  }>,
+>(summary: TSummary, where: Prisma.FinancialAccountWhereInput) {
+  const paidAccounts = await prisma.financialAccount.findMany({
+    where,
+    select: {
+      type: true,
+      amount: true,
+      paidAmount: true,
+    },
+  });
+  const paidTotals = new Map<FinancialAccountType, Prisma.Decimal>();
+
+  for (const account of paidAccounts) {
+    const current = paidTotals.get(account.type) ?? new Prisma.Decimal(0);
+    paidTotals.set(
+      account.type,
+      current.add(new Prisma.Decimal(account.paidAmount ?? account.amount))
+    );
+  }
+
+  return summary.map((group) => {
+    if (group.status !== "PAGA") {
+      return group;
+    }
+
+    return {
+      ...group,
+      _sum: {
+        ...(group._sum ?? {}),
+        paidAmount:
+          paidTotals.get(group.type)?.toFixed(2) ?? group._sum?.paidAmount,
+      },
+    };
+  });
+}
+
 export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
 
@@ -209,7 +250,12 @@ export async function GET(request: NextRequest) {
     }),
   ]);
 
-  return Response.json({ items, total, page, pageSize, summary });
+  const shouldNormalizePaidSummary = !status || status === "PAGA";
+  const normalizedSummary = shouldNormalizePaidSummary
+    ? await normalizePaidSummary(summary, { ...where, status: "PAGA" })
+    : summary;
+
+  return Response.json({ items, total, page, pageSize, summary: normalizedSummary });
 }
 
 export async function POST(request: NextRequest) {

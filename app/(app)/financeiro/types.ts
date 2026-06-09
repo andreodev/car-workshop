@@ -136,6 +136,81 @@ export type CashMovementListResponse = {
   summary: CashMovementSummary[];
 };
 
+export type MechanicCommissionPeriod = "daily" | "weekly" | "monthly";
+export type MechanicCommissionStatusFilter = "pending" | "paid" | "all";
+
+export type MechanicCommissionSourceItem = {
+  id: string;
+  description: string;
+  type: "SERVICE" | "PRODUCT";
+  quantity: number;
+  unitPrice: string;
+  discount: string;
+  total: string;
+  commissionBase: string;
+};
+
+export type MechanicPaymentInfo = {
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
+};
+
+export type MechanicCommissionAccount = {
+  id: string;
+  code: number;
+  description: string;
+  documentNumber: string | null;
+  dueDate: string;
+  createdAt: string;
+  amount: string;
+  status: "ABERTA" | "VENCIDA" | "PAGA";
+  notes: string | null;
+  commissionPercent: string | null;
+  commissionBase: string;
+  serviceOrder: {
+    id: string;
+    code: number;
+    status: string;
+    entryAt: string;
+    client: { id: string; name: string } | null;
+    vehicle: {
+      id: string;
+      plate: string;
+      brand: string | null;
+      model: string | null;
+    } | null;
+    total: string;
+    subtotal: string;
+  } | null;
+  sourceItems: MechanicCommissionSourceItem[];
+  mechanicPayment: MechanicPaymentInfo | null;
+};
+
+export type MechanicCommissionGroup = {
+  mechanicName: string;
+  mechanicPayment: MechanicPaymentInfo | null;
+  total: string;
+  accountsCount: number;
+  ordersCount: number;
+  accounts: MechanicCommissionAccount[];
+};
+
+export type MechanicCommissionReport = {
+  period: MechanicCommissionPeriod;
+  status: MechanicCommissionStatusFilter;
+  periodLabel: string;
+  from: string;
+  to: string;
+  summary: {
+    total: string;
+    mechanicsCount: number;
+    accountsCount: number;
+  };
+  groups: MechanicCommissionGroup[];
+};
+
 export type CashMovementFormValues = {
   type: CashMovementType;
   categoryId: string;

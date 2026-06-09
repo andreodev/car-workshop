@@ -7,7 +7,7 @@ import {
   PaymentSuccess01Icon,
 } from "@hugeicons/core-free-icons";
 
-import { formatCurrency } from "../utils/pdv-sale-utils";
+import { formatCurrency, parseDecimal } from "../utils/pdv-sale-utils";
 import type { PdvSaleController } from "../hooks/use-pdv-sale";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,38 @@ const paymentMethodOptions = [
   },
 ] as const;
 
+const creditInstallmentOptions = Array.from({ length: 12 }, (_, index) => {
+  const installments = index + 1;
+
+  return {
+    value: String(installments),
+    label: `${installments}x`,
+  };
+});
+
+function toCurrencyNumber(value: unknown) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Number(parsed.toFixed(2));
+}
+
+function calculatePaymentLineFee(payment: {
+  amount: string;
+  feePercent: string;
+}) {
+  const amount = toCurrencyNumber(parseDecimal(payment.amount));
+  const feePercent = Math.min(
+    Math.max(toCurrencyNumber(parseDecimal(payment.feePercent)), 0),
+    100
+  );
+
+  return toCurrencyNumber(amount * (feePercent / 100));
+}
+
 export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
   const { refs, state, actions, mutations } = controller;
 
@@ -60,6 +92,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
     isSaving ||
     state.lines.length === 0 ||
     (!state.isServiceOrderMode && !state.responsible.trim()) ||
+    (state.isServiceOrderMode && state.paymentBaseTotal <= 0) ||
     Math.abs(state.paymentDifference) > 0.009;
 
   return (
@@ -97,6 +130,18 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
               {formatCurrency(state.totals.discount)}
             </span>
           </div>
+
+          {state.isServiceOrderMode &&
+          state.serviceOrderPaymentDiscountAmount > 0 ? (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Desconto no pagamento
+              </span>
+              <span className="font-semibold">
+                {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
+              </span>
+            </div>
+          ) : null}
 
           <div className="flex justify-between">
             <span className="text-muted-foreground">Taxa/acréscimo</span>
@@ -223,7 +268,16 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-muted/30 p-3">
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-4">
+            {state.isServiceOrderMode ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Desconto</p>
+                <p className="text-sm font-semibold sm:text-lg">
+                  {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
+                </p>
+              </div>
+            ) : null}
+
             <div>
               <p className="text-xs text-muted-foreground">Total esperado</p>
               <p className="text-sm font-semibold sm:text-lg">
@@ -232,7 +286,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             </div>
 
             <div>
-              <p className="text-xs text-muted-foreground">Total pago</p>
+              <p className="text-xs text-muted-foreground">Total cobrado</p>
               <p className="text-sm font-semibold sm:text-lg">
                 {formatCurrency(state.paymentTotal)}
               </p>
@@ -245,6 +299,33 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
               </p>
             </div>
           </div>
+
+          {state.isServiceOrderMode ? (
+            <div className="grid gap-2 rounded-lg border border-border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-end">
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">
+                  Desconto antes do pagamento (%)
+                </p>
+
+                <Input
+                  className="h-10"
+                  value={state.serviceOrderDiscountPercent}
+                  onChange={(event) =>
+                    actions.setServiceOrderDiscountPercent(event.target.value)
+                  }
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Valor do desconto:{" "}
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
+                </span>
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-3">
             {state.paymentLines.map((payment, index) => (
@@ -304,7 +385,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Valor</p>
+                    <p className="mb-1 text-xs text-muted-foreground">Valor base</p>
 
                     <Input
                       className="h-10"
@@ -322,23 +403,58 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Taxa</p>
+                    <p className="mb-1 text-xs text-muted-foreground">Taxa (%)</p>
 
                     <Input
                       className="h-10"
-                      value={payment.feeAmount}
+                      value={payment.feePercent}
                       onChange={(event) =>
                         actions.updatePaymentLine(
                           payment.localId,
-                          "feeAmount",
+                          "feePercent",
                           event.target.value
                         )
                       }
                       inputMode="decimal"
-                      placeholder="0,00"
+                      placeholder="0"
                     />
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Valor: {formatCurrency(calculatePaymentLineFee(payment))}
+                    </p>
                   </div>
                 </div>
+
+                {payment.paymentMethod === "CARTAO_CREDITO" ? (
+                  <div className="max-w-full sm:max-w-40">
+                    <p className="mb-1 text-xs text-muted-foreground">
+                      Parcelas
+                    </p>
+
+                    <Select
+                      value={String(payment.installments)}
+                      onValueChange={(value) =>
+                        actions.updatePaymentLine(
+                          payment.localId,
+                          "installments",
+                          value
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="Parcelas" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {creditInstallmentOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -369,6 +485,15 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
               Diferença de {formatCurrency(Math.abs(state.paymentDifference))}
             </div>
           )}
+
+          {state.localError ? (
+            <div
+              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {state.localError}
+            </div>
+          ) : null}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

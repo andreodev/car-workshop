@@ -1,6 +1,7 @@
 ﻿import type { NextRequest } from "next/server";
-import { Prisma, type SalePaymentMethod } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
+import { sendPdvSaleFinancialEmail } from "@/app/lib/pdv-sale-email";
 import {
   saleListInclude,
   createPaymentCashMovements,
@@ -46,6 +47,14 @@ function serviceError(error: string, status: number, details?: string) {
   } as const;
 }
 
+async function notifyPdvSaleMovedToFinancial(saleId: string) {
+  try {
+    await sendPdvSaleFinancialEmail(saleId);
+  } catch (error) {
+    console.error("[PDV_SALE_FINANCIAL_EMAIL] Falha ao enviar notificacao:", error);
+  }
+}
+
 function buildSaleWhere(search: string, status: ReturnType<typeof normalizeStatus>, from: Date | null, to: Date | null) {
   const where: Prisma.SaleWhereInput = {};
 
@@ -76,10 +85,17 @@ function buildSaleWhere(search: string, status: ReturnType<typeof normalizeStatu
   return where;
 }
 
-function buildCompletedServiceOrderWhere(search: string) {
+function buildCompletedServiceOrderWhere(search: string, from: Date | null, to: Date | null) {
   const where: Prisma.ServiceOrderWhereInput = {
     status: "FINALIZADA",
   };
+
+  if (from || to) {
+    where.updatedAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    };
+  }
 
   if (search) {
     const code = Number(search);
@@ -96,6 +112,16 @@ function buildCompletedServiceOrderWhere(search: string) {
   }
 
   return where;
+}
+
+function normalizeListStatus(value: string | null) {
+  const normalized = normalizeString(value);
+
+  if (normalized === "TODOS") {
+    return null;
+  }
+
+  return normalizeStatus(normalized) ?? "CONCLUIDA";
 }
 
 function parseSaleItems(rawItems: unknown[]) {
@@ -148,34 +174,105 @@ function parseSaleItems(rawItems: unknown[]) {
   };
 }
 
-async function createSaleCashEntry(
-  tx: Prisma.TransactionClient,
-  sale: {
-    id: string;
-    code: number;
-    total: Prisma.Decimal;
-    paymentMethod: SalePaymentMethod;
-    client?: { name: string } | null;
-  },
+function normalizeServiceOrderPaymentDiscount(
+  value: unknown,
+  serviceOrderTotal: Prisma.Decimal,
 ) {
-  if (new Prisma.Decimal(sale.total).lessThanOrEqualTo(0)) {
-    return;
+  if (value === undefined || value === null || value === "") {
+    return {
+      data: new Prisma.Decimal(0),
+    };
   }
 
-  const category = await ensurePdvCategory(tx);
+  const discountAmount = normalizeMoney(value);
 
-  await tx.cashMovement.create({
-    data: {
-      type: "ENTRADA",
-      categoryId: category.id,
-      saleId: sale.id,
-      description: `Venda PDV #${sale.code}`,
-      movementDate: new Date(),
-      amount: sale.total,
-      paymentMethod: sale.paymentMethod,
-      documentNumber: `PDV-${sale.code}`,
-      notes: sale.client?.name ? `Cliente: ${sale.client.name}` : "Caixa livre",
-    },
+  if (discountAmount === null) {
+    return serviceError("Desconto inválido.", 400);
+  }
+
+  const discount = new Prisma.Decimal(discountAmount);
+
+  if (discount.greaterThanOrEqualTo(serviceOrderTotal)) {
+    return serviceError("Desconto deve ser menor que o total da OS.", 400);
+  }
+
+  return {
+    data: discount,
+  };
+}
+
+function buildServiceOrderSaleItems(params: {
+  items: Array<{
+    id: string;
+    catalogItemId: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: Prisma.Decimal;
+    discount: Prisma.Decimal;
+    total: Prisma.Decimal;
+    catalogItem: {
+      name: string;
+    } | null;
+  }>;
+  additionalDiscount: Prisma.Decimal;
+}) {
+  const { items, additionalDiscount } = params;
+  const positiveItemTotals = items
+    .map((item) => new Prisma.Decimal(item.total))
+    .filter((item) => item.greaterThan(0));
+  const positiveTotal = positiveItemTotals.reduce(
+    (sum, item) => sum.plus(item),
+    new Prisma.Decimal(0),
+  );
+  let remainingDiscount = additionalDiscount.toDecimalPlaces(2);
+  let positiveIndexPosition = 0;
+
+  return items.map((item) => {
+    const quantity = new Prisma.Decimal(item.quantity);
+    const unitPrice = new Prisma.Decimal(item.unitPrice);
+    const lineSubtotal = quantity.mul(unitPrice);
+    const originalDiscount = new Prisma.Decimal(item.discount);
+    const originalTotal = new Prisma.Decimal(item.total);
+    let paymentDiscount = new Prisma.Decimal(0);
+
+    if (
+      remainingDiscount.greaterThan(0) &&
+      originalTotal.greaterThan(0) &&
+      positiveTotal.greaterThan(0)
+    ) {
+      const isLastPositiveItem =
+        positiveIndexPosition === positiveItemTotals.length - 1;
+
+      paymentDiscount = isLastPositiveItem
+        ? remainingDiscount
+        : additionalDiscount
+            .mul(originalTotal)
+            .div(positiveTotal)
+            .toDecimalPlaces(2);
+
+      if (paymentDiscount.greaterThan(originalTotal)) {
+        paymentDiscount = originalTotal;
+      }
+
+      if (paymentDiscount.greaterThan(remainingDiscount)) {
+        paymentDiscount = remainingDiscount;
+      }
+
+      remainingDiscount = remainingDiscount.minus(paymentDiscount);
+      positiveIndexPosition += 1;
+    }
+
+    const discount = originalDiscount.plus(paymentDiscount).toDecimalPlaces(2);
+
+    return {
+      serviceOrderItemId: item.id,
+      catalogItemId: item.catalogItemId,
+      description: item.catalogItem?.name ?? item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount,
+      total: lineSubtotal.minus(discount).toDecimalPlaces(2),
+    };
   });
 }
 
@@ -485,7 +582,7 @@ export const saleService = {
         MAX_PAGE_SIZE,
       );
       const search = normalizeString(searchParams.get("search")) ?? "";
-      const status = normalizeStatus(searchParams.get("status"));
+      const status = normalizeListStatus(searchParams.get("status"));
       const from = normalizeDateStart(searchParams.get("from"));
       const to = normalizeDateEnd(searchParams.get("to"));
 
@@ -508,18 +605,29 @@ export const saleService = {
         page,
         pageSize,
       });
-      const serviceOrderWhere = buildCompletedServiceOrderWhere(search);
+      const serviceOrderWhere =
+        status === "CANCELADA" ? null : buildCompletedServiceOrderWhere(search, from, to);
 
       console.log("[PDV_GET] SERVICE ORDER WHERE:", serviceOrderWhere);
       console.log("[PDV_GET] BEFORE SERVICE ORDER FIND MANY");
 
-      const serviceOrdersCompleted =
-        await saleRepository.findCompletedServiceOrders(serviceOrderWhere);
+      const [serviceOrdersCompleted, serviceOrdersCompletedSummary] = serviceOrderWhere
+        ? await Promise.all([
+            saleRepository.findCompletedServiceOrders(serviceOrderWhere),
+            saleRepository.summarizeCompletedServiceOrders(serviceOrderWhere),
+          ])
+        : [
+            [],
+            {
+              _count: { _all: 0 },
+              _sum: { total: 0 },
+            },
+          ];
 
       console.log("[PDV_GET] SUCCESS:", {
         total,
         sales: items.length,
-        serviceOrdersCompleted: serviceOrdersCompleted.length,
+        serviceOrdersCompleted: serviceOrdersCompletedSummary._count._all,
       });
 
       return {
@@ -529,6 +637,10 @@ export const saleService = {
           page,
           pageSize,
           serviceOrdersCompleted,
+          serviceOrdersCompletedSummary: {
+            count: serviceOrdersCompletedSummary._count._all,
+            total: serviceOrdersCompletedSummary._sum.total,
+          },
         },
       };
     } catch (error) {
@@ -612,7 +724,7 @@ export const saleService = {
 
       if (currentStock.lessThan(requestedQuantity)) {
         return serviceError(
-          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
+          `Estoque insuficiente para ${catalogItem?.name ?? "produto"}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(requestedQuantity)}.`,
           400,
         );
       }
@@ -621,6 +733,24 @@ export const saleService = {
     const subtotal = items.reduce((sum, item) => sum + item.total + item.discount, 0);
     const discountTotal = items.reduce((sum, item) => sum + item.discount, 0);
     const total = items.reduce((sum, item) => sum + item.total, 0);
+    const baseTotal = new Prisma.Decimal(Math.round(total * 100) / 100);
+    const payments = normalizePaymentsFromPayload(payload, baseTotal);
+
+    if (!payments?.length) {
+      return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
+    }
+
+    const totalPaid = sumPaymentAmounts(payments);
+    const feeTotal = sumPaymentFees(payments);
+    const expectedTotal = baseTotal.plus(feeTotal);
+
+    if (!totalPaid.equals(expectedTotal)) {
+      return serviceError(
+        "Total pago inválido.",
+        400,
+        `Total esperado: ${expectedTotal.toFixed(2)}. Total recebido: ${totalPaid.toFixed(2)}.`,
+      );
+    }
 
     try {
       const sale = await saleRepository.runTransaction(async (tx) => {
@@ -630,11 +760,12 @@ export const saleService = {
             sectorId,
             responsible,
             sectorName: sector?.name ?? null,
-            paymentMethod,
+            paymentMethod: payments[0].paymentMethod,
             notes: normalizeString(payload.notes),
             subtotal: Math.round(subtotal * 100) / 100,
             discountTotal: Math.round(discountTotal * 100) / 100,
-            total: Math.round(total * 100) / 100,
+            feeTotal,
+            total: totalPaid,
             items: {
               create: items.map((item) => ({
                 catalogItemId: item.catalogItemId,
@@ -645,17 +776,17 @@ export const saleService = {
                 total: item.total,
               })),
             },
-          },
-          include: {
-            client: { select: { id: true, name: true } },
-            sector: { select: { id: true, name: true } },
-            items: {
-              orderBy: { createdAt: "asc" },
-              include: {
-                catalogItem: { select: { id: true, code: true, name: true, type: true } },
-              },
+            payments: {
+              create: payments.map((payment) => ({
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                feeAmount: payment.feeAmount,
+                netAmount: payment.amount.minus(payment.feeAmount),
+                installments: payment.installments,
+              })),
             },
           },
+          include: saleListInclude,
         });
 
         for (const item of createdSale.items) {
@@ -677,7 +808,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(currentStock)}. Solicitado: ${formatStock(quantity)}.`,
             );
           }
 
@@ -716,10 +847,25 @@ export const saleService = {
           });
         }
 
-        await createSaleCashEntry(tx, createdSale);
+        const category = await ensurePdvCategory(tx);
+
+        await createPaymentCashMovements({
+          tx,
+          saleId: createdSale.id,
+          code: createdSale.code,
+          payments,
+          categoryId: category.id,
+          description: `Venda PDV #${createdSale.code}`,
+          documentNumber: `PDV-${createdSale.code}`,
+          notes: createdSale.client?.name
+            ? `Cliente: ${createdSale.client.name}`
+            : "Caixa livre",
+        });
 
         return createdSale;
       });
+
+      await notifyPdvSaleMovedToFinancial(sale.id);
 
       return {
         data: sale,
@@ -912,7 +1058,19 @@ export const saleService = {
       return serviceError("Esta ordem de serviço já foi paga.", 400);
     }
 
-    const payments = normalizePaymentsFromPayload(payload, serviceOrder.total);
+    const serviceOrderTotal = new Prisma.Decimal(serviceOrder.total);
+    const paymentDiscountResult = normalizeServiceOrderPaymentDiscount(
+      payload.discountAmount,
+      serviceOrderTotal,
+    );
+
+    if ("error" in paymentDiscountResult) {
+      return paymentDiscountResult;
+    }
+
+    const paymentDiscount = paymentDiscountResult.data;
+    const paymentBaseTotal = serviceOrderTotal.minus(paymentDiscount).toDecimalPlaces(2);
+    const payments = normalizePaymentsFromPayload(payload, paymentBaseTotal);
 
     if (!payments?.length) {
       return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
@@ -920,7 +1078,7 @@ export const saleService = {
 
     const totalPaid = sumPaymentAmounts(payments);
     const feeTotal = sumPaymentFees(payments);
-    const expectedTotal = new Prisma.Decimal(serviceOrder.total).plus(feeTotal);
+    const expectedTotal = paymentBaseTotal.plus(feeTotal);
 
     if (!totalPaid.equals(expectedTotal)) {
       return serviceError(
@@ -966,12 +1124,23 @@ export const saleService = {
               serviceOrder: currentServiceOrder,
               mechanicCommissionPayable: null,
               updatedFinancialAccountsCount: 0,
+              shouldSendFinancialEmail: false,
             };
           }
 
           throw new Error("SERVICE_ORDER_ALREADY_PAID");
         }
 
+        const saleItems = buildServiceOrderSaleItems({
+          items: serviceOrder.items,
+          additionalDiscount: paymentDiscount,
+        });
+        const discountTotal = new Prisma.Decimal(serviceOrder.discountTotal)
+          .plus(paymentDiscount)
+          .toDecimalPlaces(2);
+        const paymentDiscountNote = paymentDiscount.greaterThan(0)
+          ? ` Desconto no pagamento: R$ ${paymentDiscount.toFixed(2)}.`
+          : "";
         const sale = await tx.sale.create({
           data: {
             clientId: serviceOrder.clientId,
@@ -979,19 +1148,19 @@ export const saleService = {
             status: "CONCLUIDA",
             paymentMethod: payments[0].paymentMethod,
             subtotal: serviceOrder.subtotal,
-            discountTotal: serviceOrder.discountTotal,
+            discountTotal,
             feeTotal,
             total: totalPaid,
             responsible: serviceOrder.responsible ?? "PDV",
-            notes: `Pagamento da ordem de serviÃƒÂ§o #${serviceOrder.code}`,
+            notes: `Pagamento da ordem de serviço #${serviceOrder.code}.${paymentDiscountNote}`,
             items: {
-              create: serviceOrder.items.map((item) => ({
+              create: saleItems.map((item) => ({
                 catalogItemId: item.catalogItemId,
-                description: item.catalogItem?.name ?? item.description,
+                description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 discount: item.discount,
-                total: new Prisma.Decimal(item.quantity).mul(item.unitPrice).minus(item.discount),
+                total: item.total,
               })),
             },
             payments: {
@@ -1000,14 +1169,15 @@ export const saleService = {
                 amount: payment.amount,
                 feeAmount: payment.feeAmount,
                 netAmount: payment.amount.minus(payment.feeAmount),
+                installments: payment.installments,
               })),
             },
           },
           include: salePaymentInclude,
         });
         const saleItemsByServiceOrderItemId = new Map(
-          serviceOrder.items.map((serviceOrderItem, index) => [
-            serviceOrderItem.id,
+          saleItems.map((saleItem, index) => [
+            saleItem.serviceOrderItemId,
             sale.items[index],
           ]),
         );
@@ -1037,7 +1207,7 @@ export const saleService = {
 
           if (currentStock.lessThan(quantity)) {
             throw new StockError(
-              `Estoque insuficiente para ${catalogItem.name}. DisponÃ­vel: ${formatStock(
+              `Estoque insuficiente para ${catalogItem.name}. Disponível: ${formatStock(
                 currentStock,
               )}. Solicitado: ${formatStock(quantity)}.`,
             );
@@ -1125,9 +1295,9 @@ export const saleService = {
           data: {
             status: "PAGA",
             paymentDate: new Date(),
-            paidAmount: serviceOrder.total,
+            paidAmount: paymentBaseTotal,
             paymentMethod: payments[0].paymentMethod,
-            notes: `Conta baixada automaticamente pelo pagamento da OS #${serviceOrder.code} via PDV.`,
+            notes: `Conta baixada automaticamente pelo pagamento da OS #${serviceOrder.code} via PDV.${paymentDiscountNote}`,
           },
         });
 
@@ -1153,11 +1323,18 @@ export const saleService = {
           serviceOrder: updatedServiceOrder,
           mechanicCommissionPayable,
           updatedFinancialAccountsCount: updatedFinancialAccounts.count,
+          shouldSendFinancialEmail: true,
         };
       });
 
+      const { shouldSendFinancialEmail, ...responseData } = result;
+
+      if (shouldSendFinancialEmail) {
+        await notifyPdvSaleMovedToFinancial(result.sale.id);
+      }
+
       return {
-        data: result,
+        data: responseData,
       };
     } catch (error) {
       if (error instanceof Error && error.message === "SERVICE_ORDER_ALREADY_PAID") {
@@ -1295,6 +1472,7 @@ export const saleService = {
                 amount: payment.amount,
                 feeAmount: payment.feeAmount,
                 netAmount: payment.amount.minus(payment.feeAmount),
+                installments: payment.installments,
               })),
             },
           },
@@ -1316,6 +1494,8 @@ export const saleService = {
 
         return updatedSale;
       });
+
+      await notifyPdvSaleMovedToFinancial(sale.id);
 
       return {
         data: sale,

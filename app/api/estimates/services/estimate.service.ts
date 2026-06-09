@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import type { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
+import type { EstimateStatus, Prisma, ServiceOrderStatus } from "@prisma/client";
 
 import {
   estimateRepository,
@@ -21,6 +21,14 @@ import {
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 const COMPANY_SETTINGS_KEY = "company";
+const archivedConvertedServiceOrderStatuses: ServiceOrderStatus[] = [
+  "FINALIZADA",
+  "PAGA",
+  "CANCELADA",
+];
+const archivedEstimateStatuses: EstimateStatus[] = ["REJEITADO", "CANCELADO"];
+
+type EstimateVisibility = "ATIVOS" | "ARQUIVADOS" | "TODOS";
 
 function serviceError(error: string, status: number, details?: string) {
   return {
@@ -38,7 +46,32 @@ function createInspectionToken() {
   return randomBytes(24).toString("base64url");
 }
 
-function buildEstimateWhere(search: string, status: string | null) {
+function normalizeVisibility(value: string | null): EstimateVisibility {
+  if (value === "ARQUIVADOS" || value === "TODOS") {
+    return value;
+  }
+
+  return "ATIVOS";
+}
+
+function archivedEstimateWhere(): Prisma.EstimateWhereInput {
+  return {
+    OR: [
+      { status: { in: archivedEstimateStatuses } },
+      {
+        convertedServiceOrder: {
+          status: { in: archivedConvertedServiceOrderStatuses },
+        },
+      },
+    ],
+  };
+}
+
+function buildEstimateWhere(
+  search: string,
+  status: string | null,
+  visibility: EstimateVisibility,
+) {
   const where: Prisma.EstimateWhereInput = {};
 
   if (status && status !== "TODOS") {
@@ -65,6 +98,14 @@ function buildEstimateWhere(search: string, status: string | null) {
     }
 
     where.OR = or;
+  }
+
+  if (visibility === "ATIVOS") {
+    where.NOT = archivedEstimateWhere();
+  }
+
+  if (visibility === "ARQUIVADOS") {
+    where.AND = [archivedEstimateWhere()];
   }
 
   return { data: where };
@@ -334,7 +375,8 @@ export const estimateService = {
     );
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
-    const where = buildEstimateWhere(search, status);
+    const visibility = normalizeVisibility(normalizeString(searchParams.get("visibility")));
+    const where = buildEstimateWhere(search, status, visibility);
 
     if ("error" in where) {
       return where;

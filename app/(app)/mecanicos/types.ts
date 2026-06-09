@@ -6,6 +6,10 @@ export type Mechanic = {
   name: string;
   active: boolean;
   commissionPercent: string;
+  paymentKey: string | null;
+  paymentKeyHolder: string | null;
+  paymentBank: string | null;
+  paymentKeyType: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -22,15 +26,67 @@ export type MechanicFormValues = {
   name: string;
   active: boolean;
   commissionPercent: string;
+  paymentKey: string;
+  paymentKeyHolder: string;
+  paymentBank: string;
+  paymentKeyType: string;
   notes: string;
 };
 
 export type MechanicSavePayload = MechanicFormSchemaOutput;
 
+export type MechanicReportFinancialAccount = {
+  id: string;
+  code: number;
+  status: "ABERTA" | "PAGA" | "VENCIDA" | "CANCELADA";
+  description: string;
+  documentNumber: string | null;
+  dueDate: string;
+  paymentDate: string | null;
+  amount: string;
+  paidAmount: string | null;
+  paymentMethod:
+    | "DINHEIRO"
+    | "PIX"
+    | "CARTAO_CREDITO"
+    | "CARTAO_DEBITO"
+    | "BOLETO"
+    | "OUTRO"
+    | null;
+  notes: string | null;
+};
+
+export type MechanicReportOrderItem = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+  discount: string;
+  total: string;
+  commissionBase: string;
+  catalogItem: {
+    id: string;
+    code: number;
+    name: string;
+    type: "PRODUTO" | "SERVICO";
+  } | null;
+  sector: {
+    id: string;
+    name: string;
+  } | null;
+};
+
 export type MechanicReportOrder = {
   id: string;
   code: number;
-  status: "ABERTA" | "EM_ANDAMENTO" | "AGUARDANDO_PECAS" | "IMPEDIDA" | "FINALIZADA" | "CANCELADA";
+  status:
+    | "ABERTA"
+    | "EM_ANDAMENTO"
+    | "AGUARDANDO_PECAS"
+    | "IMPEDIDA"
+    | "FINALIZADA"
+    | "CANCELADA"
+    | "PAGA";
   entryAt: string;
   estimatedAt: string | null;
   updatedAt: string;
@@ -45,8 +101,11 @@ export type MechanicReportOrder = {
   vehicle: {
     id: string;
     plate: string;
+    brand: string | null;
     model: string | null;
   } | null;
+  items: MechanicReportOrderItem[];
+  commissionAccounts: MechanicReportFinancialAccount[];
 };
 
 export type MechanicReportStatusSummary = {
@@ -59,6 +118,7 @@ export type MechanicReport = {
   mechanic: Mechanic;
   summary: {
     totalOrders: number;
+    serviceItemsCount: number;
     activeOrders: number;
     completedOrders: number;
     blockedOrders: number;
@@ -73,8 +133,25 @@ export type MechanicReport = {
     commissionPercent: string;
     commissionTotal: string;
     completedCommissionTotal: string;
+    generatedCommissionTotal: string;
+    pendingCommissionTotal: string;
+    paidCommissionTotal: string;
+    overdueCommissionTotal: string;
+    commissionAccountsCount: number;
   };
   statusSummary: MechanicReportStatusSummary[];
   activeOrders: MechanicReportOrder[];
   recentOrders: MechanicReportOrder[];
+  recentItems: Array<
+    MechanicReportOrderItem & {
+      order: {
+        id: string;
+        code: number;
+        status: MechanicReportOrder["status"];
+        entryAt: string;
+        client: MechanicReportOrder["client"];
+        vehicle: MechanicReportOrder["vehicle"];
+      };
+    }
+  >;
 };

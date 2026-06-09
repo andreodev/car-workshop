@@ -10,8 +10,33 @@ type FindPaginatedParams = {
 };
 
 export const saleListInclude = {
-  client: { select: { id: true, name: true } },
+  client: { select: { id: true, name: true, mobile: true, phone1: true } },
   sector: { select: { id: true, name: true } },
+  serviceOrder: {
+    select: {
+      id: true,
+      code: true,
+      mechanic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          plate: true,
+          brand: true,
+          model: true,
+          modelYear: true,
+          color: true,
+        },
+      },
+    },
+  },
+  payments: {
+    orderBy: { createdAt: "asc" },
+  },
   items: {
     orderBy: { createdAt: "asc" },
     include: {
@@ -172,6 +197,14 @@ export const saleRepository = {
       include: completedServiceOrderInclude,
       orderBy: { updatedAt: "desc" },
       take: 50,
+    });
+  },
+
+  async summarizeCompletedServiceOrders(where: Prisma.ServiceOrderWhereInput) {
+    return prisma.serviceOrder.aggregate({
+      where,
+      _sum: { total: true },
+      _count: { _all: true },
     });
   },
 

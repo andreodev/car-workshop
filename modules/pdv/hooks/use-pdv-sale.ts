@@ -11,7 +11,6 @@ import {
   createSale,
   fetchCatalogItems,
   fetchServiceOrderPdv,
-  fetchSectors,
   payServiceOrderPdv,
 } from "../api/pdv.service";
 import type {
@@ -20,7 +19,6 @@ import type {
   SalePaymentPayload,
   SalePaymentMethod,
 } from "../types/pdv.types";
-import { NO_SECTOR_VALUE } from "../utils/pdv-sale-constants";
 import {
   calculateTotals,
   createSaleLine,
@@ -48,13 +46,15 @@ type PaymentLine = {
   localId: string;
   paymentMethod: SalePaymentMethod;
   amount: string;
-  feeAmount: string;
+  feePercent: string;
+  installments: number;
 };
 
 function createPaymentLine(
   paymentMethod: SalePaymentMethod = "DINHEIRO",
   amount = "",
-  feeAmount = "0"
+  feePercent = "0",
+  installments = 1
 ): PaymentLine {
   return {
     localId:
@@ -63,7 +63,8 @@ function createPaymentLine(
         : `${Date.now()}-${Math.random()}`,
     paymentMethod,
     amount: amount ? maskCurrencyInput(amount) : "",
-    feeAmount: maskCurrencyInput(feeAmount),
+    feePercent: maskPercentInput(feePercent),
+    installments,
   };
 }
 
@@ -75,6 +76,10 @@ function toCurrencyNumber(value: unknown) {
   }
 
   return Number(parsed.toFixed(2));
+}
+
+function toCentsInput(value: number) {
+  return String(Math.round(toCurrencyNumber(value) * 100));
 }
 
 function calculateDiscountPercent(
@@ -110,13 +115,21 @@ function normalizePaymentLines(
 ): SalePaymentPayload[] {
   const validPayments = paymentLines
     .map((payment) => {
-      const amount = toCurrencyNumber(parseDecimal(payment.amount));
-      const feeAmount = toCurrencyNumber(parseDecimal(payment.feeAmount));
+      const baseAmount = toCurrencyNumber(parseDecimal(payment.amount));
+      const feePercent = Math.min(
+        Math.max(toCurrencyNumber(parseDecimal(payment.feePercent)), 0),
+        100
+      );
+      const feeAmount = toCurrencyNumber(baseAmount * (feePercent / 100));
 
       return {
         paymentMethod: payment.paymentMethod,
-        amount,
+        amount: toCurrencyNumber(baseAmount + feeAmount),
         feeAmount,
+        installments:
+          payment.paymentMethod === "CARTAO_CREDITO"
+            ? Math.min(Math.max(payment.installments, 1), 12)
+            : 1,
       };
     })
     .filter((payment) => payment.amount > 0);
@@ -130,6 +143,7 @@ function normalizePaymentLines(
       paymentMethod: fallbackPaymentMethod,
       amount: fallbackAmount,
       feeAmount: 0,
+      installments: 1,
     },
   ];
 }
@@ -170,7 +184,6 @@ export function usePdvSale({
     null
   );
   const [responsible, setResponsible] = useState(defaultResponsible);
-  const [sectorId, setSectorId] = useState(NO_SECTOR_VALUE);
   const [paymentMethod, setPaymentMethodState] =
     useState<SalePaymentMethod>("DINHEIRO");
   const [paymentLines, setPaymentLines] = useState<PaymentLine[]>([
@@ -183,6 +196,8 @@ export function usePdvSale({
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [discountPercent, setDiscountPercent] = useState("0");
+  const [serviceOrderDiscountPercent, setServiceOrderDiscountPercent] =
+    useState("0");
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -225,20 +240,6 @@ export function usePdvSale({
     staleTime: 30_000,
   });
 
-  const sectorsQuery = useQuery({
-    queryKey: pdvKeys.sectorsList({
-      page: 1,
-      pageSize: 50,
-    }),
-    queryFn: () =>
-      fetchSectors({
-        page: 1,
-        pageSize: 50,
-      }),
-    enabled: open && !isServiceOrderMode,
-    staleTime: 60_000,
-  });
-
   const createCatalogMutation = useMutation({
     mutationFn: createCatalogItem,
     onSuccess: (item) => {
@@ -264,7 +265,7 @@ export function usePdvSale({
 
       setSelectedProduct(item);
       setProductSearch(item.name);
-      setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
+      setUnitPrice(maskCurrencyInput(toCentsInput(parseDecimal(String(item.unitPrice)))));
       setLocalError(null);
 
       toast({
@@ -298,6 +299,7 @@ export function usePdvSale({
     setQuantity("1");
     setUnitPrice("");
     setDiscountPercent("0");
+    setServiceOrderDiscountPercent("0");
     setPaymentMethodState("DINHEIRO");
     setPaymentLines([createPaymentLine("DINHEIRO")]);
     setLocalError(null);
@@ -385,14 +387,36 @@ export function usePdvSale({
 
   const saleTotal = useMemo(() => getTotalsAmount(totals), [totals]);
 
+  const serviceOrderPaymentDiscountAmount = useMemo(() => {
+    if (!isServiceOrderMode) {
+      return 0;
+    }
+
+    const discountPercentValue = Math.min(
+      Math.max(toCurrencyNumber(parseDecimal(serviceOrderDiscountPercent)), 0),
+      100
+    );
+
+    return toCurrencyNumber(saleTotal * (discountPercentValue / 100));
+  }, [isServiceOrderMode, saleTotal, serviceOrderDiscountPercent]);
+
+  const paymentBaseTotal = useMemo(
+    () =>
+      toCurrencyNumber(
+        saleTotal -
+          (isServiceOrderMode ? serviceOrderPaymentDiscountAmount : 0)
+      ),
+    [isServiceOrderMode, saleTotal, serviceOrderPaymentDiscountAmount]
+  );
+
   const paymentsPayload = useMemo(
     () =>
       normalizePaymentLines(
         paymentLines,
         paymentLines[0]?.paymentMethod ?? paymentMethod,
-        saleTotal
+        paymentBaseTotal
       ),
-    [paymentLines, paymentMethod, saleTotal]
+    [paymentBaseTotal, paymentLines, paymentMethod]
   );
 
   const paymentTotal = useMemo(
@@ -406,8 +430,8 @@ export function usePdvSale({
   );
 
   const expectedPaymentTotal = useMemo(
-    () => toCurrencyNumber(saleTotal + paymentFeeTotal),
-    [paymentFeeTotal, saleTotal]
+    () => toCurrencyNumber(paymentBaseTotal + paymentFeeTotal),
+    [paymentBaseTotal, paymentFeeTotal]
   );
 
   const paymentDifference = useMemo(
@@ -463,24 +487,82 @@ export function usePdvSale({
     setDiscountPercent(maskPercentInput(value));
   }, []);
 
+  const updateServiceOrderDiscountPercent = useCallback(
+    (value: string) => {
+      const masked = maskPercentInput(value);
+
+      setServiceOrderDiscountPercent(masked);
+
+      if (!isServiceOrderMode) {
+        return;
+      }
+
+      const discountPercentValue = Math.min(
+        Math.max(toCurrencyNumber(parseDecimal(masked)), 0),
+        100
+      );
+      const nextBaseTotal = toCurrencyNumber(
+        saleTotal - saleTotal * (discountPercentValue / 100)
+      );
+
+      setPaymentLines((current) => {
+        if (current.length !== 1) {
+          return current;
+        }
+
+        return [
+          {
+            ...current[0],
+            amount:
+              nextBaseTotal > 0 ? maskCurrencyInput(toCentsInput(nextBaseTotal)) : "",
+          },
+        ];
+      });
+    },
+    [isServiceOrderMode, saleTotal]
+  );
+
   const updatePaymentLine = useCallback(
     (
       lineId: string,
-      field: "paymentMethod" | "amount" | "feeAmount",
+      field: "paymentMethod" | "amount" | "feePercent" | "installments",
       value: string
     ) => {
       const nextValue =
-        field === "paymentMethod" ? value : maskCurrencyInput(value);
+        field === "paymentMethod"
+          ? value
+          : field === "feePercent"
+            ? maskPercentInput(value)
+            : field === "installments"
+              ? String(Math.min(Math.max(Number(value) || 1, 1), 12))
+            : maskCurrencyInput(value);
 
       setPaymentLines((current) => {
-        const updated = current.map((line) =>
-          line.localId === lineId
-            ? {
-                ...line,
-                [field]: nextValue,
-              }
-            : line
-        );
+        const updated = current.map((line) => {
+          if (line.localId !== lineId) {
+            return line;
+          }
+
+          if (field === "paymentMethod") {
+            return {
+              ...line,
+              paymentMethod: value as SalePaymentMethod,
+              installments: value === "CARTAO_CREDITO" ? line.installments : 1,
+            };
+          }
+
+          if (field === "installments") {
+            return {
+              ...line,
+              installments: Math.min(Math.max(Number(nextValue) || 1, 1), 12),
+            };
+          }
+
+          return {
+            ...line,
+            [field]: nextValue,
+          };
+        });
 
         if (field === "paymentMethod" && updated[0]?.localId === lineId) {
           setPaymentMethodState(value as SalePaymentMethod);
@@ -493,14 +575,17 @@ export function usePdvSale({
   );
 
   const fillSinglePaymentWithTotal = useCallback(() => {
+    const feePercent = paymentLines[0]?.feePercent ?? "0";
+
     setPaymentLines((current) => [
       createPaymentLine(
         current[0]?.paymentMethod ?? paymentMethod,
-        String(expectedPaymentTotal * 100),
-        "0"
+        toCentsInput(paymentBaseTotal),
+        feePercent,
+        current[0]?.installments ?? 1
       ),
     ]);
-  }, [expectedPaymentTotal, paymentMethod]);
+  }, [paymentBaseTotal, paymentLines, paymentMethod]);
 
   const openPaymentDialog = useCallback(() => {
     setPaymentDialogOpen(true);
@@ -581,12 +666,11 @@ export function usePdvSale({
         setSelectedClient(serviceOrder.client ?? null);
         setClientSearch(serviceOrder.client?.name ?? "");
         setResponsible(defaultResponsible);
-        setSectorId(serviceOrder.sector?.id ?? NO_SECTOR_VALUE);
         setPaymentMethodState("DINHEIRO");
         setPaymentLines([
           createPaymentLine(
             "DINHEIRO",
-            serviceOrderTotal > 0 ? String(serviceOrderTotal * 100) : "",
+            serviceOrderTotal > 0 ? toCentsInput(serviceOrderTotal) : "",
             "0"
           ),
         ]);
@@ -595,6 +679,7 @@ export function usePdvSale({
         setQuantity("1");
         setUnitPrice("");
         setDiscountPercent("0");
+        setServiceOrderDiscountPercent("0");
         setSuccessMessage(null);
         setLocalError(null);
       } catch (error) {
@@ -638,7 +723,7 @@ export function usePdvSale({
   const selectProduct = useCallback((item: CatalogItem) => {
     setSelectedProduct(item);
     setProductSearch(item.name);
-    setUnitPrice(maskCurrencyInput(parseDecimal(String(item.unitPrice)) * 100));
+    setUnitPrice(maskCurrencyInput(toCentsInput(parseDecimal(String(item.unitPrice)))));
     setProductListOpen(false);
     quantityInputRef.current?.focus();
   }, []);
@@ -784,8 +869,14 @@ export function usePdvSale({
         return;
       }
 
+      if (saleTotal > 0 && serviceOrderPaymentDiscountAmount >= saleTotal) {
+        setLocalError("Desconto deve ser menor que o total da OS.");
+        return;
+      }
+
       serviceOrderPaymentMutation.mutate({
         serviceOrderId,
+        discountAmount: serviceOrderPaymentDiscountAmount,
         payments: paymentsPayload,
       });
 
@@ -799,7 +890,7 @@ export function usePdvSale({
 
     const payload = {
       clientId: selectedClient?.id ?? null,
-      sectorId: sectorId === NO_SECTOR_VALUE ? null : sectorId,
+      sectorId: null,
       responsible: responsible.trim(),
       paymentMethod: paymentsPayload[0]?.paymentMethod ?? paymentMethod,
       payments: paymentsPayload,
@@ -824,9 +915,10 @@ export function usePdvSale({
     paymentsPayload,
     responsible,
     saleMutation,
-    sectorId,
+    saleTotal,
     selectedClient?.id,
     serviceOrderId,
+    serviceOrderPaymentDiscountAmount,
     serviceOrderPaymentMutation,
   ]);
 
@@ -1039,7 +1131,6 @@ export function usePdvSale({
     queries: {
       clientsQuery,
       productsQuery,
-      sectorsQuery,
     },
     mutations: {
       createCatalogMutation,
@@ -1063,6 +1154,7 @@ export function usePdvSale({
       paymentMethod,
       paymentsPayload,
       paymentTotal,
+      paymentBaseTotal,
       productHighlightIndex,
       productListOpen,
       productOptions,
@@ -1070,9 +1162,10 @@ export function usePdvSale({
       quantity,
       responsible,
       saleTotal,
-      sectorId,
       selectedClient,
       selectedProduct,
+      serviceOrderDiscountPercent,
+      serviceOrderPaymentDiscountAmount,
       serviceOrderLoading,
       successMessage,
       totals,
@@ -1101,6 +1194,7 @@ export function usePdvSale({
       setClientSearch,
       setDiscountPercent: updateDiscountPercent,
       setPaymentMethod,
+      setServiceOrderDiscountPercent: updateServiceOrderDiscountPercent,
       setPaymentLines,
       setPaymentDialogOpen,
       setProductHighlightIndex,
@@ -1108,7 +1202,6 @@ export function usePdvSale({
       setProductSearch,
       setQuantity,
       setResponsible,
-      setSectorId,
       setSelectedClient,
       setSelectedProduct,
       setUnitPrice: updateUnitPrice,

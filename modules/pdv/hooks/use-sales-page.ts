@@ -25,13 +25,10 @@ export function useSalesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<SalesStatusFilter>("TODOS");
+  const [status, setStatus] = useState<SalesStatusFilter>("CONCLUIDA");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedServiceOrderId, setExpandedServiceOrderId] = useState<
-    string | null
-  >(null);
   const [pdvOpen, setPdvOpen] = useState(false);
   const [selectedServiceOrder, setSelectedServiceOrder] =
     useState<ServiceOrderCompleted | null>(null);
@@ -91,10 +88,19 @@ export function useSalesPage() {
   }, [query.data]);
 
   const serviceOrdersPendingPaymentTotal = useMemo(() => {
+    const summaryTotal = query.data?.serviceOrdersCompletedSummary?.total;
+
+    if (summaryTotal !== null && summaryTotal !== undefined) {
+      return Number(summaryTotal);
+    }
+
     return serviceOrdersCompleted.reduce((sum, order) => {
       return sum + Number(order.total);
     }, 0);
-  }, [serviceOrdersCompleted]);
+  }, [query.data?.serviceOrdersCompletedSummary?.total, serviceOrdersCompleted]);
+
+  const serviceOrdersPendingPaymentCount =
+    query.data?.serviceOrdersCompletedSummary?.count ?? serviceOrdersCompleted.length;
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,7 +129,6 @@ export function useSalesPage() {
     cancelMutation,
     canceledCount,
     expandedId,
-    expandedServiceOrderId,
     from,
     handleClosePdv,
     handleOpenNormalPdv,
@@ -135,9 +140,9 @@ export function useSalesPage() {
     searchInput,
     selectedServiceOrder,
     serviceOrdersCompleted,
+    serviceOrdersPendingPaymentCount,
     serviceOrdersPendingPaymentTotal,
     setExpandedId,
-    setExpandedServiceOrderId,
     setFrom,
     setPage,
     setSearchInput,

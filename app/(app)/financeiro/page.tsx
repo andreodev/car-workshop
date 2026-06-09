@@ -30,7 +30,6 @@ import {
   fetchFinancialCategories,
   updateCashMovement,
   updateFinancialAccount,
-  updateFinancialAccountStatus,
   updateFinancialCategory,
   updateFinancialCategoryActive,
 } from "./finance-api";
@@ -168,7 +167,7 @@ function lastDaysRange(days: number) {
   const end = new Date();
   const start = new Date();
 
-  start.setDate(end.getDate() - days);
+  start.setDate(end.getDate() - Math.max(days - 1, 0));
 
   return {
     from: start.toISOString().slice(0, 10),
@@ -274,11 +273,11 @@ export default function FinancialPage() {
   const [accountType, setAccountType] = useState<AccountTypeFilter>("TODOS");
   const [accountStatus, setAccountStatus] = useState<AccountStatusFilter>("TODOS");
   const [movementType, setMovementType] = useState<MovementTypeFilter>("TODOS");
-  const [categoryType, setCategoryType] = useState<CategoryTypeFilter>("TODOS");
+  const [categoryType] = useState<CategoryTypeFilter>("TODOS");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("TODOS");
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(() => todayInputValue());
+  const [to, setTo] = useState(() => todayInputValue());
 
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [movementSheetOpen, setMovementSheetOpen] = useState(false);
@@ -699,8 +698,12 @@ export default function FinancialPage() {
       });
   }, [
     accountsQuery.data,
-    movementsQuery.data,
+    categoryActiveMutation,
     categoriesQuery.data,
+    deleteAccountMutation,
+    deleteCategoryMutation,
+    deleteMovementMutation,
+    movementsQuery.data,
     statementKind,
     statementSearch,
   ]);
@@ -785,7 +788,7 @@ export default function FinancialPage() {
   }
 
   function clearStatementFilters() {
-    const range = lastDaysRange(7);
+    const range = lastDaysRange(1);
 
     setStatementKind("TODOS");
     setStatementSearchInput("");
@@ -889,100 +892,130 @@ export default function FinancialPage() {
       </div>
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-  <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-    <SummaryCard
-      icon={ArrowDownLeft}
-      label="A receber aberto"
-      value={formatCurrency(accountTotals.receivableOpen)}
-      tone="text-emerald-700"
-    />
+        <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <SummaryCard
+            icon={ArrowDownLeft}
+            label="A receber aberto"
+            value={formatCurrency(accountTotals.receivableOpen)}
+            tone="text-emerald-700"
+          />
 
-    <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
-      <SummaryCard
-        icon={ArrowUpRight}
-        label="A pagar aberto"
-        value={formatCurrency(accountTotals.payableOpen)}
-        tone="text-rose-700"
-      />
-    </Link>
+          <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
+            <SummaryCard
+              icon={ArrowUpRight}
+              label="A pagar aberto"
+              value={formatCurrency(accountTotals.payableOpen)}
+              tone="text-rose-700"
+            />
+          </Link>
 
-    <SummaryCard
-      icon={Wallet}
-      label="Recebido / pago"
-      value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
-        accountTotals.paid
-      )}`}
-      tone="text-foreground"
-    />
-  </div>
+          <SummaryCard
+            icon={Wallet}
+            label="Contas recebidas / pagas"
+            value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
+              accountTotals.paid
+            )}`}
+            tone="text-foreground"
+          />
 
-  <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
-    <span className="text-sm font-medium text-muted-foreground">
-      Período:
-    </span>
+          <SummaryCard
+            icon={ArrowDownLeft}
+            label="Entradas caixa"
+            value={formatCurrency(cashTotals.entries)}
+            tone="text-emerald-700"
+          />
 
-    <Button
-      type="button"
-      variant={!from && !to ? "default" : "outline"}
-      size="sm"
-      onClick={() => {
-        setFrom("");
-        setTo("");
-        setCurrentPage(1);
-      }}
-    >
-      Todos
-    </Button>
+          <SummaryCard
+            icon={ArrowUpRight}
+            label="Saídas caixa"
+            value={formatCurrency(cashTotals.exits)}
+            tone="text-rose-700"
+          />
 
-    <Button
-      type="button"
-      variant={from === lastDaysRange(1).from && to === lastDaysRange(1).to ? "default" : "outline"}
-      size="sm"
-      onClick={() => {
-        const range = lastDaysRange(1);
+          <SummaryCard
+            icon={Banknote}
+            label="Saldo caixa"
+            value={formatCurrency(cashTotals.balance)}
+            tone={cashTotals.balance < 0 ? "text-rose-700" : "text-foreground"}
+          />
+        </div>
 
-        setFrom(range.from);
-        setTo(range.to);
-        setCurrentPage(1);
-      }}
-    >
-      1 dia
-    </Button>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
+          <span className="text-sm font-medium text-muted-foreground">
+            Período:
+          </span>
 
-    <Button
-      type="button"
-      variant={from === lastDaysRange(7).from && to === lastDaysRange(7).to ? "default" : "outline"}
-      size="sm"
-      onClick={() => {
-        const range = lastDaysRange(7);
+          <Button
+            type="button"
+            variant={!from && !to ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setFrom("");
+              setTo("");
+              setCurrentPage(1);
+            }}
+          >
+            Todos
+          </Button>
 
-        setFrom(range.from);
-        setTo(range.to);
-        setCurrentPage(1);
-      }}
-    >
-      7 dias
-    </Button>
+          <Button
+            type="button"
+            variant={
+              from === lastDaysRange(1).from && to === lastDaysRange(1).to
+                ? "default"
+                : "outline"
+            }
+            size="sm"
+            onClick={() => {
+              const range = lastDaysRange(1);
 
-    <Button
-      type="button"
-      variant={from === lastDaysRange(30).from && to === lastDaysRange(30).to ? "default" : "outline"}
-      size="sm"
-      onClick={() => {
-        const end = new Date();
-        const start = new Date();
+              setFrom(range.from);
+              setTo(range.to);
+              setCurrentPage(1);
+            }}
+          >
+            1 dia
+          </Button>
 
-        start.setDate(end.getDate() - 30);
+          <Button
+            type="button"
+            variant={
+              from === lastDaysRange(7).from && to === lastDaysRange(7).to
+                ? "default"
+                : "outline"
+            }
+            size="sm"
+            onClick={() => {
+              const range = lastDaysRange(7);
 
-        setFrom(start.toISOString().slice(0, 10));
-        setTo(end.toISOString().slice(0, 10));
-        setCurrentPage(1);
-      }}
-    >
-      30 dias
-    </Button>
-  </div>
-</div>
+              setFrom(range.from);
+              setTo(range.to);
+              setCurrentPage(1);
+            }}
+          >
+            7 dias
+          </Button>
+
+          <Button
+            type="button"
+            variant={
+              from === lastDaysRange(30).from && to === lastDaysRange(30).to
+                ? "default"
+                : "outline"
+            }
+            size="sm"
+            onClick={() => {
+              const range = lastDaysRange(30);
+
+              setFrom(range.from);
+              setTo(range.to);
+              setCurrentPage(1);
+            }}
+          >
+            30 dias
+          </Button>
+        </div>
+      </div>
       {errorMessage ? (
         <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <span>{errorMessage}</span>

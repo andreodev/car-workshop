@@ -9,7 +9,6 @@ import {
   ClipboardList,
   FileText,
   Package,
-  Plus,
   ReceiptText,
   ShoppingCart,
   TrendingUp,
@@ -144,7 +143,11 @@ function financialAmount(
   type: FinancialAccountType
 ) {
   return groups
-    .filter((group) => group.type === type && group.status !== "CANCELADA")
+    .filter(
+      (group) =>
+        group.type === type &&
+        (group.status === "ABERTA" || group.status === "VENCIDA")
+    )
     .reduce((total, group) => total + decimalToNumber(group._sum?.amount), 0);
 }
 
@@ -158,7 +161,6 @@ async function getDashboardData() {
     mechanicCount,
     serviceOrderGroups,
     estimateGroups,
-    monthlyServiceOrders,
     monthlySales,
     todaySales,
     recentServiceOrders,
@@ -183,14 +185,6 @@ async function getDashboardData() {
       orderBy: { status: "asc" },
       _count: { _all: true },
       _sum: { total: true },
-    }),
-    prisma.serviceOrder.aggregate({
-      where: {
-        status: "FINALIZADA",
-        entryAt: { gte: monthStart, lt: nextMonthStart },
-      },
-      _sum: { total: true },
-      _count: { _all: true },
     }),
     prisma.sale.aggregate({
       where: {
@@ -287,7 +281,6 @@ async function getDashboardData() {
     mechanicCount,
     serviceOrderGroups,
     estimateGroups,
-    monthlyServiceOrders,
     monthlySales,
     todaySales,
     recentServiceOrders,
@@ -314,9 +307,6 @@ export default async function DashboardPage() {
     (total, status) => total + statusCount(data.estimateGroups, status),
     0
   );
-  const monthlyRevenue =
-    decimalToNumber(data.monthlySales._sum.total) +
-    decimalToNumber(data.monthlyServiceOrders._sum.total);
   const receivableMonth = financialAmount(data.financialGroups, "RECEBER");
   const payableMonth = financialAmount(data.financialGroups, "PAGAR");
   const balanceProjection = receivableMonth - payableMonth;
@@ -332,10 +322,8 @@ export default async function DashboardPage() {
     },
     {
       title: "Faturamento do mês",
-      value: formatCurrency(monthlyRevenue),
-      description: `${formatInteger(data.monthlySales._count._all)} vendas e ${formatInteger(
-        data.monthlyServiceOrders._count._all
-      )} OS finalizadas`,
+      value: formatCurrency(data.monthlySales._sum.total),
+      description: `${formatInteger(data.monthlySales._count._all)} vendas/OS pagas no PDV`,
       href: "/pdv/vendas",
       icon: TrendingUp,
       tone: "bg-emerald-100 text-emerald-700",
@@ -369,12 +357,6 @@ export default async function DashboardPage() {
         />
 
         <div className="flex flex-wrap gap-2">
-          <Button asChild className="h-8 gap-2 px-3">
-            <Link href="/ordens-servico/novo">
-              <Plus className="size-3.5" />
-              Nova OS
-            </Link>
-          </Button>
           <Button asChild variant="outline" className="h-8 gap-2 px-3">
             <Link href="/orcamentos/novo">
               <FileText className="size-3.5" />

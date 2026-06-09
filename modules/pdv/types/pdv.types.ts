@@ -276,29 +276,61 @@ export type SaleItem = {
   } | null;
 };
 
+export type SalePayment = {
+  id: string;
+  saleId: string;
+  paymentMethod: SalePaymentMethod;
+  amount: string;
+  feeAmount: string;
+  netAmount: string;
+  installments: number;
+  createdAt: string;
+};
+
 export type Sale = {
   id: string;
   code: number;
   status: SaleStatus;
   clientId: string | null;
   sectorId: string | null;
+  serviceOrderId?: string | null;
   responsible: string;
   sectorName: string | null;
   paymentMethod: SalePaymentMethod;
   notes: string | null;
   subtotal: string;
   discountTotal: string;
+  feeTotal: string;
   total: string;
   createdAt: string;
   updatedAt: string;
   client: {
     id: string;
     name: string;
+    mobile?: string | null;
+    phone1?: string | null;
   } | null;
   sector: {
     id: string;
     name: string;
   } | null;
+  serviceOrder?: {
+    id: string;
+    code: number;
+    mechanic: {
+      id: string;
+      name: string;
+    } | null;
+    vehicle: {
+      id: string;
+      plate: string;
+      brand: string | null;
+      model: string | null;
+      modelYear: number | null;
+      color: string | null;
+    } | null;
+  } | null;
+  payments?: SalePayment[];
   items: SaleItem[];
 };
 
@@ -348,6 +380,10 @@ export type SaleListResponse = {
   page: number;
   pageSize: number;
   serviceOrdersCompleted?: ServiceOrderCompleted[];
+  serviceOrdersCompletedSummary?: {
+    count: number;
+    total: string | number | null;
+  };
 };
 
 export type SalePayloadItem = {
@@ -372,6 +408,7 @@ export type SalePaymentPayload = {
   paymentMethod: SalePaymentMethod;
   amount: number;
   feeAmount: number;
+  installments: number;
 };
 
 export type ServiceOrderPdvResponse = {

@@ -1,0 +1,11 @@
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/car_workshop
+NEXTAUTH_SECRET=change-me
+NEXTAUTH_URL=http://localhost:3000
+
+# Daily report email automation
+RESEND_API_KEY=
+RESEND_FROM_EMAIL="Car Workshop <relatorios@seudominio.com>"
+DAILY_REPORT_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
+PDV_SALE_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
+CRON_SECRET=change-me
+DAILY_REPORT_TIME_ZONE=America/Manaus

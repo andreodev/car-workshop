@@ -6,6 +6,8 @@ export type EstimateStatus =
   | "CONVERTIDO"
   | "CANCELADO";
 
+export type EstimateVisibility = "ATIVOS" | "ARQUIVADOS" | "TODOS";
+
 export type EstimateItem = {
   id: string;
   catalogItemId: string | null;
