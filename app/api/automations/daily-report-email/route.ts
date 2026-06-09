@@ -36,7 +36,7 @@ function authorize(request: NextRequest) {
     return {
       ok: false,
       status: 500,
-      message: "Configure CRON_SECRET ou DAILY_REPORT_EMAIL_TOKEN para proteger a automacao.",
+      message: "Configure CRON_SECRET ou DAILY_REPORT_EMAIL_TOKEN para proteger a automação.",
     };
   }
 
@@ -44,7 +44,7 @@ function authorize(request: NextRequest) {
     return {
       ok: false,
       status: 401,
-      message: "Token da automacao invalido.",
+      message: "Token da automação invalido.",
     };
   }
 
@@ -63,16 +63,16 @@ function buildEmailPayload(params: {
   exits: number;
   balance: number;
 }): ResendEmailPayload {
-  const subject = `Relatorio diario - ${params.dateLabel} - dia ${params.performanceStatus}`;
+  const subject = `Relatório diário - ${params.dateLabel} - dia ${params.performanceStatus}`;
   const text = [
     `O fechamento de ${params.dateLabel} foi ${params.performanceStatus}.`,
     params.performanceMessage,
     "",
     `Entradas de caixa: ${formatCurrency(params.entries)}`,
-    `Saidas de caixa: ${formatCurrency(params.exits)}`,
+    `Saídas de caixa: ${formatCurrency(params.exits)}`,
     `Saldo de caixa: ${formatCurrency(params.balance)}`,
     "",
-    "O PDF do relatorio diario esta anexado.",
+    "O PDF do relatório diário esta anexado.",
   ].join("\n");
   const html = `
     <p>O fechamento de <strong>${escapeEmailHtml(params.dateLabel)}</strong> foi <strong>${escapeEmailHtml(
@@ -81,10 +81,10 @@ function buildEmailPayload(params: {
     <p>${escapeEmailHtml(params.performanceMessage)}</p>
     <ul>
       <li>Entradas de caixa: <strong>${escapeEmailHtml(formatCurrency(params.entries))}</strong></li>
-      <li>Saidas de caixa: <strong>${escapeEmailHtml(formatCurrency(params.exits))}</strong></li>
+      <li>Saídas de caixa: <strong>${escapeEmailHtml(formatCurrency(params.exits))}</strong></li>
       <li>Saldo de caixa: <strong>${escapeEmailHtml(formatCurrency(params.balance))}</strong></li>
     </ul>
-    <p>O PDF do relatorio diario esta anexado.</p>
+    <p>O PDF do relatório diário esta anexado.</p>
   `;
 
   return {
@@ -134,7 +134,7 @@ async function handleDailyReportEmail(request: NextRequest) {
   const report = await getDailyReportData({ dateKey });
   const pdfBuffer = await renderDailyReportPdf(report);
   const performance = getDailyReportPerformance(report);
-  const filename = `relatorio-diario-${report.dateKey}.pdf`;
+  const filename = `relatório-diário-${report.dateKey}.pdf`;
   const payload = buildEmailPayload({
     from,
     recipients,
@@ -161,7 +161,7 @@ async function handleDailyReportEmail(request: NextRequest) {
   } catch (error) {
     return Response.json(
       {
-        message: "Falha ao enviar relatorio diario pelo Resend.",
+        message: "Falha ao enviar relatório diário pelo Resend.",
         details: error instanceof Error && "details" in error ? error.details : error,
       },
       { status: 502 }
@@ -169,7 +169,7 @@ async function handleDailyReportEmail(request: NextRequest) {
   }
 
   return Response.json({
-    message: "Relatorio diario enviado.",
+    message: "Relatório diário enviado.",
     date: report.dateKey,
     recipients,
     performance: performance.status,

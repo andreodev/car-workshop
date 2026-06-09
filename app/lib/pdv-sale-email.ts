@@ -117,15 +117,15 @@ export async function sendPdvSaleFinancialEmail(saleId: string) {
   const customer = sale.client?.name ?? "Cliente avulso";
   const origin = saleOrigin(sale);
   const payments = paymentSummary(sale.payments);
-  const subject = `Venda PDV #${sale.code} lancada no financeiro`;
+  const subject = `Venda PDV #${sale.code} lançada no financeiro`;
   const text = [
-    `Uma venda passou pelo PDV e foi lancada no financeiro.`,
+    `Uma venda passou pelo PDV e foi lançada no financeiro.`,
     "",
     `Venda: #${sale.code}`,
     `Origem: ${origin}`,
     `Cliente: ${customer}`,
     `Setor: ${sale.sector?.name ?? sale.sectorName ?? "-"}`,
-    `Responsavel: ${sale.responsible ?? "-"}`,
+    `Responsável: ${sale.responsible ?? "-"}`,
     `Data: ${formatDateTime(sale.createdAt)}`,
     `Total recebido: ${formatCurrency(sale.total)}`,
     "",
@@ -136,13 +136,13 @@ export async function sendPdvSaleFinancialEmail(saleId: string) {
     ...(itemLines.length > 0 ? itemLines : ["-"]),
   ].join("\n");
   const html = `
-    <p>Uma venda passou pelo PDV e foi lancada no financeiro.</p>
+    <p>Uma venda passou pelo PDV e foi lançada no financeiro.</p>
     <ul>
       <li><strong>Venda:</strong> #${sale.code}</li>
       <li><strong>Origem:</strong> ${escapeEmailHtml(origin)}</li>
       <li><strong>Cliente:</strong> ${escapeEmailHtml(customer)}</li>
       <li><strong>Setor:</strong> ${escapeEmailHtml(sale.sector?.name ?? sale.sectorName ?? "-")}</li>
-      <li><strong>Responsavel:</strong> ${escapeEmailHtml(sale.responsible ?? "-")}</li>
+      <li><strong>Responsável:</strong> ${escapeEmailHtml(sale.responsible ?? "-")}</li>
       <li><strong>Data:</strong> ${escapeEmailHtml(formatDateTime(sale.createdAt))}</li>
       <li><strong>Total recebido:</strong> ${escapeEmailHtml(formatCurrency(sale.total))}</li>
     </ul>
