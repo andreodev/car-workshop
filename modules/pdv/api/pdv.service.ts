@@ -309,6 +309,11 @@ export async function payServiceOrderPdv({
       id: string;
       code: number;
     };
+    mechanicCommissionPayable?: Array<{
+      id: string;
+      counterparty: string | null;
+      amount: string | number;
+    }>;
   }>(response);
 }
 

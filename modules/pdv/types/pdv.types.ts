@@ -429,6 +429,10 @@ export type ServiceOrderPdvResponse = {
     code?: number | string | null;
     name: string;
     type: CatalogItem["type"];
+    mechanic?: {
+      id: string;
+      name: string;
+    } | null;
     catalogItem?: {
       id: string;
       name: string;
@@ -439,6 +443,7 @@ export type ServiceOrderPdvResponse = {
     unitPrice: string | number;
     discount?: string | number | null;
     total: string | number;
+    commissionBase?: string | number | null;
     stockCurrent?: string | number | null;
   }>;
   subtotal?: string | number;

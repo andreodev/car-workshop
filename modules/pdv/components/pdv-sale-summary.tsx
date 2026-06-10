@@ -83,6 +83,7 @@ function calculatePaymentLineFee(payment: {
 
 export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
   const { refs, state, actions, mutations } = controller;
+  const commissionPreview = state.serviceOrderCommissionPreview;
 
   const isSaving =
     mutations.saleMutation.isPending ||
@@ -150,6 +151,25 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             </span>
           </div>
         </div>
+
+        {state.isServiceOrderMode && commissionPreview ? (
+          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-foreground">Comissão prevista</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {commissionPreview.mechanicsCount > 0
+                    ? commissionPreview.mechanicNames.join(", ")
+                    : "Nenhum mecânico com base comissionável"}
+                </p>
+              </div>
+
+              <span className="font-semibold">
+                {formatCurrency(commissionPreview.baseTotal)}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-3 sm:gap-4 sm:overflow-y-auto sm:p-4">
@@ -324,6 +344,35 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
                 </span>
               </p>
+            </div>
+          ) : null}
+
+          {state.isServiceOrderMode && commissionPreview ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-foreground">
+                    Conferência de comissão
+                  </p>
+
+                  <p className="text-xs text-muted-foreground">
+                    {commissionPreview.itemsCount} item
+                    {commissionPreview.itemsCount === 1 ? "" : "s"} com base
+                    comissionável para {commissionPreview.mechanicsCount} mecânico
+                    {commissionPreview.mechanicsCount === 1 ? "" : "s"}.
+                  </p>
+                </div>
+
+                <span className="font-semibold">
+                  Base {formatCurrency(commissionPreview.baseTotal)}
+                </span>
+              </div>
+
+              {commissionPreview.mechanicsCount === 0 ? (
+                <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                  Revise os itens da OS: sem mecânico vinculado, a comissão não será lançada.
+                </p>
+              ) : null}
             </div>
           ) : null}
 

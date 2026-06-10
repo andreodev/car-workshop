@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { pdvKeys } from "../api/pdv.keys";
@@ -49,6 +50,52 @@ type PaymentLine = {
   feePercent: string;
   installments: number;
 };
+
+type ServiceOrderCommissionPreview = {
+  baseTotal: number;
+  itemsCount: number;
+  mechanicsCount: number;
+  mechanicNames: string[];
+};
+
+const paymentMethodValues = [
+  "DINHEIRO",
+  "PIX",
+  "CARTAO_CREDITO",
+  "CARTAO_DEBITO",
+] as const;
+
+const paymentPayloadSchema = z.array(
+  z.object({
+    paymentMethod: z.enum(paymentMethodValues, {
+      error: "Forma de pagamento inválida.",
+    }),
+    amount: z.number().positive("Valor do pagamento deve ser maior que zero."),
+    feeAmount: z.number().min(0, "Taxa não pode ser negativa."),
+    installments: z
+      .number()
+      .int("Parcelas inválidas.")
+      .min(1, "Parcelas devem ser maiores que zero.")
+      .max(12, "Parcelas não podem passar de 12."),
+  }),
+).min(1, "Informe pelo menos uma forma de pagamento.");
+
+const saleLinePayloadSchema = z.array(
+  z.object({
+    catalogItemId: z.string().min(1, "Selecione um produto ou serviço cadastrado para vender."),
+    description: z.string().trim().min(1, "Descrição do item é obrigatória."),
+    quantity: z.number().positive("Quantidade deve ser maior que zero."),
+    unitPrice: z.number().min(0, "Valor unitário inválido."),
+    discountPercent: z
+      .number()
+      .min(0, "Desconto deve estar entre 0 e 100%.")
+      .max(100, "Desconto deve estar entre 0 e 100%."),
+  }),
+).min(1, "Inclua pelo menos um item na venda.");
+
+function zodMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? "Dados inválidos.";
+}
 
 function createPaymentLine(
   paymentMethod: SalePaymentMethod = "DINHEIRO",
@@ -106,6 +153,40 @@ function getTotalsAmount(totals: unknown) {
       record.grandTotal ??
       0
   );
+}
+
+function buildServiceOrderCommissionPreview(
+  serviceOrder: Awaited<ReturnType<typeof fetchServiceOrderPdv>>
+): ServiceOrderCommissionPreview {
+  const sourceItems = serviceOrder.items
+    .map((item) => {
+      const isService = item.type === "SERVICO";
+      const fallbackBase = isService ? Number(item.total ?? 0) : 0;
+      const base = toCurrencyNumber(item.commissionBase ?? fallbackBase);
+      const mechanicName = item.mechanic?.name?.trim();
+
+      return {
+        base,
+        mechanicName: mechanicName || null,
+      };
+    })
+    .filter((item) => item.base > 0);
+  const mechanicNames = Array.from(
+    new Set(
+      sourceItems
+        .map((item) => item.mechanicName)
+        .filter((name): name is string => Boolean(name))
+    )
+  );
+
+  return {
+    baseTotal: toCurrencyNumber(
+      sourceItems.reduce((sum, item) => sum + item.base, 0)
+    ),
+    itemsCount: sourceItems.length,
+    mechanicsCount: mechanicNames.length,
+    mechanicNames,
+  };
 }
 
 function normalizePaymentLines(
@@ -209,6 +290,8 @@ export function usePdvSale({
   const [clientListOpen, setClientListOpen] = useState(false);
   const [productListOpen, setProductListOpen] = useState(false);
   const [serviceOrderLoading, setServiceOrderLoading] = useState(false);
+  const [serviceOrderCommissionPreview, setServiceOrderCommissionPreview] =
+    useState<ServiceOrderCommissionPreview | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   const clientsQuery = useQuery({
@@ -300,6 +383,7 @@ export function usePdvSale({
     setUnitPrice("");
     setDiscountPercent("0");
     setServiceOrderDiscountPercent("0");
+    setServiceOrderCommissionPreview(null);
     setPaymentMethodState("DINHEIRO");
     setPaymentLines([createPaymentLine("DINHEIRO")]);
     setLocalError(null);
@@ -352,6 +436,12 @@ export function usePdvSale({
       queryClient.invalidateQueries({ queryKey: pdvKeys.catalogItems() });
       queryClient.invalidateQueries({ queryKey: pdvKeys.serviceOrders() });
 
+      const commissionsCount = result.mechanicCommissionPayable?.length ?? 0;
+      const commissionMessage =
+        commissionsCount > 0
+          ? `Comissão lançada para ${commissionsCount} mecânico${commissionsCount > 1 ? "s" : ""}.`
+          : "Pagamento registrado. Nenhuma comissão nova foi lançada para esta OS.";
+
       resetDraft({ keepLastSale: true });
       setPaymentDialogOpen(false);
       setLastSale({
@@ -359,11 +449,11 @@ export function usePdvSale({
         code: result.sale.code,
       });
 
-      setSuccessMessage("Pagamento da ordem de serviço registrado com sucesso.");
+      setSuccessMessage(`Pagamento da ordem de serviço registrado com sucesso. ${commissionMessage}`);
 
       toast({
         title: "Ordem de serviço paga",
-        description: "Pagamento registrado com sucesso.",
+        description: commissionMessage,
         variant: "success",
       });
     },
@@ -663,6 +753,7 @@ export function usePdvSale({
         const serviceOrderTotal = toCurrencyNumber(serviceOrder.total);
 
         setLines(mappedLines);
+        setServiceOrderCommissionPreview(buildServiceOrderCommissionPreview(serviceOrder));
         setSelectedClient(serviceOrder.client ?? null);
         setClientSearch(serviceOrder.client?.name ?? "");
         setResponsible(defaultResponsible);
@@ -854,6 +945,13 @@ export function usePdvSale({
       return;
     }
 
+    const paymentValidation = paymentPayloadSchema.safeParse(paymentsPayload);
+
+    if (!paymentValidation.success) {
+      setLocalError(zodMessage(paymentValidation.error));
+      return;
+    }
+
     if (Math.abs(paymentDifference) > 0.009) {
       setLocalError(
         `Total do pagamento inválido. Falta/ sobra R$ ${Math.abs(
@@ -885,6 +983,13 @@ export function usePdvSale({
 
     if (!responsible.trim()) {
       setLocalError("Informe o funcionario responsavel pela venda.");
+      return;
+    }
+
+    const saleLineValidation = saleLinePayloadSchema.safeParse(lines);
+
+    if (!saleLineValidation.success) {
+      setLocalError(zodMessage(saleLineValidation.error));
       return;
     }
 
@@ -1165,6 +1270,7 @@ export function usePdvSale({
       selectedClient,
       selectedProduct,
       serviceOrderDiscountPercent,
+      serviceOrderCommissionPreview,
       serviceOrderPaymentDiscountAmount,
       serviceOrderLoading,
       successMessage,

@@ -1,5 +1,6 @@
 ﻿import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 import { sendPdvSaleFinancialEmail } from "@/app/lib/pdv-sale-email";
 import {
@@ -18,6 +19,8 @@ import {
   normalizeDateStart,
   normalizeMoney,
   normalizeNumber,
+  pdvPaymentMethods,
+  salePaymentMethods,
   normalizePaymentsFromPayload,
   normalizeSalePaymentMethod,
   normalizeStatus,
@@ -38,6 +41,106 @@ type ParsedSaleItem = {
   discount: number;
   total: number;
 };
+
+const nullableStringSchema = z.preprocess(
+  (value) => normalizeString(value),
+  z.string().min(1).nullable(),
+);
+
+function zodMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? "Dados inválidos.";
+}
+
+const positiveNumberSchema = z.preprocess(
+  (value) => normalizeNumber(value),
+  z.number({ error: "Informe um número válido." }).positive("Valor deve ser maior que zero."),
+);
+
+const nonNegativeMoneySchema = z.preprocess(
+  (value) => normalizeMoney(value),
+  z.number({ error: "Informe um valor válido." }).min(0, "Valor não pode ser negativo."),
+);
+
+const positiveMoneySchema = z.preprocess(
+  (value) => normalizeMoney(value),
+  z.number({ error: "Informe um valor válido." }).positive("Valor deve ser maior que zero."),
+);
+
+const salePaymentPayloadSchema = z.object({
+  paymentMethod: z.enum(pdvPaymentMethods, { error: "Forma de pagamento inválida." }),
+  amount: positiveMoneySchema,
+  feeAmount: nonNegativeMoneySchema.optional().default(0),
+  installments: z.coerce
+    .number({ error: "Parcelas inválidas." })
+    .int("Parcelas inválidas.")
+    .min(1, "Parcelas devem ser maiores que zero.")
+    .max(12, "Parcelas não podem passar de 12.")
+    .optional()
+    .default(1),
+});
+
+const saleItemPayloadSchema = z.object({
+  catalogItemId: z.preprocess(
+    (value) => normalizeString(value),
+    z.string({ error: "Selecione um produto ou serviço cadastrado para vender." }).min(
+      1,
+      "Selecione um produto ou serviço cadastrado para vender.",
+    ),
+  ),
+  description: z.preprocess(
+    (value) => normalizeString(value),
+    z.string({ error: "Descrição do item é obrigatória." }).min(1, "Descrição do item é obrigatória."),
+  ),
+  quantity: positiveNumberSchema,
+  unitPrice: nonNegativeMoneySchema,
+  discountPercent: z.preprocess(
+    (value) => normalizeMoney(value ?? 0),
+    z
+      .number({ error: "Desconto inválido." })
+      .min(0, "Desconto deve estar entre 0 e 100%.")
+      .max(100, "Desconto deve estar entre 0 e 100%."),
+  ),
+});
+
+const saleCreatePayloadSchema = z
+  .object({
+    clientId: nullableStringSchema,
+    sectorId: nullableStringSchema,
+    responsible: nullableStringSchema,
+    paymentMethod: z.enum(salePaymentMethods, { error: "Forma de pagamento inválida." }).optional(),
+    payments: z.array(salePaymentPayloadSchema).optional(),
+    notes: nullableStringSchema,
+    items: z
+      .array(saleItemPayloadSchema, { error: "Itens da venda inválidos." })
+      .min(1, "Inclua pelo menos um item na venda."),
+  })
+  .passthrough();
+
+const saleFinalizePayloadBaseSchema = z
+  .object({
+    paymentMethod: z.enum(pdvPaymentMethods, { error: "Forma de pagamento inválida." }).optional(),
+    payments: z.array(salePaymentPayloadSchema).optional(),
+  })
+  .passthrough();
+
+const saleFinalizePayloadSchema = saleFinalizePayloadBaseSchema
+  .refine((payload) => payload.paymentMethod || (payload.payments?.length ?? 0) > 0, {
+    message: "Informe pelo menos uma forma de pagamento.",
+    path: ["payments"],
+  });
+
+const serviceOrderPaymentPayloadSchema = saleFinalizePayloadBaseSchema
+  .extend({
+    serviceOrderId: z.preprocess(
+      (value) => normalizeString(value),
+      z.string({ error: "Ordem de serviço inválida." }).min(1, "Ordem de serviço inválida."),
+    ),
+    discountAmount: nonNegativeMoneySchema.optional().default(0),
+  })
+  .refine((payload) => payload.paymentMethod || (payload.payments?.length ?? 0) > 0, {
+    message: "Informe pelo menos uma forma de pagamento.",
+    path: ["payments"],
+  });
 
 function serviceError(error: string, status: number, details?: string) {
   return {
@@ -172,6 +275,23 @@ function parseSaleItems(rawItems: unknown[]) {
   return {
     data: items,
   };
+}
+
+function getItemCommissionBase(item: {
+  type: "SERVICE" | "PRODUCT";
+  total: Prisma.Decimal;
+  commissionBase: Prisma.Decimal | null;
+  catalogItem: {
+    type: "PRODUTO" | "SERVICO";
+  } | null;
+}) {
+  if (item.commissionBase !== null && item.commissionBase !== undefined) {
+    return new Prisma.Decimal(item.commissionBase);
+  }
+
+  const isService = item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
+
+  return isService ? new Prisma.Decimal(item.total) : new Prisma.Decimal(0);
 }
 
 function normalizeServiceOrderPaymentDiscount(
@@ -324,11 +444,7 @@ async function createMechanicCommissionPayable(params: {
       continue;
     }
 
-    if (item.commissionBase === null || item.commissionBase === undefined) {
-      continue;
-    }
-
-    const base = new Prisma.Decimal(item.commissionBase);
+    const base = getItemCommissionBase(item);
 
     if (base.lessThanOrEqualTo(0)) {
       continue;
@@ -655,11 +771,18 @@ export const saleService = {
   },
 
   async create(payload: Record<string, unknown>, responsibleFallback: string) {
-    const clientId = normalizeString(payload.clientId);
-    const sectorId = normalizeString(payload.sectorId);
-    const responsible = normalizeString(payload.responsible) ?? responsibleFallback;
-    const paymentMethod = normalizeSalePaymentMethod(payload.paymentMethod);
-    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const parsedPayload = saleCreatePayloadSchema.safeParse(payload);
+
+    if (!parsedPayload.success) {
+      return serviceError(zodMessage(parsedPayload.error), 400);
+    }
+
+    const salePayload = parsedPayload.data;
+    const clientId = salePayload.clientId;
+    const sectorId = salePayload.sectorId;
+    const responsible = salePayload.responsible ?? responsibleFallback;
+    const paymentMethod = normalizeSalePaymentMethod(salePayload.paymentMethod);
+    const rawItems = salePayload.items;
 
     if (!paymentMethod) {
       return serviceError("Forma de pagamento invalida.", 400);
@@ -734,7 +857,7 @@ export const saleService = {
     const discountTotal = items.reduce((sum, item) => sum + item.discount, 0);
     const total = items.reduce((sum, item) => sum + item.total, 0);
     const baseTotal = new Prisma.Decimal(Math.round(total * 100) / 100);
-    const payments = normalizePaymentsFromPayload(payload, baseTotal);
+    const payments = normalizePaymentsFromPayload(salePayload, baseTotal);
 
     if (!payments?.length) {
       return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
@@ -761,7 +884,7 @@ export const saleService = {
             responsible,
             sectorName: sector?.name ?? null,
             paymentMethod: payments[0].paymentMethod,
-            notes: normalizeString(payload.notes),
+            notes: salePayload.notes,
             subtotal: Math.round(subtotal * 100) / 100,
             discountTotal: Math.round(discountTotal * 100) / 100,
             feeTotal,
@@ -900,9 +1023,12 @@ export const saleService = {
           code: item.catalogItem?.code ?? null,
           name: item.catalogItem?.name ?? item.description ?? "Item sem nome",
           type: item.catalogItem?.type ?? "SERVICO",
+          mechanic: item.mechanic,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          discount: item.discount,
           total: Number(item.quantity) * Number(item.unitPrice),
+          commissionBase: getItemCommissionBase(item).toFixed(2),
           stockCurrent: item.catalogItem?.stockCurrent ?? null,
         })),
         subtotal: serviceOrder.subtotal,
@@ -1048,6 +1174,16 @@ export const saleService = {
   },
 
   async finalizeServiceOrderPayment(serviceOrderId: string, payload: Record<string, unknown>) {
+    const parsedPayload = serviceOrderPaymentPayloadSchema.safeParse({
+      ...payload,
+      serviceOrderId,
+    });
+
+    if (!parsedPayload.success) {
+      return serviceError(zodMessage(parsedPayload.error), 400);
+    }
+
+    const paymentPayload = parsedPayload.data;
     const serviceOrder = await saleRepository.findServiceOrderById(serviceOrderId);
 
     if (!serviceOrder) {
@@ -1060,7 +1196,7 @@ export const saleService = {
 
     const serviceOrderTotal = new Prisma.Decimal(serviceOrder.total);
     const paymentDiscountResult = normalizeServiceOrderPaymentDiscount(
-      payload.discountAmount,
+      paymentPayload.discountAmount,
       serviceOrderTotal,
     );
 
@@ -1070,7 +1206,7 @@ export const saleService = {
 
     const paymentDiscount = paymentDiscountResult.data;
     const paymentBaseTotal = serviceOrderTotal.minus(paymentDiscount).toDecimalPlaces(2);
-    const payments = normalizePaymentsFromPayload(payload, paymentBaseTotal);
+    const payments = normalizePaymentsFromPayload(paymentPayload, paymentBaseTotal);
 
     if (!payments?.length) {
       return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
@@ -1350,13 +1486,20 @@ export const saleService = {
   },
 
   async finalizeSalePayment(id: string, payload: Record<string, unknown>) {
+    const parsedPayload = saleFinalizePayloadSchema.safeParse(payload);
+
+    if (!parsedPayload.success) {
+      return serviceError(zodMessage(parsedPayload.error), 400);
+    }
+
+    const paymentPayload = parsedPayload.data;
     const currentSale = await saleRepository.findSaleForStock(id);
 
     if (!currentSale) {
       return serviceError("Venda nÃ£o encontrada.", 404);
     }
 
-    const payments = normalizePaymentsFromPayload(payload, currentSale.total);
+    const payments = normalizePaymentsFromPayload(paymentPayload, currentSale.total);
 
     if (!payments?.length) {
       return serviceError("Nenhuma forma de pagamento válida foi informada.", 400);
