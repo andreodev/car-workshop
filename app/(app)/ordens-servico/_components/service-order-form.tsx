@@ -287,6 +287,7 @@ type ServiceOrderFormProps = {
 type QuickCatalogDialogState = {
   mode: "create" | "stock";
   itemId: string;
+  catalogItemId?: string;
 } | null;
 
 type QuickCatalogFormValues = {
@@ -427,12 +428,13 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       }
 
       const formItem = form.items.find((item) => item.id === quickCatalogDialog.itemId);
+      const catalogItemId = quickCatalogDialog.catalogItemId || formItem?.catalogItemId;
 
-      if (!formItem?.catalogItemId) {
-        throw new Error("Selecione um produto para adicionar estoque.");
+      if (!catalogItemId) {
+        throw new Error("Selecione o produto para adicionar estoque.");
       }
 
-      return addCatalogItemStock(formItem.catalogItemId, {
+      return addCatalogItemStock(catalogItemId, {
         quantity,
         notes: quickCatalogForm.notes.trim() || undefined,
       });
@@ -446,6 +448,24 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       ]);
 
       if (quickCatalogDialog?.mode === "create") {
+        setForm((prev) => ({
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === quickCatalogDialog.itemId
+              ? {
+                  ...item,
+                  type: "PRODUCT",
+                  catalogItemId: catalogItem.id,
+                  description: catalogItem.name,
+                  unitPrice: formatAmountInput(catalogItem.unitPrice),
+                  sectorId: catalogItem.sectorId ?? item.sectorId,
+                }
+              : item
+          ),
+        }));
+      }
+
+      if (quickCatalogDialog?.mode === "stock") {
         setForm((prev) => ({
           ...prev,
           items: prev.items.map((item) =>
@@ -649,7 +669,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     const currentStock = normalizeAmount(catalogItem?.stockCurrent ?? "0");
     const missingQuantity = Math.max(requestedQuantity - currentStock, 1);
 
-    setQuickCatalogDialog({ mode: "stock", itemId });
+    setQuickCatalogDialog({
+      mode: "stock",
+      itemId,
+      catalogItemId: catalogItem?.id ?? formItem?.catalogItemId,
+    });
     setQuickCatalogForm({
       ...emptyQuickCatalogForm,
       quantity: String(missingQuantity),
@@ -758,9 +782,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const quickDialogItem = quickCatalogDialog
     ? form.items.find((item) => item.id === quickCatalogDialog.itemId)
     : undefined;
-  const quickDialogCatalogItem = quickDialogItem?.catalogItemId
-    ? catalogItems.find((item) => item.id === quickDialogItem.catalogItemId)
+  const quickDialogCatalogItemId =
+    quickCatalogDialog?.mode === "stock"
+      ? quickCatalogDialog.catalogItemId || quickDialogItem?.catalogItemId
+      : quickDialogItem?.catalogItemId;
+  const quickDialogCatalogItem = quickDialogCatalogItemId
+    ? catalogItems.find((item) => item.id === quickDialogCatalogItemId)
     : undefined;
+  const productCatalogItems = catalogItems.filter((item) => item.type === "PRODUTO");
   const isQuickCatalogSaving = quickCatalogMutation.isPending;
 
   if (isLoadingOptions) {
@@ -1118,18 +1147,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           >
                                             Cadastrar produto
                                           </Button>
-                                          {hasInsufficientStock ? (
-                                            <Button
-                                              type="button"
-                                              variant="secondary"
-                                              className="h-8"
-                                              onClick={() =>
-                                                openQuickStockAdd(item.id, selectedCatalogItem)
-                                              }
-                                            >
-                                              Adicionar estoque
-                                            </Button>
-                                          ) : null}
+                                          <Button
+                                            type="button"
+                                            variant={hasInsufficientStock ? "secondary" : "outline"}
+                                            className="h-8"
+                                            onClick={() =>
+                                              openQuickStockAdd(item.id, selectedCatalogItem)
+                                            }
+                                          >
+                                            Adicionar estoque
+                                          </Button>
                                         </div>
                                       </div>
                                     ) : null}
@@ -1430,7 +1457,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
             <DialogDescription>
               {quickCatalogDialog?.mode === "create"
                 ? "Crie o produto e selecione-o automaticamente nesta OS."
-                : `Reposição para ${quickDialogCatalogItem?.name ?? "o produto selecionado"}.`}
+                : "Selecione um produto existente e informe a quantidade que entrou no estoque."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1512,6 +1539,30 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               </>
             ) : (
               <>
+                <div className="grid gap-2">
+                  <Label>Produto existente</Label>
+                  <Select
+                    value={quickDialogCatalogItem?.id ?? ""}
+                    onValueChange={(value) =>
+                      setQuickCatalogDialog((prev) =>
+                        prev?.mode === "stock"
+                          ? { ...prev, catalogItemId: value }
+                          : prev
+                      )
+                    }
+                  >
+                    <SelectTrigger className="h-11 w-full">
+                      <SelectValue placeholder="Selecione o produto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productCatalogItems.map((catalogItem) => (
+                        <SelectItem key={catalogItem.id} value={catalogItem.id}>
+                          #{catalogItem.code} {catalogItem.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="rounded-lg border bg-muted/40 p-3 text-sm">
                   <p className="font-medium text-foreground">
                     {quickDialogCatalogItem?.name ?? "Produto selecionado"}
