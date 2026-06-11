@@ -182,7 +182,15 @@ const emptyCategoryForm: FinancialCategoryFormValues = {
 };
 
 function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  return toDateInputValue(new Date());
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function lastDaysRange(days: number) {
@@ -192,8 +200,8 @@ function lastDaysRange(days: number) {
   start.setDate(end.getDate() - Math.max(days - 1, 0));
 
   return {
-    from: start.toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
+    from: toDateInputValue(start),
+    to: toDateInputValue(end),
   };
 }
 
@@ -245,6 +253,14 @@ function formatDate(value: string | null) {
 
 function formatValue(value: string | null | undefined) {
   return value && value.trim() ? value : "-";
+}
+
+function getAccountStatementDate(account: FinancialAccount) {
+  if (account.status === "PAGA") {
+    return account.paymentDate ?? account.dueDate;
+  }
+
+  return account.dueDate;
 }
 
 function accountToForm(account: FinancialAccount): FinancialAccountFormValues {
@@ -576,7 +592,7 @@ export default function FinancialPage() {
         description: account.description,
         typeLabel: getFinancialTypeLabel(account.type),
         category: account.category ?? "-",
-        date: account.dueDate,
+        date: getAccountStatementDate(account),
         paymentMethod: getPaymentMethodLabel(account.paymentMethod),
         amount: account.amount,
         status: statusBadge(account.status),
@@ -740,7 +756,11 @@ export default function FinancialPage() {
       })) ?? [];
 
     return [...accountRows, ...movementRows, ...categoryRows]
-      .filter((row) => statementKind === "TODOS" || row.kind === statementKind)
+      .filter((row) =>
+        statementKind === "TODOS"
+          ? row.kind !== "CATEGORIA"
+          : row.kind === statementKind
+      )
       .filter((row) => {
         if (!statementSearch) return true;
 
@@ -912,9 +932,7 @@ export default function FinancialPage() {
         ? movementsQuery.data?.total ?? 0
         : statementKind === "CATEGORIA"
           ? categoriesQuery.data?.total ?? 0
-          : (accountsQuery.data?.total ?? 0) +
-            (movementsQuery.data?.total ?? 0) +
-            (categoriesQuery.data?.total ?? 0);
+          : (accountsQuery.data?.total ?? 0) + (movementsQuery.data?.total ?? 0);
 
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
@@ -1037,7 +1055,7 @@ export default function FinancialPage() {
               value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
                 accountTotals.paid
               )}`}
-              detail="Recebidas / pagas por vencimento"
+              detail="Recebidas / pagas no período"
               tone="text-foreground"
             />
           </div>

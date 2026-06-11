@@ -124,6 +124,54 @@ function normalizeStatus(value: unknown) {
   return normalized as FinancialAccountStatus;
 }
 
+function buildDateRangeWhere(from: Date | null, to: Date | null) {
+  return {
+    ...(from ? { gte: from } : {}),
+    ...(to ? { lte: to } : {}),
+  };
+}
+
+function buildStatementPeriodWhere(
+  from: Date | null,
+  to: Date | null,
+  status: FinancialAccountStatus | null
+): Prisma.FinancialAccountWhereInput | null {
+  if (!from && !to) {
+    return null;
+  }
+
+  const dateRange = buildDateRangeWhere(from, to);
+
+  if (status === "PAGA") {
+    return {
+      OR: [
+        { paymentDate: dateRange },
+        { paymentDate: null, dueDate: dateRange },
+      ],
+    };
+  }
+
+  if (status) {
+    return { dueDate: dateRange };
+  }
+
+  return {
+    OR: [
+      {
+        status: "PAGA",
+        OR: [
+          { paymentDate: dateRange },
+          { paymentDate: null, dueDate: dateRange },
+        ],
+      },
+      {
+        status: { in: ["ABERTA", "VENCIDA", "CANCELADA"] },
+        dueDate: dateRange,
+      },
+    ],
+  };
+}
+
 function normalizePaymentMethod(value: unknown) {
   const normalized = normalizeString(value);
 
@@ -208,11 +256,10 @@ export async function GET(request: NextRequest) {
     where.status = status;
   }
 
-  if (from || to) {
-    where.dueDate = {
-      ...(from ? { gte: from } : {}),
-      ...(to ? { lte: to } : {}),
-    };
+  const periodWhere = buildStatementPeriodWhere(from, to, status);
+
+  if (periodWhere) {
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : []), periodWhere];
   }
 
   if (search) {
@@ -237,7 +284,7 @@ export async function GET(request: NextRequest) {
         serviceOrder: { select: { id: true, code: true, status: true } },
         supplierOrder: { select: { id: true, code: true, status: true } },
       },
-      orderBy: [{ dueDate: "asc" }, { code: "desc" }],
+      orderBy: [{ paymentDate: "desc" }, { dueDate: "desc" }, { code: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

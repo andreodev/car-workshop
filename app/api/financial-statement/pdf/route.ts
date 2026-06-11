@@ -148,6 +148,66 @@ function normalizeEnum<T extends string>(
   return allowed.includes(normalized as T) ? (normalized as T) : null;
 }
 
+function buildDateRangeWhere(from: Date | null, to: Date | null) {
+  return {
+    ...(from ? { gte: from } : {}),
+    ...(to ? { lte: to } : {}),
+  };
+}
+
+function buildAccountPeriodWhere(
+  from: Date | null,
+  to: Date | null,
+  status: string | null
+): Prisma.FinancialAccountWhereInput | null {
+  if (!from && !to) {
+    return null;
+  }
+
+  const dateRange = buildDateRangeWhere(from, to);
+
+  if (status === "PAGA") {
+    return {
+      OR: [
+        { paymentDate: dateRange },
+        { paymentDate: null, dueDate: dateRange },
+      ],
+    };
+  }
+
+  if (status) {
+    return { dueDate: dateRange };
+  }
+
+  return {
+    OR: [
+      {
+        status: "PAGA",
+        OR: [
+          { paymentDate: dateRange },
+          { paymentDate: null, dueDate: dateRange },
+        ],
+      },
+      {
+        status: { in: ["ABERTA", "VENCIDA", "CANCELADA"] },
+        dueDate: dateRange,
+      },
+    ],
+  };
+}
+
+function getAccountStatementDate(account: {
+  status: string;
+  dueDate: Date;
+  paymentDate: Date | null;
+}) {
+  if (account.status === "PAGA") {
+    return account.paymentDate ?? account.dueDate;
+  }
+
+  return account.dueDate;
+}
+
 function formatPeriod(from: Date | null, to: Date | null) {
   if (!from && !to) {
     return "Periodo: todos";
@@ -189,7 +249,7 @@ export async function GET(request: Request) {
 
   const shouldAccounts = statementKind === "TODOS" || statementKind === "CONTA";
   const shouldMovements = statementKind === "TODOS" || statementKind === "CAIXA";
-  const shouldCategories = statementKind === "TODOS" || statementKind === "CATEGORIA";
+  const shouldCategories = statementKind === "CATEGORIA";
 
   const accountWhere: Prisma.FinancialAccountWhereInput = {};
   const movementWhere: Prisma.CashMovementWhereInput = {};
@@ -203,11 +263,13 @@ export async function GET(request: Request) {
     accountWhere.status = accountStatus;
   }
 
-  if (from || to) {
-    accountWhere.dueDate = {
-      ...(from ? { gte: from } : {}),
-      ...(to ? { lte: to } : {}),
-    };
+  const accountPeriodWhere = buildAccountPeriodWhere(from, to, accountStatus);
+
+  if (accountPeriodWhere) {
+    accountWhere.AND = [
+      ...(Array.isArray(accountWhere.AND) ? accountWhere.AND : []),
+      accountPeriodWhere,
+    ];
   }
 
   if (movementType) {
@@ -311,7 +373,7 @@ export async function GET(request: Request) {
       description: account.description,
       typeLabel: getFinancialTypeLabel(account.type),
       category: account.category ?? "-",
-      date: account.dueDate,
+      date: getAccountStatementDate(account),
       paymentMethod: getPaymentMethodLabel(account.paymentMethod),
       amount: decimalToNumber(account.amount),
       status: getFinancialStatusLabel(account.status),

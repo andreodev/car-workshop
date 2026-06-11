@@ -20,6 +20,7 @@ import type {
   EstimateStatus,
   FinancialAccountStatus,
   FinancialAccountType,
+  Prisma,
   ServiceOrderStatus,
 } from "@prisma/client";
 
@@ -58,6 +59,15 @@ const activeServiceOrderStatuses: ServiceOrderStatus[] = [
 ];
 
 const openEstimateStatuses: EstimateStatus[] = ["RASCUNHO", "ENVIADO", "APROVADO"];
+
+const dashboardPeriodOptions = [
+  { value: "yesterday", label: "Ontem" },
+  { value: "today", label: "Hoje" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mês" },
+] as const;
+
+type DashboardPeriod = (typeof dashboardPeriodOptions)[number]["value"];
 
 const serviceOrderStatusLabels: Record<ServiceOrderStatus, string> = {
   ABERTA: "A fazer",
@@ -105,7 +115,18 @@ function formatDate(value: Date | null | undefined) {
   });
 }
 
-function getDateRanges() {
+function normalizeDashboardPeriod(value: unknown): DashboardPeriod {
+  if (
+    typeof value === "string" &&
+    dashboardPeriodOptions.some((option) => option.value === value)
+  ) {
+    return value as DashboardPeriod;
+  }
+
+  return "today";
+}
+
+function getDashboardPeriodRange(period: DashboardPeriod) {
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
@@ -113,14 +134,66 @@ function getDateRanges() {
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  const weekStart = new Date(todayStart);
+  const dayOfWeek = weekStart.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+
+  const nextWeekStart = new Date(weekStart);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  const ranges: Record<
+    DashboardPeriod,
+    { start: Date; end: Date; label: string; shortLabel: string }
+  > = {
+    yesterday: {
+      start: yesterdayStart,
+      end: todayStart,
+      label: "ontem",
+      shortLabel: "Ontem",
+    },
+    today: {
+      start: todayStart,
+      end: tomorrowStart,
+      label: "hoje",
+      shortLabel: "Hoje",
+    },
+    week: {
+      start: weekStart,
+      end: nextWeekStart,
+      label: "nesta semana",
+      shortLabel: "Semana",
+    },
+    month: {
+      start: monthStart,
+      end: nextMonthStart,
+      label: "neste mês",
+      shortLabel: "Mês",
+    },
+  };
+
+  return {
+    ...ranges[period],
+    todayStart,
+  };
+}
+
+function getSupplierDateRanges() {
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
 
   const nextWeekEnd = new Date(todayStart);
   nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
   nextWeekEnd.setHours(23, 59, 59, 999);
 
-  return { todayStart, tomorrowStart, monthStart, nextMonthStart, nextWeekEnd };
+  return { nextWeekEnd };
 }
 
 function statusCount<TStatus extends string>(
@@ -151,9 +224,17 @@ function financialAmount(
     .reduce((total, group) => total + decimalToNumber(group._sum?.amount), 0);
 }
 
-async function getDashboardData() {
-  const { todayStart, tomorrowStart, monthStart, nextMonthStart, nextWeekEnd } =
-    getDateRanges();
+async function getDashboardData(period: DashboardPeriod) {
+  const { start, end, todayStart, label: periodLabel } =
+    getDashboardPeriodRange(period);
+  const { nextWeekEnd } = getSupplierDateRanges();
+  const periodFilter = { gte: start, lt: end };
+  const serviceOrderPeriodWhere: Prisma.ServiceOrderWhereInput = {
+    entryAt: periodFilter,
+  };
+  const estimatePeriodWhere: Prisma.EstimateWhereInput = {
+    createdAt: periodFilter,
+  };
 
   const [
     clientCount,
@@ -161,8 +242,7 @@ async function getDashboardData() {
     mechanicCount,
     serviceOrderGroups,
     estimateGroups,
-    monthlySales,
-    todaySales,
+    periodSales,
     recentServiceOrders,
     recentEstimates,
     financialGroups,
@@ -176,12 +256,14 @@ async function getDashboardData() {
     prisma.mechanic.count({ where: { active: true } }),
     prisma.serviceOrder.groupBy({
       by: ["status"],
+      where: serviceOrderPeriodWhere,
       orderBy: { status: "asc" },
       _count: { _all: true },
       _sum: { total: true },
     }),
     prisma.estimate.groupBy({
       by: ["status"],
+      where: estimatePeriodWhere,
       orderBy: { status: "asc" },
       _count: { _all: true },
       _sum: { total: true },
@@ -189,21 +271,16 @@ async function getDashboardData() {
     prisma.sale.aggregate({
       where: {
         status: "CONCLUIDA",
-        createdAt: { gte: monthStart, lt: nextMonthStart },
-      },
-      _sum: { total: true },
-      _count: { _all: true },
-    }),
-    prisma.sale.aggregate({
-      where: {
-        status: "CONCLUIDA",
-        createdAt: { gte: todayStart, lt: tomorrowStart },
+        createdAt: periodFilter,
       },
       _sum: { total: true },
       _count: { _all: true },
     }),
     prisma.serviceOrder.findMany({
-      where: { status: { in: activeServiceOrderStatuses } },
+      where: {
+        ...serviceOrderPeriodWhere,
+        status: { in: activeServiceOrderStatuses },
+      },
       include: {
         client: { select: { id: true, name: true } },
         vehicle: { select: { id: true, plate: true, brand: true, model: true } },
@@ -213,7 +290,10 @@ async function getDashboardData() {
       take: 7,
     }),
     prisma.estimate.findMany({
-      where: { status: { in: openEstimateStatuses } },
+      where: {
+        ...estimatePeriodWhere,
+        status: { in: openEstimateStatuses },
+      },
       include: {
         client: { select: { id: true, name: true } },
         vehicle: { select: { id: true, plate: true, model: true } },
@@ -225,7 +305,7 @@ async function getDashboardData() {
       by: ["type", "status"],
       orderBy: [{ type: "asc" }, { status: "asc" }],
       where: {
-        dueDate: { gte: monthStart, lt: nextMonthStart },
+        dueDate: periodFilter,
       },
       _sum: { amount: true },
       _count: { _all: true },
@@ -281,8 +361,7 @@ async function getDashboardData() {
     mechanicCount,
     serviceOrderGroups,
     estimateGroups,
-    monthlySales,
-    todaySales,
+    periodSales,
     recentServiceOrders,
     recentEstimates,
     financialGroups,
@@ -290,11 +369,21 @@ async function getDashboardData() {
     lowStockItems,
     openSupplierOrders,
     urgentSupplierOrders,
+    period,
+    periodLabel,
   };
 }
 
-export default async function DashboardPage() {
-  const data = await getDashboardData();
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ period?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const selectedPeriod = normalizeDashboardPeriod(
+    Array.isArray(params?.period) ? params.period[0] : params?.period
+  );
+  const data = await getDashboardData(selectedPeriod);
 
   const activeServiceOrders = activeServiceOrderStatuses.reduce(
     (total, status) => total + statusCount(data.serviceOrderGroups, status),
@@ -315,23 +404,23 @@ export default async function DashboardPage() {
     {
       title: "OS ativas",
       value: formatInteger(activeServiceOrders),
-      description: `${formatInteger(blockedServiceOrders)} exigem atenção`,
+      description: `${formatInteger(blockedServiceOrders)} exigem atenção ${data.periodLabel}`,
       href: "/ordens-servico",
       icon: Wrench,
       tone: "bg-primary/10 text-primary",
     },
     {
-      title: "Faturamento do mês",
-      value: formatCurrency(data.monthlySales._sum.total),
-      description: `${formatInteger(data.monthlySales._count._all)} vendas/OS pagas no PDV`,
+      title: "Faturamento",
+      value: formatCurrency(data.periodSales._sum.total),
+      description: `${formatInteger(data.periodSales._count._all)} vendas/OS pagas ${data.periodLabel}`,
       href: "/pdv/vendas",
       icon: TrendingUp,
       tone: "bg-emerald-100 text-emerald-700",
     },
     {
-      title: "Vendas hoje",
-      value: formatCurrency(data.todaySales._sum.total),
-      description: `${formatInteger(data.todaySales._count._all)} atendimentos no PDV`,
+      title: "Vendas no período",
+      value: formatInteger(data.periodSales._count._all),
+      description: `${formatCurrency(data.periodSales._sum.total)} em atendimentos ${data.periodLabel}`,
       href: "/pdv",
       icon: ShoppingCart,
       tone: "bg-blue-100 text-blue-700",
@@ -339,7 +428,7 @@ export default async function DashboardPage() {
     {
       title: "Orçamentos abertos",
       value: formatInteger(openEstimates),
-      description: `${formatInteger(statusCount(data.estimateGroups, "APROVADO"))} aprovados para converter`,
+      description: `${formatInteger(statusCount(data.estimateGroups, "APROVADO"))} aprovados ${data.periodLabel}`,
       href: "/orcamentos",
       icon: FileText,
       tone: "bg-amber-100 text-amber-800",
@@ -356,7 +445,24 @@ export default async function DashboardPage() {
           description="Resumo operacional da oficina, financeiro, estoque e compras."
         />
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <div className="flex flex-wrap rounded-lg border border-border bg-background p-1">
+            {dashboardPeriodOptions.map((option) => (
+              <Button
+                key={option.value}
+                asChild
+                variant={option.value === data.period ? "secondary" : "ghost"}
+                className="h-7 px-3"
+              >
+                <Link
+                  href={`/?period=${option.value}`}
+                  aria-current={option.value === data.period ? "page" : undefined}
+                >
+                  {option.label}
+                </Link>
+              </Button>
+            ))}
+          </div>
           <Button asChild variant="outline" className="h-8 gap-2 px-3">
             <Link href="/orcamentos/novo">
               <FileText className="size-3.5" />
@@ -409,7 +515,9 @@ export default async function DashboardPage() {
               <ClipboardList className="size-4 text-primary" />
               Fila de serviço
             </CardTitle>
-            <CardDescription>Distribuição das ordens em andamento.</CardDescription>
+            <CardDescription>
+              Distribuição das ordens em andamento {data.periodLabel}.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid flex-1 content-center gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {activeServiceOrderStatuses.map((status) => {
@@ -440,9 +548,11 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Banknote className="size-4 text-primary" />
-              Financeiro do mês
+              Financeiro
             </CardTitle>
-            <CardDescription>Entradas, saídas e pendências de vencimento.</CardDescription>
+            <CardDescription>
+              Entradas, saídas e pendências com vencimento {data.periodLabel}.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="grid grid-cols-2 gap-2">
@@ -466,7 +576,7 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
               <span className="flex items-center gap-2 text-xs">
                 <AlertTriangle className="size-3.5" />
-                Vencidas
+                Vencidas até hoje
               </span>
               <strong className="font-heading text-lg">
                 {formatCurrency(data.overdueFinancial._sum.amount)}
@@ -483,7 +593,9 @@ export default async function DashboardPage() {
               <Wrench className="size-4 text-primary" />
               Ordens recentes
             </CardTitle>
-            <CardDescription>Últimas movimentações ainda abertas na oficina.</CardDescription>
+            <CardDescription>
+              Últimas ordens ainda abertas com entrada {data.periodLabel}.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {data.recentServiceOrders.length > 0 ? (
@@ -562,7 +674,9 @@ export default async function DashboardPage() {
                 <ReceiptText className="size-4 text-primary" />
                 Orçamentos em aberto
               </CardTitle>
-              <CardDescription>Propostas que ainda podem virar OS.</CardDescription>
+              <CardDescription>
+                Propostas criadas {data.periodLabel} que ainda podem virar OS.
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
               {data.recentEstimates.length > 0 ? (
