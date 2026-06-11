@@ -2,10 +2,11 @@
 
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Banknote,
+  CircleDollarSign,
   Check,
   Download,
   Edit2,
@@ -59,6 +60,12 @@ import type {
 } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,6 +106,20 @@ import Link from "next/link";
 const PAGE_SIZE = 10;
 const NO_CATEGORY = "SEM_CATEGORIA";
 const NO_PAYMENT_METHOD = "SEM_FORMA";
+
+const cashChartConfig = {
+  amount: {
+    label: "Valor",
+  },
+  entries: {
+    label: "Entradas",
+    color: "#047857",
+  },
+  exits: {
+    label: "Saídas",
+    color: "#be123c",
+  },
+} satisfies ChartConfig;
 
 type StatementKind = "CONTA" | "CAIXA" | "CATEGORIA";
 type StatementKindFilter = "TODOS" | StatementKind;
@@ -188,6 +209,23 @@ function formatCurrency(value: string | number | null | undefined) {
     style: "currency",
     currency: "BRL",
   }).format(Number.isFinite(parsed) ? parsed : 0);
+}
+
+function formatCompactCurrency(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Number.isFinite(value) ? value / 100 : 0);
 }
 
 function formatDate(value: string | null) {
@@ -314,6 +352,16 @@ export default function FinancialPage() {
     placeholderData: keepPreviousData,
   });
 
+  const openAccountsQuery = useQuery({
+    queryKey: ["financial-accounts", "open-summary"],
+    queryFn: () =>
+      fetchFinancialAccounts({
+        page: 1,
+        pageSize: 1,
+      }),
+    staleTime: 30_000,
+  });
+
   const movementsQuery = useQuery({
     queryKey: ["cash-movements", { movementType, from, to, currentPage, statementSearch }],
     queryFn: () =>
@@ -359,16 +407,23 @@ export default function FinancialPage() {
     const summary = accountsQuery.data?.summary ?? [];
 
     return {
+      received: sumAccountPaid(summary, "RECEBER", "PAGA"),
+      paid: sumAccountPaid(summary, "PAGAR", "PAGA"),
+    };
+  }, [accountsQuery.data]);
+
+  const openAccountTotals = useMemo(() => {
+    const summary = openAccountsQuery.data?.summary ?? [];
+
+    return {
       receivableOpen:
         sumAccount(summary, "RECEBER", "ABERTA") +
         sumAccount(summary, "RECEBER", "VENCIDA"),
       payableOpen:
         sumAccount(summary, "PAGAR", "ABERTA") +
         sumAccount(summary, "PAGAR", "VENCIDA"),
-      received: sumAccountPaid(summary, "RECEBER", "PAGA"),
-      paid: sumAccountPaid(summary, "PAGAR", "PAGA"),
     };
-  }, [accountsQuery.data]);
+  }, [openAccountsQuery.data]);
 
   const cashTotals = useMemo(() => {
     const summary = movementsQuery.data?.summary ?? [];
@@ -381,6 +436,23 @@ export default function FinancialPage() {
       balance: entries - exits,
     };
   }, [movementsQuery.data]);
+
+  const realizedMargin =
+    cashTotals.entries > 0 ? (cashTotals.balance / cashTotals.entries) * 100 : 0;
+  const openBalance = openAccountTotals.receivableOpen - openAccountTotals.payableOpen;
+  const projectedBalance = cashTotals.balance + openBalance;
+  const cashChartData = [
+    {
+      name: "Entradas",
+      amount: cashTotals.entries,
+      fill: "var(--color-entries)",
+    },
+    {
+      name: "Saídas",
+      amount: cashTotals.exits,
+      fill: "var(--color-exits)",
+    },
+  ];
 
   const saveAccountMutation = useMutation({
     mutationFn: (payload: FinancialAccountFormValues) =>
@@ -891,58 +963,127 @@ export default function FinancialPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <SummaryCard
-            icon={ArrowDownLeft}
-            label="A receber aberto"
-            value={formatCurrency(accountTotals.receivableOpen)}
-            tone="text-emerald-700"
-          />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+        <div className="rounded-md border bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">
+                Resultado realizado no caixa
+              </p>
+              <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
+                <strong
+                  className={`font-heading text-3xl ${
+                    cashTotals.balance < 0 ? "text-rose-700" : "text-emerald-700"
+                  }`}
+                >
+                  {formatCurrency(cashTotals.balance)}
+                </strong>
+                <span className="pb-1 text-sm text-muted-foreground">
+                  margem {formatPercent(realizedMargin)}
+                </span>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Baseado nas entradas e saídas de caixa do período. Este é o número
+                mais confiável para saber o rendimento financeiro já realizado.
+              </p>
+            </div>
 
-          <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
+            <div className="grid min-w-[14rem] gap-2 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Entradas</span>
+                <strong className="text-emerald-700">{formatCurrency(cashTotals.entries)}</strong>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Saídas</span>
+                <strong className="text-rose-700">{formatCurrency(cashTotals.exits)}</strong>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-t pt-2">
+                <span className="text-muted-foreground">Projetado com abertas</span>
+                <strong className={projectedBalance < 0 ? "text-rose-700" : "text-foreground"}>
+                  {formatCurrency(projectedBalance)}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
-              icon={ArrowUpRight}
-              label="A pagar aberto"
-              value={formatCurrency(accountTotals.payableOpen)}
-              tone="text-rose-700"
+              icon={ArrowDownLeft}
+              label="A receber aberto"
+              value={formatCurrency(openAccountTotals.receivableOpen)}
+              detail="Todas as pendências"
+              tone="text-emerald-700"
             />
-          </Link>
 
-          <SummaryCard
-            icon={Wallet}
-            label="Contas recebidas / pagas"
-            value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
-              accountTotals.paid
-            )}`}
-            tone="text-foreground"
-          />
+            <Link href="/financeiro/contas-pagar" className="block" prefetch={false}>
+              <SummaryCard
+                icon={ArrowUpRight}
+                label="A pagar aberto"
+                value={formatCurrency(openAccountTotals.payableOpen)}
+                detail="Inclui comissões pendentes"
+                tone="text-rose-700"
+              />
+            </Link>
 
-          <SummaryCard
-            icon={ArrowDownLeft}
-            label="Entradas caixa"
-            value={formatCurrency(cashTotals.entries)}
-            tone="text-emerald-700"
-          />
+            <SummaryCard
+              icon={CircleDollarSign}
+              label="Saldo em aberto"
+              value={formatCurrency(openBalance)}
+              detail="A receber menos a pagar"
+              tone={openBalance < 0 ? "text-rose-700" : "text-foreground"}
+            />
 
-          <SummaryCard
-            icon={ArrowUpRight}
-            label="Saídas caixa"
-            value={formatCurrency(cashTotals.exits)}
-            tone="text-rose-700"
-          />
-
-          <SummaryCard
-            icon={Banknote}
-            label="Saldo caixa"
-            value={formatCurrency(cashTotals.balance)}
-            tone={cashTotals.balance < 0 ? "text-rose-700" : "text-foreground"}
-          />
+            <SummaryCard
+              icon={Wallet}
+              label="Contas quitadas"
+              value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
+                accountTotals.paid
+              )}`}
+              detail="Recebidas / pagas por vencimento"
+              tone="text-foreground"
+            />
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
+        <div className="rounded-md border bg-card p-4 shadow-sm">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Entradas x saídas</h2>
+            <p className="text-xs text-muted-foreground">
+              Comparativo simples do caixa no período filtrado.
+            </p>
+          </div>
+          <ChartContainer config={cashChartConfig} className="h-[220px] w-full">
+            <BarChart data={cashChartData} accessibilityLayer margin={{ left: 0, right: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                width={72}
+                tickFormatter={(value) => formatCompactCurrency(Number(value))}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    hideLabel
+                    formatter={(value) => formatCurrency(Number(value))}
+                  />
+                }
+              />
+              <Bar dataKey="amount" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-md border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm font-medium text-muted-foreground">
+          Período analisado:
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">
-            Período:
+            Atalhos:
           </span>
 
           <Button
@@ -1032,7 +1173,7 @@ export default function FinancialPage() {
         <div>
           <h2 className="text-sm font-semibold text-foreground">Filtros do extrato</h2>
           <p className="text-xs text-muted-foreground">
-            Refine por origem, periodo, status e categorias financeiras.
+            Refine por origem, período, status e categorias financeiras.
           </p>
         </div>
 
@@ -1614,11 +1755,13 @@ function SummaryCard({
   icon: Icon,
   label,
   value,
+  detail,
   tone,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
+  detail?: string;
   tone: string;
 }) {
   return (
@@ -1629,6 +1772,7 @@ function SummaryCard({
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`truncate text-lg font-semibold ${tone}`}>{value}</p>
+        {detail ? <p className="truncate text-xs text-muted-foreground">{detail}</p> : null}
       </div>
     </div>
   );

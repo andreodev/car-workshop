@@ -177,6 +177,22 @@ export async function updateCatalogItem(id: string, payload: CatalogItemFormValu
   return parseResponse<CatalogItem>(response);
 }
 
+export async function addCatalogItemStock(
+  id: string,
+  payload: { quantity: string | number; notes?: string }
+) {
+  const response = await fetch(`/api/catalog-items/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "ADD_STOCK",
+      ...payload,
+    }),
+  });
+
+  return parseResponse<CatalogItem>(response);
+}
+
 export async function deleteCatalogItem(id: string) {
   const response = await fetch(`/api/catalog-items/${id}`, {
     method: "DELETE",
@@ -322,6 +338,7 @@ export const pdvService = {
   createCatalogItem,
   findCatalogItemById: fetchCatalogItem,
   updateCatalogItem,
+  addCatalogItemStock,
   deleteCatalogItem,
   listSectors: fetchSectors,
   findSectorById: fetchSector,

@@ -79,6 +79,91 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const session = await getServerAuthSession();
+
+  if (!session?.user) {
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const payload = (await request.json()) as Record<string, unknown>;
+  const action = normalizeString(payload.action);
+
+  if (action !== "ADD_STOCK") {
+    return Response.json({ error: "Ação inválida." }, { status: 400 });
+  }
+
+  const quantity = normalizeMoney(payload.quantity);
+
+  if (quantity === null || quantity <= 0) {
+    return Response.json({ error: "Quantidade de estoque inválida." }, { status: 400 });
+  }
+
+  try {
+    const item = await prisma.$transaction(async (tx) => {
+      const catalogItem = await tx.catalogItem.findUnique({
+        where: { id },
+        select: { id: true, type: true, stockCurrent: true },
+      });
+
+      if (!catalogItem) {
+        throw new Error("Produto ou serviço não encontrado.");
+      }
+
+      if (catalogItem.type !== "PRODUTO") {
+        throw new Error("Apenas produtos controlam estoque.");
+      }
+
+      const stockBefore = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
+      const stockQuantity = new Prisma.Decimal(quantity);
+
+      const updatedItem = await tx.catalogItem.update({
+        where: { id },
+        data: {
+          stockCurrent:
+            catalogItem.stockCurrent === null
+              ? stockQuantity
+              : { increment: stockQuantity },
+        },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          type: "ENTRADA",
+          catalogItemId: id,
+          quantity: stockQuantity,
+          stockBefore,
+          stockAfter: updatedItem.stockCurrent,
+          reason: "Entrada de estoque pela ordem de serviço",
+          notes: normalizeString(payload.notes),
+        },
+      });
+
+      return updatedItem;
+    });
+
+    return Response.json(item);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
+    }
+
+    if (error instanceof Error && error.message === "Produto ou serviço não encontrado.") {
+      return Response.json({ error: error.message }, { status: 404 });
+    }
+
+    if (error instanceof Error && error.message === "Apenas produtos controlam estoque.") {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+
+    throw error;
+  }
+}
+
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 

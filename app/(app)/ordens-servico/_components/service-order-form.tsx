@@ -8,7 +8,13 @@ import { useRouter } from "next/navigation";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
+import {
+  addCatalogItemStock,
+  createCatalogItem,
+  fetchCatalogItems,
+  fetchSectors,
+} from "@/modules/pdv/api/pdv.service";
+import type { CatalogItem, CatalogItemListResponse } from "@/modules/pdv/types/pdv.types";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";
@@ -29,6 +35,14 @@ import { FormLoadingState } from "@/components/ui/form-loading-state";
 import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -213,9 +227,84 @@ function getCommissionBaseValue(
   return item.type === "SERVICE" ? lineTotal : 0;
 }
 
+function getItemValidationMessage(
+  item: ServiceOrderItemFormValues,
+  index: number,
+) {
+  const itemLabel = `Item ${index + 1}`;
+  const quantity = normalizeAmount(item.quantity);
+  const unitPrice = normalizeAmount(item.unitPrice);
+  const discountPercent = normalizeAmount(item.discount);
+  const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+  const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+  const commissionBase = getCommissionBaseValue(item, lineTotal);
+  const isService = item.type === "SERVICE";
+
+  if (!item.description.trim()) {
+    return `${itemLabel}: preencha a descrição.`;
+  }
+
+  if (item.type === "PRODUCT" && !item.catalogItemId) {
+    return `${itemLabel}: selecione o produto no catálogo.`;
+  }
+
+  if (isService && !item.mechanicId) {
+    return `${itemLabel}: selecione o mecânico.`;
+  }
+
+  if (isService && !item.sectorId) {
+    return `${itemLabel}: selecione o setor.`;
+  }
+
+  if (quantity <= 0) {
+    return `${itemLabel}: informe uma quantidade maior que zero.`;
+  }
+
+  if (unitPrice <= 0) {
+    return `${itemLabel}: informe um valor maior que zero.`;
+  }
+
+  if (discountPercent < 0 || discountPercent > 100) {
+    return `${itemLabel}: informe um desconto entre 0% e 100%.`;
+  }
+
+  if (isService && commissionBase < 0) {
+    return `${itemLabel}: a base de comissão não pode ser negativa.`;
+  }
+
+  if (isService && commissionBase > lineTotal) {
+    return `${itemLabel}: a base de comissão não pode ser maior que o total do item.`;
+  }
+
+  return null;
+}
+
 type ServiceOrderFormProps = {
   mode: "create" | "edit";
   initialData?: ServiceOrder | null;
+};
+
+type QuickCatalogDialogState = {
+  mode: "create" | "stock";
+  itemId: string;
+} | null;
+
+type QuickCatalogFormValues = {
+  name: string;
+  quantity: string;
+  unitPrice: string;
+  unit: string;
+  stockMinimum: string;
+  notes: string;
+};
+
+const emptyQuickCatalogForm: QuickCatalogFormValues = {
+  name: "",
+  quantity: "1",
+  unitPrice: "0",
+  unit: "UN",
+  stockMinimum: "0",
+  notes: "",
 };
 
 export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
@@ -227,6 +316,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const [activeTab, setActiveTab] =
     useState<ServiceOrderFormStepValue>("cabecalho");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [quickCatalogDialog, setQuickCatalogDialog] =
+    useState<QuickCatalogDialogState>(null);
+  const [quickCatalogForm, setQuickCatalogForm] =
+    useState<QuickCatalogFormValues>(emptyQuickCatalogForm);
   const { toast } = useToast();
 
   const sessionQuery = useAuthSession();
@@ -266,6 +359,132 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const catalogItems = catalogItemsQuery.data?.items ?? [];
   const mechanics = mechanicsQuery.data?.items ?? [];
   const sectors = sectorsQuery.data?.items ?? [];
+
+  function mergeCatalogItemIntoCaches(catalogItem: CatalogItem) {
+    const updater = (data: CatalogItemListResponse | undefined) => {
+      if (!data) return data;
+
+      const exists = data.items.some((item) => item.id === catalogItem.id);
+      const items = exists
+        ? data.items.map((item) => (item.id === catalogItem.id ? catalogItem : item))
+        : [catalogItem, ...data.items];
+
+      return {
+        ...data,
+        items,
+        total: exists ? data.total : Math.max(data.total + 1, items.length),
+      };
+    };
+
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["service-order-catalog-items"] },
+      updater
+    );
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["catalog-items"] },
+      updater
+    );
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["pdv-catalog-items"] },
+      updater
+    );
+  }
+
+  const quickCatalogMutation = useMutation({
+    mutationFn: async () => {
+      if (!quickCatalogDialog) {
+        throw new Error("Ação de produto inválida.");
+      }
+
+      const quantity = normalizeAmount(quickCatalogForm.quantity);
+
+      if (quantity <= 0) {
+        throw new Error("Informe uma quantidade maior que zero.");
+      }
+
+      if (quickCatalogDialog.mode === "create") {
+        const name = quickCatalogForm.name.trim();
+        const unitPrice = normalizeAmount(quickCatalogForm.unitPrice);
+
+        if (!name) {
+          throw new Error("Informe o nome do produto.");
+        }
+
+        if (unitPrice <= 0) {
+          throw new Error("Informe o valor unitário do produto.");
+        }
+
+        return createCatalogItem({
+          name,
+          type: "PRODUTO",
+          unitPrice,
+          salePrice: String(unitPrice),
+          stockCurrent: String(quantity),
+          stockMinimum: String(normalizeAmount(quickCatalogForm.stockMinimum)),
+          unit: quickCatalogForm.unit.trim() || "UN",
+          active: true,
+        });
+      }
+
+      const formItem = form.items.find((item) => item.id === quickCatalogDialog.itemId);
+
+      if (!formItem?.catalogItemId) {
+        throw new Error("Selecione um produto para adicionar estoque.");
+      }
+
+      return addCatalogItemStock(formItem.catalogItemId, {
+        quantity,
+        notes: quickCatalogForm.notes.trim() || undefined,
+      });
+    },
+    onSuccess: async (catalogItem) => {
+      mergeCatalogItemIntoCaches(catalogItem);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["service-order-catalog-items"] }),
+        queryClient.invalidateQueries({ queryKey: ["catalog-items"] }),
+        queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] }),
+      ]);
+
+      if (quickCatalogDialog?.mode === "create") {
+        setForm((prev) => ({
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === quickCatalogDialog.itemId
+              ? {
+                  ...item,
+                  type: "PRODUCT",
+                  catalogItemId: catalogItem.id,
+                  description: catalogItem.name,
+                  unitPrice: formatAmountInput(catalogItem.unitPrice),
+                  sectorId: catalogItem.sectorId ?? item.sectorId,
+                }
+              : item
+          ),
+        }));
+      }
+
+      toast({
+        title:
+          quickCatalogDialog?.mode === "create"
+            ? "Produto cadastrado"
+            : "Estoque atualizado",
+        description: "O catálogo foi atualizado sem sair da OS.",
+        variant: "success",
+      });
+      setQuickCatalogDialog(null);
+      setQuickCatalogForm(emptyQuickCatalogForm);
+      setLocalError(null);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Não foi possível atualizar o produto.";
+      toast({
+        title: "Erro no produto",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
@@ -412,6 +631,32 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     }));
   }
 
+  function openQuickProductCreate(itemId: string) {
+    const formItem = form.items.find((item) => item.id === itemId);
+
+    setQuickCatalogDialog({ mode: "create", itemId });
+    setQuickCatalogForm({
+      ...emptyQuickCatalogForm,
+      name: formItem?.description.trim() ?? "",
+      quantity: formItem?.quantity || "1",
+      unitPrice: formItem?.unitPrice || "0",
+    });
+  }
+
+  function openQuickStockAdd(itemId: string, catalogItem: CatalogItem | undefined) {
+    const formItem = form.items.find((item) => item.id === itemId);
+    const requestedQuantity = normalizeAmount(formItem?.quantity ?? "1");
+    const currentStock = normalizeAmount(catalogItem?.stockCurrent ?? "0");
+    const missingQuantity = Math.max(requestedQuantity - currentStock, 1);
+
+    setQuickCatalogDialog({ mode: "stock", itemId });
+    setQuickCatalogForm({
+      ...emptyQuickCatalogForm,
+      quantity: String(missingQuantity),
+      notes: "Reposição feita durante edição da OS.",
+    });
+  }
+
   function removeItem(itemId: string) {
     setForm((prev) => {
       const nextItems = prev.items.filter((item) => item.id !== itemId);
@@ -453,30 +698,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return;
     }
 
-    const invalidItem = form.items.find((item) => {
-      const quantity = normalizeAmount(item.quantity);
-      const unitPrice = normalizeAmount(item.unitPrice);
-      const discountPercent = normalizeAmount(item.discount);
-      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
-      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-      const commissionBase = getCommissionBaseValue(item, lineTotal);
-      const isService = item.type === "SERVICE";
+    const invalidItemMessage = form.items
+      .map((item, index) => getItemValidationMessage(item, index))
+      .find((message): message is string => Boolean(message));
 
-      return (
-        !item.description.trim() ||
-        (item.type === "PRODUCT" && !item.catalogItemId) ||
-        (isService && !item.mechanicId) ||
-        (isService && !item.sectorId) ||
-        quantity <= 0 ||
-        unitPrice <= 0 ||
-        discountPercent < 0 ||
-        discountPercent > 100 ||
-        (isService && (commissionBase < 0 || commissionBase > lineTotal))
-      );
-    });
-
-    if (invalidItem) {
-      setLocalError("Preencha os campos obrigatórios do item conforme o tipo selecionado.");
+    if (invalidItemMessage) {
+      setLocalError(invalidItemMessage);
       setActiveTab("itens");
       return;
     }
@@ -528,6 +755,13 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     mechanicsQuery.isLoading ||
     sectorsQuery.isLoading ||
     catalogItemsQuery.isLoading;
+  const quickDialogItem = quickCatalogDialog
+    ? form.items.find((item) => item.id === quickCatalogDialog.itemId)
+    : undefined;
+  const quickDialogCatalogItem = quickDialogItem?.catalogItemId
+    ? catalogItems.find((item) => item.id === quickDialogItem.catalogItemId)
+    : undefined;
+  const isQuickCatalogSaving = quickCatalogMutation.isPending;
 
   if (isLoadingOptions) {
     return (
@@ -560,7 +794,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               <ServiceOrderFormStepper activeStep={activeTab} />
             </div>
 
-            <div className="min-w-0 rounded-lg border-2 border-gray-700 bg-white/60 p-4 sm:p-6">
+            <div className="min-w-0 rounded-lg border border-border bg-white/70 p-4 shadow-sm sm:p-6">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -713,8 +947,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   ) : null}
 
                   {activeTab === "itens" ? (
-                    <section className="space-y-5">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                      <div className="flex flex-col gap-4 border-b border-border px-5 py-4 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
                           <h3 className="font-heading text-lg text-foreground">
                             Itens e serviços
@@ -725,15 +959,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                         </div>
                         <Button
                           type="button"
-                          variant="secondary"
-                          className="w-full sm:w-fit"
+                          className="h-10 w-full sm:w-fit"
                           onClick={addItem}
                         >
                           Adicionar item
                         </Button>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="space-y-4 p-5">
                         {form.items.map((item, index) => {
                           const quantity = normalizeAmount(item.quantity);
                           const unitPrice = normalizeAmount(item.unitPrice);
@@ -750,204 +983,317 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                               ? catalogItem.type === "PRODUTO"
                               : catalogItem.type === "SERVICO"
                           );
+                          const selectedCatalogItem = catalogItems.find(
+                            (catalogItem) => catalogItem.id === item.catalogItemId
+                          );
+                          const selectedStock = normalizeAmount(
+                            selectedCatalogItem?.stockCurrent ?? "0"
+                          );
+                          const hasInsufficientStock =
+                            item.type === "PRODUCT" &&
+                            Boolean(selectedCatalogItem) &&
+                            quantity > selectedStock;
 
                           return (
-                            <div
+                            <details
                               key={item.id}
-                              className="grid min-w-0 gap-3 rounded-lg border border-dashed bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-[0.75fr_1.1fr_1.1fr_1.1fr_1.4fr_0.6fr_0.75fr_0.75fr_0.85fr_auto]"
+                              className="group overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
+                              open={index === 0}
                             >
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">Tipo</Label>
-                                <Select
-                                  value={item.type}
-                                  onValueChange={(value) =>
-                                    updateItemType(
-                                      item.id,
-                                      value as ServiceOrderItemFormValues["type"]
-                                    )
-                                  }
-                                >
-                                  <SelectTrigger className="w-full min-w-0">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="SERVICE">Serviço</SelectItem>
-                                    <SelectItem value="PRODUCT">Produto</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Catálogo
-                                </Label>
-                                <Select
-                                  value={item.catalogItemId || "MANUAL"}
-                                  onValueChange={(value) =>
-                                    updateItemCatalog(item.id, value === "MANUAL" ? "" : value)
-                                  }
-                                >
-                                  <SelectTrigger className="w-full min-w-0">
-                                    <SelectValue
-                                      placeholder={
-                                        catalogItemsQuery.isLoading ? "Carregando..." : "Manual"
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/40">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-semibold text-foreground">
+                                      Item {index + 1}
+                                    </span>
+                                    <Badge variant="outline">
+                                      {item.type === "PRODUCT" ? "Produto" : "Serviço"}
+                                    </Badge>
+                                    {hasInsufficientStock ? (
+                                      <Badge variant="destructive">Estoque baixo</Badge>
+                                    ) : null}
+                                  </div>
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                                    {item.description || "Nenhuma descrição"}
+                                  </p>
+                                </div>
+
+                                <div className="flex shrink-0 items-center gap-3">
+                                  <span className="font-mono text-sm font-semibold">
+                                    {formatCurrency(lineTotal)}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      removeItem(item.id);
+                                    }}
+                                  >
+                                    Remover
+                                  </Button>
+                                </div>
+                              </summary>
+
+                              <div className="border-t border-border p-5">
+                                <div className="grid gap-5 md:grid-cols-2">
+                                  <div className="grid gap-2">
+                                    <Label>Tipo</Label>
+                                    <Select
+                                      value={item.type}
+                                      onValueChange={(value) =>
+                                        updateItemType(
+                                          item.id,
+                                          value as ServiceOrderItemFormValues["type"]
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger className="h-11 w-full">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="SERVICE">Serviço</SelectItem>
+                                        <SelectItem value="PRODUCT">Produto</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="grid gap-2">
+                                    <Label>Catálogo</Label>
+                                    <Select
+                                      value={item.catalogItemId || "MANUAL"}
+                                      onValueChange={(value) =>
+                                        updateItemCatalog(
+                                          item.id,
+                                          value === "MANUAL" ? "" : value
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger className="h-11 w-full">
+                                        <SelectValue
+                                          placeholder={
+                                            catalogItemsQuery.isLoading
+                                              ? "Carregando..."
+                                              : "Manual"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="MANUAL">
+                                          {item.type === "PRODUCT"
+                                            ? "Selecione produto"
+                                            : "Manual"}
+                                        </SelectItem>
+                                        {availableCatalogItems.map((catalogItem) => (
+                                          <SelectItem
+                                            key={catalogItem.id}
+                                            value={catalogItem.id}
+                                          >
+                                            #{catalogItem.code} {catalogItem.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {item.type === "PRODUCT" ? (
+                                      <div className="flex flex-col gap-2 pt-1">
+                                        {selectedCatalogItem ? (
+                                          <span
+                                            className={
+                                              hasInsufficientStock
+                                                ? "text-xs font-medium text-destructive"
+                                                : "text-xs text-muted-foreground"
+                                            }
+                                          >
+                                            Estoque: {selectedStock}. Solicitado: {quantity || 0}.
+                                          </span>
+                                        ) : null}
+                                        <div className="flex flex-wrap gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-8"
+                                            onClick={() => openQuickProductCreate(item.id)}
+                                          >
+                                            Cadastrar produto
+                                          </Button>
+                                          {hasInsufficientStock ? (
+                                            <Button
+                                              type="button"
+                                              variant="secondary"
+                                              className="h-8"
+                                              onClick={() =>
+                                                openQuickStockAdd(item.id, selectedCatalogItem)
+                                              }
+                                            >
+                                              Adicionar estoque
+                                            </Button>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  {item.type === "SERVICE" ? (
+                                    <>
+                                      <div className="grid gap-2">
+                                        <Label>Mecânico do item</Label>
+                                        <Select
+                                          value={item.mechanicId}
+                                          onValueChange={(value) =>
+                                            updateItem(item.id, "mechanicId", value)
+                                          }
+                                        >
+                                          <SelectTrigger className="h-11 w-full">
+                                            <SelectValue
+                                              placeholder={
+                                                mechanicsQuery.isLoading
+                                                  ? "Carregando..."
+                                                  : "Selecione"
+                                              }
+                                            />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {mechanics.map((mechanic) => (
+                                              <SelectItem key={mechanic.id} value={mechanic.id}>
+                                                {mechanic.name}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <div className="grid gap-2">
+                                        <Label>Setor do item</Label>
+                                        <Select
+                                          value={item.sectorId}
+                                          onValueChange={(value) =>
+                                            updateItem(item.id, "sectorId", value)
+                                          }
+                                        >
+                                          <SelectTrigger className="h-11 w-full">
+                                            <SelectValue
+                                              placeholder={
+                                                sectorsQuery.isLoading
+                                                  ? "Carregando..."
+                                                  : "Selecione"
+                                              }
+                                            />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {sectors.map((sector) => (
+                                              <SelectItem key={sector.id} value={sector.id}>
+                                                {sector.name}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </>
+                                  ) : null}
+
+                                  <div className="grid gap-2 md:col-span-2">
+                                    <Label>
+                                      {item.type === "SERVICE"
+                                        ? "Nome do serviço"
+                                        : "Nome do produto"}
+                                    </Label>
+                                    <Input
+                                      className="h-11"
+                                      value={item.description}
+                                      onChange={(event) =>
+                                        updateItem(
+                                          item.id,
+                                          "description",
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder={`Item ${index + 1}`}
+                                    />
+                                  </div>
+
+                                  <div className="grid gap-2">
+                                    <Label>Quantidade</Label>
+                                    <Input
+                                      className="h-11"
+                                      inputMode="numeric"
+                                      value={item.quantity}
+                                      onChange={(event) =>
+                                        updateItem(item.id, "quantity", event.target.value)
                                       }
                                     />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="MANUAL">
-                                      {item.type === "PRODUCT" ? "Selecione produto" : "Manual"}
-                                    </SelectItem>
-                                    {availableCatalogItems.map((catalogItem) => (
-                                      <SelectItem key={catalogItem.id} value={catalogItem.id}>
-                                        #{catalogItem.code} {catalogItem.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              {item.type === "SERVICE" ? (
-                                <>
-                                  <div className="grid min-w-0 gap-1">
-                                    <Label className="text-[11px] text-muted-foreground">
-                                      Mecânico
-                                    </Label>
-                                    <Select
-                                      value={item.mechanicId}
-                                      onValueChange={(value) =>
-                                        updateItem(item.id, "mechanicId", value)
-                                      }
-                                    >
-                                      <SelectTrigger className="w-full min-w-0">
-                                        <SelectValue
-                                          placeholder={
-                                            mechanicsQuery.isLoading ? "Carregando..." : "Selecione"
-                                          }
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {mechanics.map((mechanic) => (
-                                          <SelectItem key={mechanic.id} value={mechanic.id}>
-                                            {mechanic.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
                                   </div>
-                                  <div className="grid min-w-0 gap-1">
-                                    <Label className="text-[11px] text-muted-foreground">
-                                      Setor
-                                    </Label>
-                                    <Select
-                                      value={item.sectorId}
-                                      onValueChange={(value) =>
-                                        updateItem(item.id, "sectorId", value)
+
+                                  <div className="grid gap-2">
+                                    <Label>Valor unitário</Label>
+                                    <Input
+                                      className="h-11"
+                                      inputMode="decimal"
+                                      value={item.unitPrice}
+                                      onChange={(event) =>
+                                        updateItem(item.id, "unitPrice", event.target.value)
                                       }
-                                    >
-                                      <SelectTrigger className="w-full min-w-0">
-                                        <SelectValue
-                                          placeholder={
-                                            sectorsQuery.isLoading ? "Carregando..." : "Selecione"
-                                          }
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {sectors.map((sector) => (
-                                          <SelectItem key={sector.id} value={sector.id}>
-                                            {sector.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    />
                                   </div>
-                                </>
-                              ) : null}
-                              <div className="grid min-w-0 gap-1 sm:col-span-2 lg:col-span-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Descrição
-                                </Label>
-                                <Input
-                                  value={item.description}
-                                  onChange={(event) =>
-                                    updateItem(item.id, "description", event.target.value)
-                                  }
-                                  placeholder={`Servico ${index + 1}`}
-                                />
-                              </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">Qtd</Label>
-                                <Input
-                                  inputMode="numeric"
-                                  value={item.quantity}
-                                  onChange={(event) =>
-                                    updateItem(item.id, "quantity", event.target.value)
-                                  }
-                                />
-                              </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">Valor</Label>
-                                <Input
-                                  inputMode="decimal"
-                                  value={item.unitPrice}
-                                  onChange={(event) =>
-                                    updateItem(item.id, "unitPrice", event.target.value)
-                                  }
-                                />
-                              </div>
-                              <div className="grid min-w-0 gap-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                  Desconto (%)
-                                </Label>
-                                <Input
-                                  inputMode="decimal"
-                                  value={item.discount}
-                                  onChange={(event) =>
-                                    updateItem(item.id, "discount", event.target.value)
-                                  }
-                                />
-                              </div>
-                              {item.type === "SERVICE" ? (
-                                <div className="grid min-w-0 gap-1">
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    Base comissão
-                                  </Label>
-                                  <Input
-                                    inputMode="decimal"
-                                    value={item.commissionBase}
-                                    onChange={(event) =>
-                                      updateItem(item.id, "commissionBase", event.target.value)
-                                    }
-                                    placeholder={formatCurrency(lineTotal)}
-                                  />
+
+                                  <div className="grid gap-2">
+                                    <Label>Desconto (%)</Label>
+                                    <Input
+                                      className="h-11"
+                                      inputMode="decimal"
+                                      value={item.discount}
+                                      onChange={(event) =>
+                                        updateItem(item.id, "discount", event.target.value)
+                                      }
+                                    />
+                                  </div>
+
+                                  {item.type === "SERVICE" ? (
+                                    <div className="grid gap-2">
+                                      <Label>Base comissão</Label>
+                                      <Input
+                                        className="h-11"
+                                        inputMode="decimal"
+                                        value={item.commissionBase}
+                                        onChange={(event) =>
+                                          updateItem(
+                                            item.id,
+                                            "commissionBase",
+                                            event.target.value
+                                          )
+                                        }
+                                        placeholder={formatCurrency(lineTotal)}
+                                      />
+                                    </div>
+                                  ) : null}
+
+                                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-muted-foreground">Total do item</span>
+                                      <span className="font-mono font-semibold">
+                                        {formatCurrency(lineTotal)}
+                                      </span>
+                                    </div>
+                                    {item.type === "SERVICE" ? (
+                                      <div className="mt-2 flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">
+                                          Base comissionável
+                                        </span>
+                                        <span className="font-mono font-semibold">
+                                          {formatCurrency(commissionBase)}
+                                        </span>
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 </div>
-                              ) : null}
-                              <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-end">
-                                <span className="text-sm font-semibold text-foreground lg:text-xs">
-                                  <span className="mr-2 text-xs font-medium text-muted-foreground lg:hidden">
-                                    Total
-                                  </span>
-                                  {formatCurrency(lineTotal)}
-                                </span>
-                                {item.type === "SERVICE" ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    Comissão: {formatCurrency(commissionBase)}
-                                  </span>
-                                ) : null}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="shrink-0"
-                                  onClick={() => removeItem(item.id)}
-                                >
-                                  Remover
-                                </Button>
                               </div>
-                            </div>
+                            </details>
                           );
                         })}
                       </div>
 
-                      <div className="w-full rounded-lg border border-border bg-background/70 p-4 text-sm sm:ml-auto sm:max-w-md">
+                      <div className="mx-5 mb-5 w-auto rounded-2xl border border-border bg-background p-5 text-sm shadow-sm sm:ml-auto sm:max-w-lg">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Subtotal</span>
                           <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
@@ -1014,7 +1360,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               ) : null}
             </div>
 
-            <div className="sticky bottom-0 z-30 -mx-4 mt-auto flex flex-col items-stretch justify-between gap-3 border-t border-border/70 bg-background/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:flex-row lg:items-center lg:gap-4 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-6 lg:shadow-none lg:backdrop-blur-none">
+            <div className="sticky bottom-0 z-30 -mx-4 mt-auto flex flex-col items-stretch justify-between gap-3 border-t border-border/70 bg-background/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:flex-row lg:items-center lg:gap-4 lg:bg-transparent lg:px-0 lg:pb-0 lg:pr-20 lg:pt-6 lg:shadow-none lg:backdrop-blur-none 2xl:pr-0">
               <p className="hidden text-xs text-muted-foreground sm:block">
                 Revise os dados antes de salvar. A ordem ficará disponível para acompanhamento.
               </p>
@@ -1064,6 +1410,180 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           </div>
         </Tabs>
       </form>
+      <Dialog
+        open={Boolean(quickCatalogDialog)}
+        onOpenChange={(open) => {
+          if (!open && !isQuickCatalogSaving) {
+            setQuickCatalogDialog(null);
+            setQuickCatalogForm(emptyQuickCatalogForm);
+            quickCatalogMutation.reset();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {quickCatalogDialog?.mode === "create"
+                ? "Cadastrar produto"
+                : "Adicionar estoque"}
+            </DialogTitle>
+            <DialogDescription>
+              {quickCatalogDialog?.mode === "create"
+                ? "Crie o produto e selecione-o automaticamente nesta OS."
+                : `Reposição para ${quickDialogCatalogItem?.name ?? "o produto selecionado"}.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              quickCatalogMutation.mutate();
+            }}
+          >
+            {quickCatalogDialog?.mode === "create" ? (
+              <>
+                <div className="grid gap-2">
+                  <Label>Nome do produto</Label>
+                  <Input
+                    value={quickCatalogForm.name}
+                    onChange={(event) =>
+                      setQuickCatalogForm((prev) => ({
+                        ...prev,
+                        name: event.target.value,
+                      }))
+                    }
+                    autoFocus
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label>Estoque inicial</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={quickCatalogForm.quantity}
+                      onChange={(event) =>
+                        setQuickCatalogForm((prev) => ({
+                          ...prev,
+                          quantity: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Valor unitário</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={quickCatalogForm.unitPrice}
+                      onChange={(event) =>
+                        setQuickCatalogForm((prev) => ({
+                          ...prev,
+                          unitPrice: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Unidade</Label>
+                    <Input
+                      value={quickCatalogForm.unit}
+                      onChange={(event) =>
+                        setQuickCatalogForm((prev) => ({
+                          ...prev,
+                          unit: event.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Estoque mínimo</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={quickCatalogForm.stockMinimum}
+                    onChange={(event) =>
+                      setQuickCatalogForm((prev) => ({
+                        ...prev,
+                        stockMinimum: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                  <p className="font-medium text-foreground">
+                    {quickDialogCatalogItem?.name ?? "Produto selecionado"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Estoque atual:{" "}
+                    {normalizeAmount(quickDialogCatalogItem?.stockCurrent ?? "0")}. Quantidade
+                    na OS: {normalizeAmount(quickDialogItem?.quantity ?? "0")}.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Quantidade para adicionar</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={quickCatalogForm.quantity}
+                    onChange={(event) =>
+                      setQuickCatalogForm((prev) => ({
+                        ...prev,
+                        quantity: event.target.value,
+                      }))
+                    }
+                    autoFocus
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Observação</Label>
+                  <Textarea
+                    value={quickCatalogForm.notes}
+                    onChange={(event) =>
+                      setQuickCatalogForm((prev) => ({
+                        ...prev,
+                        notes: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                  />
+                </div>
+              </>
+            )}
+
+            {quickCatalogMutation.error ? (
+              <p className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+                {quickCatalogMutation.error instanceof Error
+                  ? quickCatalogMutation.error.message
+                  : "Não foi possível salvar."}
+              </p>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isQuickCatalogSaving}
+                onClick={() => {
+                  setQuickCatalogDialog(null);
+                  setQuickCatalogForm(emptyQuickCatalogForm);
+                  quickCatalogMutation.reset();
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isQuickCatalogSaving}>
+                {isQuickCatalogSaving
+                  ? "Salvando..."
+                  : quickCatalogDialog?.mode === "create"
+                    ? "Cadastrar e usar"
+                    : "Adicionar estoque"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
