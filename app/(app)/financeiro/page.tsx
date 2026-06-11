@@ -29,6 +29,7 @@ import {
   fetchCashMovements,
   fetchFinancialAccounts,
   fetchFinancialCategories,
+  fetchFinancialOpenSummary,
   updateCashMovement,
   updateFinancialAccount,
   updateFinancialCategory,
@@ -353,12 +354,8 @@ export default function FinancialPage() {
   });
 
   const openAccountsQuery = useQuery({
-    queryKey: ["financial-accounts", "open-summary"],
-    queryFn: () =>
-      fetchFinancialAccounts({
-        page: 1,
-        pageSize: 1,
-      }),
+    queryKey: ["financial-open-summary"],
+    queryFn: fetchFinancialOpenSummary,
     staleTime: 30_000,
   });
 
@@ -413,15 +410,14 @@ export default function FinancialPage() {
   }, [accountsQuery.data]);
 
   const openAccountTotals = useMemo(() => {
-    const summary = openAccountsQuery.data?.summary ?? [];
+    const summary = openAccountsQuery.data;
 
     return {
-      receivableOpen:
-        sumAccount(summary, "RECEBER", "ABERTA") +
-        sumAccount(summary, "RECEBER", "VENCIDA"),
-      payableOpen:
-        sumAccount(summary, "PAGAR", "ABERTA") +
-        sumAccount(summary, "PAGAR", "VENCIDA"),
+      receivableOpen: summary?.receivableOpen ?? 0,
+      payableOpen: summary?.payableOpen ?? 0,
+      accountReceivableOpen: summary?.accountReceivableOpen ?? 0,
+      activeServiceOrdersReceivable: summary?.activeServiceOrdersReceivable ?? 0,
+      activeServiceOrdersCount: summary?.activeServiceOrdersCount ?? 0,
     };
   }, [openAccountsQuery.data]);
 
@@ -1011,7 +1007,9 @@ export default function FinancialPage() {
               icon={ArrowDownLeft}
               label="A receber aberto"
               value={formatCurrency(openAccountTotals.receivableOpen)}
-              detail="Todas as pendências"
+              detail={`${formatCurrency(
+                openAccountTotals.activeServiceOrdersReceivable
+              )} em OS ativas`}
               tone="text-emerald-700"
             />
 
@@ -1721,14 +1719,6 @@ export default function FinancialPage() {
   );
 }
 
-function sumAccount(
-  summary: NonNullable<Awaited<ReturnType<typeof fetchFinancialAccounts>>>["summary"],
-  type: FinancialAccountType,
-  status: FinancialAccountStatus
-) {
-  return Number(summary.find((item) => item.type === type && item.status === status)?._sum.amount ?? 0);
-}
-
 function sumAccountPaid(
   summary: NonNullable<Awaited<ReturnType<typeof fetchFinancialAccounts>>>["summary"],
   type: FinancialAccountType,
@@ -1746,6 +1736,7 @@ function sumCash(
 
 function invalidateFinancialQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["financial-accounts"] });
+  queryClient.invalidateQueries({ queryKey: ["financial-open-summary"] });
   queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
   queryClient.invalidateQueries({ queryKey: ["financial-categories"] });
   queryClient.invalidateQueries({ queryKey: ["financial-categories-options"] });

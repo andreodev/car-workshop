@@ -8,6 +8,7 @@ import type {
   FinancialAccountListResponse,
   FinancialAccountStatus,
   FinancialAccountType,
+  FinancialOpenSummary,
   FinancialCategory,
   FinancialCategoryFormValues,
   FinancialCategoryListResponse,
@@ -101,6 +102,14 @@ export async function fetchFinancialAccount(id: string) {
   });
 
   return parseResponse<FinancialAccount>(response);
+}
+
+export async function fetchFinancialOpenSummary() {
+  const response = await fetch("/api/financial-open-summary", {
+    method: "GET",
+  });
+
+  return parseResponse<FinancialOpenSummary>(response);
 }
 
 export async function createFinancialAccount(payload: FinancialAccountFormValues) {

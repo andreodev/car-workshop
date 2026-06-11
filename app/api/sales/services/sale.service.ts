@@ -2,7 +2,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-import { sendPdvSaleFinancialEmail } from "@/app/lib/pdv-sale-email";
+import { sendPdvSaleCancellationFinancialEmail, sendPdvSaleFinancialEmail } from "@/app/lib/pdv-sale-email";
 import {
   saleListInclude,
   createPaymentCashMovements,
@@ -155,6 +155,14 @@ async function notifyPdvSaleMovedToFinancial(saleId: string) {
     await sendPdvSaleFinancialEmail(saleId);
   } catch (error) {
     console.error("[PDV_SALE_FINANCIAL_EMAIL] Falha ao enviar notificacao:", error);
+  }
+}
+
+async function notifyPdvSaleCanceled(sale: Parameters<typeof sendPdvSaleCancellationFinancialEmail>[0]) {
+  try {
+    await sendPdvSaleCancellationFinancialEmail(sale);
+  } catch (error) {
+    console.error("[PDV_SALE_CANCELLATION_EMAIL] Falha ao enviar notificacao:", error);
   }
 }
 
@@ -1083,10 +1091,15 @@ export const saleService = {
         }
 
         if (sale.status === "CANCELADA") {
-          return tx.sale.findUniqueOrThrow({
+          const currentSale = await tx.sale.findUniqueOrThrow({
             where: { id },
             include: saleListInclude,
           });
+
+          return {
+            sale: currentSale,
+            shouldSendCancellationEmail: false,
+          };
         }
 
         const cancelGuard = await tx.sale.updateMany({
@@ -1105,10 +1118,15 @@ export const saleService = {
         });
 
         if (cancelGuard.count !== 1) {
-          return tx.sale.findUniqueOrThrow({
+          const currentSale = await tx.sale.findUniqueOrThrow({
             where: { id },
             include: saleListInclude,
           });
+
+          return {
+            sale: currentSale,
+            shouldSendCancellationEmail: false,
+          };
         }
 
         const serviceOrder =
@@ -1146,10 +1164,17 @@ export const saleService = {
           });
         }
 
-        return updatedSale;
+        return {
+          sale: updatedSale,
+          shouldSendCancellationEmail: true,
+        };
       });
 
-      return { data: result };
+      if (result.shouldSendCancellationEmail) {
+        await notifyPdvSaleCanceled(result.sale);
+      }
+
+      return { data: result.sale };
     } catch (error) {
       if (error instanceof Error && error.message === "SALE_NOT_FOUND") {
         return serviceError("Venda nÃ£o encontrada.", 404);

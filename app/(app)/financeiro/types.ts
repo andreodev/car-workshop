@@ -57,6 +57,15 @@ export type FinancialAccountListResponse = {
   summary: FinancialAccountSummary[];
 };
 
+export type FinancialOpenSummary = {
+  receivableOpen: number;
+  payableOpen: number;
+  openBalance: number;
+  accountReceivableOpen: number;
+  activeServiceOrdersReceivable: number;
+  activeServiceOrdersCount: number;
+};
+
 export type FinancialAccountFormValues = {
   type: FinancialAccountType;
   status: FinancialAccountStatus;
