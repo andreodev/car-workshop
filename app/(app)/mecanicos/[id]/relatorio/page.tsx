@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +16,13 @@ import type {
 import { getServiceOrderStatusOption } from "../../../ordens-servico/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Header from "@/components/ui/header";
 import {
   Table,
@@ -30,6 +37,21 @@ type MechanicReportPageProps = {
   params: Promise<{
     id: string;
   }>;
+};
+
+type MechanicReportItemWithOrder = MechanicReportOrderItem & {
+  order: {
+    id: string;
+    code: number;
+    status: MechanicReportOrder["status"];
+    entryAt: string;
+    client: MechanicReportOrder["client"];
+    vehicle: MechanicReportOrder["vehicle"];
+  };
+};
+
+type MechanicReportAccountWithOrder = MechanicReportFinancialAccount & {
+  order: MechanicReportOrder;
 };
 
 const periodOptions: Array<{ value: MechanicReportPeriod; label: string }> = [
@@ -143,7 +165,229 @@ function itemCatalogLabel(item: MechanicReportOrderItem) {
   return `#${item.catalogItem.code} ${item.catalogItem.name}`;
 }
 
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-[11px] font-medium uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-medium text-foreground">
+        {value || "-"}
+      </p>
+    </div>
+  );
+}
+
+function ServiceItemDetailsDialog({
+  item,
+  onOpenChange,
+}: {
+  item: MechanicReportItemWithOrder | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!item) {
+    return null;
+  }
+
+  const statusOption = getServiceOrderStatusOption(item.order.status);
+
+  return (
+    <Dialog open={Boolean(item)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes do serviço</DialogTitle>
+          <DialogDescription>
+            OS #{item.order.code} • {item.order.client?.name ?? "Cliente não informado"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <DetailItem label="Serviço" value={item.description} />
+          <DetailItem label="Catálogo" value={itemCatalogLabel(item)} />
+          <DetailItem label="Cliente" value={item.order.client?.name ?? "-"} />
+          <DetailItem label="Veículo" value={formatVehicleLabel(item.order.vehicle)} />
+          <DetailItem label="Setor" value={item.sector?.name ?? "-"} />
+          <div className="rounded-md border bg-muted/20 p-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">
+              Status da OS
+            </p>
+            <div className="mt-1">
+              <Badge variant={statusOption.variant} className={statusOption.className}>
+                {statusOption.label}
+              </Badge>
+            </div>
+          </div>
+          <DetailItem label="Entrada" value={formatDateTime(item.order.entryAt)} />
+          <DetailItem label="Quantidade" value={String(item.quantity)} />
+          <DetailItem label="Valor unitário" value={formatCurrency(item.unitPrice)} />
+          <DetailItem label="Desconto" value={formatCurrency(item.discount)} />
+          <DetailItem label="Total do serviço" value={formatCurrency(item.total)} />
+          <DetailItem label="Base da comissão" value={formatCurrency(item.commissionBase)} />
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/ordens-servico/${item.order.id}/detalhes`}>
+              Abrir OS
+            </Link>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CommissionAccountDetailsDialog({
+  account,
+  onOpenChange,
+}: {
+  account: MechanicReportAccountWithOrder | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!account) {
+    return null;
+  }
+
+  return (
+    <Dialog open={Boolean(account)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da comissão financeira</DialogTitle>
+          <DialogDescription>
+            Conta #{account.code} vinculada à OS #{account.order.code}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <DetailItem label="Conta" value={`#${account.code}`} />
+          <DetailItem label="OS" value={`#${account.order.code}`} />
+          <div className="rounded-md border bg-muted/20 p-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">
+              Status
+            </p>
+            <div className="mt-1">{financialStatusBadge(account.status)}</div>
+          </div>
+          <DetailItem label="Documento" value={account.documentNumber ?? "-"} />
+          <DetailItem label="Vencimento" value={formatDate(account.dueDate)} />
+          <DetailItem label="Pagamento" value={formatDate(account.paymentDate)} />
+          <DetailItem label="Método" value={paymentMethodLabel(account.paymentMethod)} />
+          <DetailItem label="Valor" value={formatCurrency(account.amount)} />
+          <DetailItem
+            label="Valor pago"
+            value={formatCurrency(account.paidAmount ?? "0")}
+          />
+          <DetailItem label="Cliente" value={account.order.client?.name ?? "-"} />
+          <DetailItem label="Veículo" value={formatVehicle(account.order)} />
+        </div>
+
+        <div className="rounded-md border bg-muted/20 p-3">
+          <p className="text-[11px] font-medium uppercase text-muted-foreground">
+            Observação
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+            {account.notes ?? account.description ?? "-"}
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function OrderDetailsDialog({
+  order,
+  onOpenChange,
+}: {
+  order: MechanicReportOrder | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!order) {
+    return null;
+  }
+
+  const statusOption = getServiceOrderStatusOption(order.status);
+
+  return (
+    <Dialog open={Boolean(order)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da OS #{order.code}</DialogTitle>
+          <DialogDescription>
+            Resumo dos serviços deste mecânico dentro da ordem.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <DetailItem label="Cliente" value={order.client?.name ?? "-"} />
+          <DetailItem label="Veículo" value={formatVehicle(order)} />
+          <div className="rounded-md border bg-muted/20 p-3">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">
+              Status
+            </p>
+            <div className="mt-1">
+              <Badge variant={statusOption.variant} className={statusOption.className}>
+                {statusOption.label}
+              </Badge>
+            </div>
+          </div>
+          <DetailItem label="Entrada" value={formatDateTime(order.entryAt)} />
+          <DetailItem label="Previsão" value={formatDateTime(order.estimatedAt)} />
+          <DetailItem label="Atualização" value={formatDateTime(order.updatedAt)} />
+          <DetailItem label="Itens dele" value={String(order.items.length)} />
+          <DetailItem label="Serviços" value={formatCurrency(order.total)} />
+          <DetailItem label="Base comissão" value={formatCurrency(order.serviceTotal)} />
+          <DetailItem label="Comissão" value={formatCurrency(order.commissionTotal)} />
+          <DetailItem
+            label="Comissão financeira"
+            value={
+              order.commissionAccounts.length
+                ? `${order.commissionAccounts.length} conta(s)`
+                : "Sem conta"
+            }
+          />
+          <DetailItem label="Local" value={order.location ?? "-"} />
+        </div>
+
+        <div className="rounded-md border">
+          <div className="border-b px-3 py-2">
+            <p className="text-sm font-semibold text-foreground">Serviços da OS</p>
+          </div>
+          <div className="divide-y">
+            {order.items.map((item) => (
+              <div key={item.id} className="grid gap-2 p-3 sm:grid-cols-[1fr_auto]">
+                <div>
+                  <p className="font-medium text-foreground">{item.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.sector?.name ?? "Sem setor"} • {itemCatalogLabel(item)}
+                  </p>
+                </div>
+                <div className="text-sm sm:text-right">
+                  <p className="font-semibold">{formatCurrency(item.total)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Base {formatCurrency(item.commissionBase)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/ordens-servico/${order.id}/detalhes`}>
+              Abrir OS completa
+            </Link>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
+  const [selectedOrder, setSelectedOrder] = useState<MechanicReportOrder | null>(
+    null,
+  );
+
   if (orders.length === 0) {
     return (
       <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
@@ -203,8 +447,12 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
                 </TableCell>
                 <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/ordens-servico/${order.id}/detalhes`}>Detalhes</Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedOrder(order)}
+                  >
+                    Ver detalhes
                   </Button>
                 </TableCell>
               </TableRow>
@@ -212,6 +460,14 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
           })}
         </TableBody>
       </Table>
+      <OrderDetailsDialog
+        order={selectedOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedOrder(null);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -219,19 +475,11 @@ function OrdersTable({ orders }: { orders: MechanicReportOrder[] }) {
 function ServiceItemsTable({
   items,
 }: {
-  items: Array<
-    MechanicReportOrderItem & {
-      order: {
-        id: string;
-        code: number;
-        status: MechanicReportOrder["status"];
-        entryAt: string;
-        client: MechanicReportOrder["client"];
-        vehicle: MechanicReportOrder["vehicle"];
-      };
-    }
-  >;
+  items: MechanicReportItemWithOrder[];
 }) {
+  const [selectedItem, setSelectedItem] =
+    useState<MechanicReportItemWithOrder | null>(null);
+
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
@@ -256,6 +504,7 @@ function ServiceItemsTable({
             <TableHead className="text-right">Desconto</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right">Base</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -274,16 +523,35 @@ function ServiceItemsTable({
               <TableCell className="text-right font-semibold">
                 {formatCurrency(item.commissionBase)}
               </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedItem(item)}
+                >
+                  Ver detalhes
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <ServiceItemDetailsDialog
+        item={selectedItem}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedItem(null);
+          }
+        }}
+      />
     </div>
   );
 }
 
 function CommissionAccountsTable({ orders }: { orders: MechanicReportOrder[] }) {
-  const accounts = orders.flatMap((order) =>
+  const [selectedAccount, setSelectedAccount] =
+    useState<MechanicReportAccountWithOrder | null>(null);
+  const accounts: MechanicReportAccountWithOrder[] = orders.flatMap((order) =>
     order.commissionAccounts.map((account) => ({
       ...account,
       order,
@@ -312,6 +580,7 @@ function CommissionAccountsTable({ orders }: { orders: MechanicReportOrder[] }) 
             <TableHead>Observação</TableHead>
             <TableHead className="text-right">Valor</TableHead>
             <TableHead className="text-right">Pago</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -330,10 +599,27 @@ function CommissionAccountsTable({ orders }: { orders: MechanicReportOrder[] }) 
               <TableCell className="text-right">
                 {formatCurrency(account.paidAmount ?? "0")}
               </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedAccount(account)}
+                >
+                  Ver detalhes
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <CommissionAccountDetailsDialog
+        account={selectedAccount}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAccount(null);
+          }
+        }}
+      />
     </div>
   );
 }
