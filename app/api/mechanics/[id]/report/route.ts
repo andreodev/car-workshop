@@ -16,6 +16,9 @@ const serviceOrderStatuses = [
   "CANCELADA",
   "PAGA",
 ] as const;
+const reportPeriods = ["all", "daily", "weekly", "monthly"] as const;
+
+type ReportPeriod = (typeof reportPeriods)[number];
 
 type RouteContext = {
   params: Promise<{
@@ -31,7 +34,47 @@ function accountAmount(account: { amount: Prisma.Decimal; paidAmount: Prisma.Dec
   return account.paidAmount ?? account.amount;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+function parseReportPeriod(value: string | null): ReportPeriod {
+  return reportPeriods.includes(value as ReportPeriod)
+    ? (value as ReportPeriod)
+    : "monthly";
+}
+
+function getPeriodRange(period: ReportPeriod) {
+  if (period === "all") {
+    return null;
+  }
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (period === "weekly") {
+    start.setDate(start.getDate() - 6);
+  }
+
+  if (period === "monthly") {
+    start.setDate(1);
+  }
+
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+}
+
+function periodLabel(period: ReportPeriod) {
+  const labels: Record<ReportPeriod, string> = {
+    all: "Todo o histórico",
+    daily: "Hoje",
+    weekly: "Últimos 7 dias",
+    monthly: "Este mês",
+  };
+
+  return labels[period];
+}
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
   const session = await getServerAuthSession();
 
   if (!session?.user) {
@@ -39,6 +82,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 
   const { id } = await params;
+  const period = parseReportPeriod(request.nextUrl.searchParams.get("period"));
+  const periodRange = getPeriodRange(period);
   const mechanic = await prisma.mechanic.findUnique({ where: { id } });
 
   if (!mechanic) {
@@ -47,6 +92,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   const orders = await prisma.serviceOrder.findMany({
     where: {
+      ...(periodRange
+        ? { entryAt: { gte: periodRange.start, lte: periodRange.end } }
+        : {}),
       items: {
         some: {
           mechanicId: id,
@@ -120,10 +168,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     commissionAccountsByDocument.set(account.documentNumber, accounts);
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
   const totalsByStatus = new Map<
     (typeof serviceOrderStatuses)[number],
     { count: number; total: Prisma.Decimal }
@@ -143,7 +187,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   let pendingCommissionTotal = new Prisma.Decimal(0);
   let paidCommissionTotal = new Prisma.Decimal(0);
   let overdueCommissionTotal = new Prisma.Decimal(0);
-  let monthCompletedOrders = 0;
+  let periodCompletedOrders = 0;
   let serviceItemsCount = 0;
   const commissionRate = mechanic.commissionPercent.div(100);
 
@@ -187,8 +231,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     if (order.status === "FINALIZADA") {
       completedRevenue = completedRevenue.add(assignedServiceTotal);
       completedServiceRevenue = completedServiceRevenue.add(orderServiceTotal);
-      if (order.updatedAt >= startOfMonth) {
-        monthCompletedOrders += 1;
+      if (
+        !periodRange ||
+        (order.updatedAt >= periodRange.start && order.updatedAt <= periodRange.end)
+      ) {
+        periodCompletedOrders += 1;
       }
     }
   });
@@ -260,6 +307,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
   const report = {
     mechanic,
+    period: {
+      value: period,
+      label: periodLabel(period),
+      start: periodRange?.start ?? null,
+      end: periodRange?.end ?? null,
+    },
     summary: {
       totalOrders: orders.length,
       serviceItemsCount,
@@ -269,7 +322,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       completedOrders: totalsByStatus.get("FINALIZADA")?.count ?? 0,
       blockedOrders: totalsByStatus.get("IMPEDIDA")?.count ?? 0,
       waitingPartsOrders: totalsByStatus.get("AGUARDANDO_PECAS")?.count ?? 0,
-      monthCompletedOrders,
+      periodCompletedOrders,
       totalRevenue: decimalToString(totalRevenue),
       activeRevenue: decimalToString(activeRevenue),
       completedRevenue: decimalToString(completedRevenue),

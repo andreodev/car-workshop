@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 
@@ -10,6 +11,7 @@ import type {
   MechanicReportFinancialAccount,
   MechanicReportOrder,
   MechanicReportOrderItem,
+  MechanicReportPeriod,
 } from "../../types";
 import { getServiceOrderStatusOption } from "../../../ordens-servico/status";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,19 @@ type MechanicReportPageProps = {
     id: string;
   }>;
 };
+
+const periodOptions: Array<{ value: MechanicReportPeriod; label: string }> = [
+  { value: "daily", label: "Hoje" },
+  { value: "weekly", label: "Semana" },
+  { value: "monthly", label: "Mês" },
+  { value: "all", label: "Tudo" },
+];
+
+function normalizePeriod(value: string | null): MechanicReportPeriod {
+  return periodOptions.some((option) => option.value === value)
+    ? (value as MechanicReportPeriod)
+    : "monthly";
+}
 
 function formatCurrency(value: string) {
   const parsed = Number(value);
@@ -325,9 +340,11 @@ function CommissionAccountsTable({ orders }: { orders: MechanicReportOrder[] }) 
 
 export default function MechanicReportPage({ params }: MechanicReportPageProps) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
+  const period = normalizePeriod(searchParams.get("period"));
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["mechanic-report", id],
-    queryFn: () => fetchMechanicReport(id),
+    queryKey: ["mechanic-report", id, period],
+    queryFn: () => fetchMechanicReport(id, { period }),
     staleTime: 30_000,
   });
 
@@ -348,13 +365,17 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
   }
 
   const metrics = [
-    { label: "OS com serviços", value: data.summary.totalOrders },
-    { label: "Serviços", value: data.summary.serviceItemsCount },
+    { label: "OS no período", value: data.summary.totalOrders },
+    { label: "Serviços feitos", value: data.summary.serviceItemsCount },
     { label: "OS ativas", value: data.summary.activeOrders },
     { label: "Concluídas", value: data.summary.completedOrders },
-    { label: "Concluídas no mês", value: data.summary.monthCompletedOrders },
-    { label: "Falta peça", value: data.summary.waitingPartsOrders },
-    { label: "Pendentes", value: data.summary.blockedOrders },
+    { label: "Concluídas no período", value: data.summary.periodCompletedOrders },
+  ];
+  const financialMetrics = [
+    { label: "Gerada", value: data.summary.generatedCommissionTotal },
+    { label: "Pendente", value: data.summary.pendingCommissionTotal },
+    { label: "Vencida", value: data.summary.overdueCommissionTotal },
+    { label: "Paga", value: data.summary.paidCommissionTotal },
   ];
 
   return (
@@ -369,100 +390,93 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
           </Button>
           <Header
             title={`Relatório de ${data.mechanic.name}`}
-            description="Rastreabilidade dos serviços vinculados ao mecânico por item da OS."
+            description={`Resumo dos serviços e comissões do período: ${data.period.label}.`}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="h-fit">
-            Comissão {formatPercent(data.summary.commissionPercent)}
-          </Badge>
-          <Badge variant={data.mechanic.active ? "default" : "secondary"} className="h-fit">
-            {data.mechanic.active ? "Ativo" : "Inativo"}
-          </Badge>
+        <div className="flex flex-col items-start gap-3 md:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="h-fit">
+              Comissão {formatPercent(data.summary.commissionPercent)}
+            </Badge>
+            <Badge variant={data.mechanic.active ? "default" : "secondary"} className="h-fit">
+              {data.mechanic.active ? "Ativo" : "Inativo"}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {periodOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={period === option.value ? "default" : "outline"}
+                size="sm"
+                asChild
+              >
+                <Link href={`/mecanicos/${id}/relatorio?period=${option.value}`}>
+                  {option.label}
+                </Link>
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
-        {metrics.map((metric) => (
-          <div key={metric.label} className="rounded-md border bg-white p-4 shadow-sm">
-            <p className="text-xs text-muted-foreground">{metric.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="rounded-md border bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Resumo do período</h2>
+            <p className="text-xs text-muted-foreground">
+              Valores calculados pelos itens de serviço atribuídos a este mecânico.
+            </p>
           </div>
-        ))}
-      </section>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="rounded-md border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">{metric.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{metric.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Base comissionável</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.serviceRevenue)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão total</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.commissionTotal)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Base concluída</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.completedServiceRevenue)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão concluída</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.completedCommissionTotal)}
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão gerada</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.generatedCommissionTotal)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão pendente</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.pendingCommissionTotal)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão vencida</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.overdueCommissionTotal)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Comissão paga</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.paidCommissionTotal)}
-          </p>
+        <div className="rounded-md border bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Comissão prevista</h2>
+            <p className="text-xs text-muted-foreground">
+              Base de comissão do período vezes {formatPercent(data.summary.commissionPercent)}.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Base</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">
+                {formatCurrency(data.summary.serviceRevenue)}
+              </p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Comissão</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">
+                {formatCurrency(data.summary.commissionTotal)}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Serviços em OS ativas</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.activeRevenue)}
+      <section className="rounded-md border bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground">Comissões financeiras</h2>
+          <p className="text-xs text-muted-foreground">
+            Contas a pagar geradas para as OS que aparecem neste relatório.
           </p>
         </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Serviços concluídos</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.completedRevenue)}
-          </p>
-        </div>
-        <div className="rounded-md border bg-white p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Serviços atribuídos</p>
-          <p className="mt-2 text-xl font-semibold text-foreground">
-            {formatCurrency(data.summary.totalRevenue)}
-          </p>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {financialMetrics.map((metric) => (
+            <div key={metric.label} className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">{metric.label}</p>
+              <p className="mt-2 text-xl font-semibold text-foreground">
+                {formatCurrency(metric.value)}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -512,19 +526,9 @@ export default function MechanicReportPage({ params }: MechanicReportPageProps) 
 
       <section className="rounded-md border bg-white p-5 shadow-sm">
         <div className="mb-4">
-          <h2 className="text-sm font-semibold text-foreground">O que está com ele agora</h2>
+          <h2 className="text-sm font-semibold text-foreground">OS do período</h2>
           <p className="text-xs text-muted-foreground">
-            OS abertas, em execução, pendentes ou aguardando peças com serviços dele.
-          </p>
-        </div>
-        <OrdersTable orders={data.activeOrders} />
-      </section>
-
-      <section className="rounded-md border bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-foreground">Rastreabilidade completa</h2>
-          <p className="text-xs text-muted-foreground">
-            OS com serviços vinculados ao mecânico, incluindo concluídas e canceladas.
+            Ordens com serviços vinculados ao mecânico dentro do filtro selecionado.
           </p>
         </div>
         <OrdersTable orders={data.recentOrders} />

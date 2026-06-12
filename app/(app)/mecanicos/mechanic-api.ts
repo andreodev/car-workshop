@@ -2,6 +2,7 @@ import type {
   Mechanic,
   MechanicListResponse,
   MechanicReport,
+  MechanicReportPeriod,
   MechanicSavePayload,
 } from "./types";
 
@@ -69,10 +70,19 @@ export async function fetchMechanic(id: string) {
   return parseResponse<Mechanic>(response);
 }
 
-export async function fetchMechanicReport(id: string) {
-  const response = await fetch(`/api/mechanics/${id}/report`, {
-    method: "GET",
+export async function fetchMechanicReport(
+  id: string,
+  params?: { period?: MechanicReportPeriod },
+) {
+  const query = toQuery({
+    period: params?.period,
   });
+  const response = await fetch(
+    `/api/mechanics/${id}/report${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+    },
+  );
 
   return parseResponse<MechanicReport>(response);
 }

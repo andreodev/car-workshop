@@ -114,8 +114,16 @@ export type MechanicReportStatusSummary = {
   total: string;
 };
 
+export type MechanicReportPeriod = "all" | "daily" | "weekly" | "monthly";
+
 export type MechanicReport = {
   mechanic: Mechanic;
+  period: {
+    value: MechanicReportPeriod;
+    label: string;
+    start: string | null;
+    end: string | null;
+  };
   summary: {
     totalOrders: number;
     serviceItemsCount: number;
@@ -123,7 +131,7 @@ export type MechanicReport = {
     completedOrders: number;
     blockedOrders: number;
     waitingPartsOrders: number;
-    monthCompletedOrders: number;
+    periodCompletedOrders: number;
     totalRevenue: string;
     activeRevenue: string;
     completedRevenue: string;
