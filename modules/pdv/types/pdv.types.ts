@@ -371,6 +371,10 @@ export type ServiceOrderCompleted = {
     unitPrice: string | number;
     discount: string | number;
     total: string | number;
+    sector?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
 };
 
@@ -433,6 +437,11 @@ export type ServiceOrderPdvResponse = {
       id: string;
       name: string;
     } | null;
+    sector?: {
+      id: string;
+      name: string;
+    } | null;
+    sectorId?: string | null;
     catalogItem?: {
       id: string;
       name: string;

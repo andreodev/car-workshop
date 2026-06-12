@@ -200,7 +200,7 @@ function ServiceOrderItemsDetails({ order }: { order: ServiceOrderCompleted }) {
           {order.items.map((item) => (
             <div
               key={item.id}
-              className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+              className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]"
             >
               <div className="min-w-0">
                 <p className="break-words text-sm font-medium text-foreground">
@@ -209,6 +209,13 @@ function ServiceOrderItemsDetails({ order }: { order: ServiceOrderCompleted }) {
                 <p className="text-xs text-muted-foreground">
                   {Number(item.quantity)} x {formatCurrency(item.unitPrice)}
                 </p>
+              </div>
+
+              <div className="sm:text-right">
+                <p className="text-[11px] uppercase text-muted-foreground">
+                  Setor
+                </p>
+                <p className="font-medium">{item.sector?.name ?? "-"}</p>
               </div>
 
               <div className="sm:text-right">

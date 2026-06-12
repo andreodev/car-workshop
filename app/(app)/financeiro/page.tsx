@@ -320,7 +320,7 @@ export default function FinancialPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [statementKind, setStatementKind] = useState<StatementKindFilter>("TODOS");
+  const [statementKind, setStatementKind] = useState<StatementKindFilter>("CAIXA");
   const [statementSearchInput, setStatementSearchInput] = useState("");
   const [statementSearch, setStatementSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -878,7 +878,7 @@ export default function FinancialPage() {
   function clearStatementFilters() {
     const range = lastDaysRange(1);
 
-    setStatementKind("TODOS");
+    setStatementKind("CAIXA");
     setStatementSearchInput("");
     setStatementSearch("");
     setAccountType("TODOS");
@@ -1189,7 +1189,7 @@ export default function FinancialPage() {
         <div>
           <h2 className="text-sm font-semibold text-foreground">Filtros do extrato</h2>
           <p className="text-xs text-muted-foreground">
-            Refine por origem, período, status e categorias financeiras.
+            Por padrão mostra somente o caixa realizado: valores que entraram ou saíram de fato.
           </p>
         </div>
 
@@ -1202,9 +1202,9 @@ export default function FinancialPage() {
             setCurrentPage(1);
           }}
         >
-          <SelectItem value="TODOS">Extrato completo</SelectItem>
-          <SelectItem value="CONTA">Contas</SelectItem>
-          <SelectItem value="CAIXA">Caixa</SelectItem>
+          <SelectItem value="TODOS">Completo (contas + caixa)</SelectItem>
+          <SelectItem value="CONTA">Contas baixadas/agendadas</SelectItem>
+          <SelectItem value="CAIXA">Caixa realizado</SelectItem>
           <SelectItem value="CATEGORIA">Categorias</SelectItem>
             </SelectFilter>
           </FilterField>

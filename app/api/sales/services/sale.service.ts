@@ -218,6 +218,8 @@ function buildCompletedServiceOrderWhere(search: string, from: Date | null, to: 
       { vehicle: { plate: { contains: search, mode: "insensitive" } } },
       { vehicle: { model: { contains: search, mode: "insensitive" } } },
       { mechanic: { name: { contains: search, mode: "insensitive" } } },
+      { items: { some: { description: { contains: search, mode: "insensitive" } } } },
+      { items: { some: { sector: { name: { contains: search, mode: "insensitive" } } } } },
       ...(Number.isInteger(code) && code > 0 ? [{ code }] : []),
     ];
   }
@@ -402,6 +404,32 @@ function buildServiceOrderSaleItems(params: {
       total: lineSubtotal.minus(discount).toDecimalPlaces(2),
     };
   });
+}
+
+function getSingleServiceOrderSector(
+  items: Array<{
+    type: "SERVICE" | "PRODUCT";
+    sector: {
+      id: string;
+      name: string;
+    } | null;
+  }>,
+) {
+  const serviceItems = items.filter((item) => item.type === "SERVICE");
+
+  if (serviceItems.length === 0 || serviceItems.some((item) => !item.sector)) {
+    return null;
+  }
+
+  const sectors = new Map<string, { id: string; name: string }>();
+
+  for (const item of serviceItems) {
+    if (item.sector) {
+      sectors.set(item.sector.id, item.sector);
+    }
+  }
+
+  return sectors.size === 1 ? Array.from(sectors.values())[0] : null;
 }
 
 async function createMechanicCommissionPayable(params: {
@@ -1032,6 +1060,8 @@ export const saleService = {
           name: item.catalogItem?.name ?? item.description ?? "Item sem nome",
           type: item.catalogItem?.type ?? "SERVICO",
           mechanic: item.mechanic,
+          sector: item.sector,
+          sectorId: item.sectorId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: item.discount,
@@ -1299,6 +1329,7 @@ export const saleService = {
         const discountTotal = new Prisma.Decimal(serviceOrder.discountTotal)
           .plus(paymentDiscount)
           .toDecimalPlaces(2);
+        const serviceOrderSector = getSingleServiceOrderSector(serviceOrder.items);
         const paymentDiscountNote = paymentDiscount.greaterThan(0)
           ? ` Desconto no pagamento: R$ ${paymentDiscount.toFixed(2)}.`
           : "";
@@ -1306,6 +1337,7 @@ export const saleService = {
           data: {
             clientId: serviceOrder.clientId,
             serviceOrderId: serviceOrder.id,
+            sectorId: serviceOrderSector?.id ?? null,
             status: "CONCLUIDA",
             paymentMethod: payments[0].paymentMethod,
             subtotal: serviceOrder.subtotal,
@@ -1313,6 +1345,7 @@ export const saleService = {
             feeTotal,
             total: totalPaid,
             responsible: serviceOrder.responsible ?? "PDV",
+            sectorName: serviceOrderSector?.name ?? null,
             notes: `Pagamento da ordem de serviço #${serviceOrder.code}.${paymentDiscountNote}`,
             items: {
               create: saleItems.map((item) => ({

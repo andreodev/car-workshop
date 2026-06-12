@@ -95,6 +95,12 @@ export const completedServiceOrderInclude = {
           type: true,
         },
       },
+      sector: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   },
 } satisfies Prisma.ServiceOrderInclude;
@@ -143,6 +149,12 @@ export const serviceOrderPdvInclude = {
           id: true,
           name: true,
           commissionPercent: true,
+        },
+      },
+      sector: {
+        select: {
+          id: true,
+          name: true,
         },
       },
     },
