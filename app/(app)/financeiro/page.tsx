@@ -10,6 +10,7 @@ import {
   Check,
   Download,
   Edit2,
+  Eye,
   FolderTree,
   Plus,
   Search,
@@ -145,6 +146,8 @@ type StatementRow = {
   notes: string;
   actions: ReactNode;
   account?: FinancialAccount;
+  movement?: CashMovement;
+  categoryRecord?: FinancialCategory;
 };
 
 const emptyAccountForm: FinancialAccountFormValues = {
@@ -343,6 +346,9 @@ export default function FinancialPage() {
   const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinancialCategory | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<FinancialAccount | null>(null);
+  const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<FinancialCategory | null>(null);
+  const [detailKind, setDetailKind] = useState<StatementKind | null>(null);
 
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
@@ -607,6 +613,16 @@ export default function FinancialPage() {
               type="button"
               variant="ghost"
               size="icon-sm"
+              title="Detalhes"
+              onClick={() => openAccountDetails(account)}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               title="Editar"
               onClick={() => openEditAccount(account)}
             >
@@ -664,6 +680,16 @@ export default function FinancialPage() {
               type="button"
               variant="ghost"
               size="icon-sm"
+              title="Detalhes"
+              onClick={() => openMovementDetails(movement)}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               title="Editar"
               onClick={() => openEditMovement(movement)}
             >
@@ -690,6 +716,7 @@ export default function FinancialPage() {
             </Button>
           </div>
         ),
+        movement,
       })) ?? [];
 
     const categoryRows: StatementRow[] =
@@ -714,6 +741,16 @@ export default function FinancialPage() {
         notes: category.notes ?? "-",
         actions: (
           <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Detalhes"
+              onClick={() => openCategoryDetails(category)}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+
             <Button
               type="button"
               variant="ghost"
@@ -753,6 +790,7 @@ export default function FinancialPage() {
             </Button>
           </div>
         ),
+        categoryRecord: category,
       })) ?? [];
 
     return [...accountRows, ...movementRows, ...categoryRows]
@@ -857,7 +895,26 @@ export default function FinancialPage() {
   }
 
   function openAccountDetails(account: FinancialAccount) {
+    setDetailKind("CONTA");
     setSelectedAccount(account);
+    setSelectedMovement(null);
+    setSelectedCategory(null);
+    setDetailDialogOpen(true);
+  }
+
+  function openMovementDetails(movement: CashMovement) {
+    setDetailKind("CAIXA");
+    setSelectedAccount(null);
+    setSelectedMovement(movement);
+    setSelectedCategory(null);
+    setDetailDialogOpen(true);
+  }
+
+  function openCategoryDetails(category: FinancialCategory) {
+    setDetailKind("CATEGORIA");
+    setSelectedAccount(null);
+    setSelectedMovement(null);
+    setSelectedCategory(category);
     setDetailDialogOpen(true);
   }
 
@@ -1349,17 +1406,25 @@ export default function FinancialPage() {
               statementRows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={row.kind === "CONTA" ? "cursor-pointer" : undefined}
+                  className="cursor-pointer"
                   onClick={(event) => {
-                    if (row.kind !== "CONTA" || !row.account) {
-                      return;
-                    }
-
                     if (!shouldOpenDetails(event.target)) {
                       return;
                     }
 
-                    openAccountDetails(row.account);
+                    if (row.account) {
+                      openAccountDetails(row.account);
+                      return;
+                    }
+
+                    if (row.movement) {
+                      openMovementDetails(row.movement);
+                      return;
+                    }
+
+                    if (row.categoryRecord) {
+                      openCategoryDetails(row.categoryRecord);
+                    }
                   }}
                 >
                   <TableCell>
@@ -1627,19 +1692,27 @@ export default function FinancialPage() {
       </Sheet>
 
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes da conta</DialogTitle>
+            <DialogTitle>
+              {detailKind === "CAIXA"
+                ? "Detalhes do movimento"
+                : detailKind === "CATEGORIA"
+                  ? "Detalhes da categoria"
+                  : "Detalhes da conta"}
+            </DialogTitle>
             <DialogDescription>
-              Visualize as informações completas da conta financeira.
+              Visualize as informações completas do registro financeiro.
             </DialogDescription>
           </DialogHeader>
 
-          {selectedAccount ? (
+          {detailKind === "CONTA" && selectedAccount ? (
             <div className="grid gap-4 text-sm">
               <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
                 <div className="text-xs font-semibold uppercase text-muted-foreground">Resumo</div>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailItem label="Registro" value={`#${selectedAccount.code}`} />
+
                   <div className="grid gap-1 sm:col-span-2">
                     <span className="text-xs uppercase text-muted-foreground">Descrição</span>
                     <span className="font-medium">{selectedAccount.description}</span>
@@ -1669,6 +1742,9 @@ export default function FinancialPage() {
                     <span className="text-xs uppercase text-muted-foreground">Pagamento</span>
                     <span>{formatDate(selectedAccount.paymentDate)}</span>
                   </div>
+
+                  <DetailItem label="Criado em" value={formatDate(selectedAccount.createdAt)} />
+                  <DetailItem label="Atualizado em" value={formatDate(selectedAccount.updatedAt)} />
                 </div>
               </div>
 
@@ -1720,6 +1796,24 @@ export default function FinancialPage() {
                     <span className="text-xs uppercase text-muted-foreground">Documento</span>
                     <span>{formatValue(selectedAccount.documentNumber)}</span>
                   </div>
+
+                  <DetailItem
+                    label="OS"
+                    value={
+                      selectedAccount.serviceOrder
+                        ? `#${selectedAccount.serviceOrder.code} - ${selectedAccount.serviceOrder.status}`
+                        : "-"
+                    }
+                  />
+
+                  <DetailItem
+                    label="Pedido"
+                    value={
+                      selectedAccount.supplierOrder
+                        ? `#${selectedAccount.supplierOrder.code} - ${selectedAccount.supplierOrder.status}`
+                        : "-"
+                    }
+                  />
                 </div>
               </div>
 
@@ -1731,9 +1825,112 @@ export default function FinancialPage() {
               </div>
             </div>
           ) : null}
+
+          {detailKind === "CAIXA" && selectedMovement ? (
+            <div className="grid gap-4 text-sm">
+              <DetailSection title="Resumo">
+                <DetailItem label="Registro" value={`#${selectedMovement.code}`} />
+                <DetailItem label="Tipo" value={getCashMovementTypeLabel(selectedMovement.type)} />
+                <DetailItem label="Valor" value={formatCurrency(selectedMovement.amount)} />
+                <DetailItem label="Data do caixa" value={formatDate(selectedMovement.movementDate)} />
+                <div className="grid gap-1 sm:col-span-2">
+                  <span className="text-xs uppercase text-muted-foreground">Descrição</span>
+                  <span className="font-medium">{selectedMovement.description}</span>
+                </div>
+              </DetailSection>
+
+              <DetailSection title="Classificação">
+                <DetailItem label="Categoria" value={selectedMovement.category?.name ?? "-"} />
+                <DetailItem
+                  label="Tipo da categoria"
+                  value={
+                    selectedMovement.category
+                      ? getFinancialCategoryTypeLabel(selectedMovement.category.type)
+                      : "-"
+                  }
+                />
+                <DetailItem
+                  label="Forma"
+                  value={formatValue(getPaymentMethodLabel(selectedMovement.paymentMethod))}
+                />
+                <DetailItem label="Documento" value={formatValue(selectedMovement.documentNumber)} />
+              </DetailSection>
+
+              <DetailSection title="Origem">
+                <DetailItem
+                  label="PDV"
+                  value={selectedMovement.sale ? `#${selectedMovement.sale.code} - ${selectedMovement.sale.status}` : "-"}
+                />
+                <DetailItem
+                  label="Conta financeira"
+                  value={
+                    selectedMovement.financialAccount
+                      ? `#${selectedMovement.financialAccount.code} - ${getFinancialTypeLabel(
+                          selectedMovement.financialAccount.type
+                        )}`
+                      : "-"
+                  }
+                />
+                <DetailItem label="Criado em" value={formatDate(selectedMovement.createdAt)} />
+                <DetailItem label="Atualizado em" value={formatDate(selectedMovement.updatedAt)} />
+              </DetailSection>
+
+              <DetailSection title="Observações">
+                <div className="grid gap-1 sm:col-span-2">
+                  <span>{formatValue(selectedMovement.notes)}</span>
+                </div>
+              </DetailSection>
+            </div>
+          ) : null}
+
+          {detailKind === "CATEGORIA" && selectedCategory ? (
+            <div className="grid gap-4 text-sm">
+              <DetailSection title="Resumo">
+                <DetailItem label="Registro" value={`#${selectedCategory.code}`} />
+                <DetailItem label="Nome" value={selectedCategory.name} />
+                <DetailItem
+                  label="Tipo"
+                  value={getFinancialCategoryTypeLabel(selectedCategory.type)}
+                />
+                <DetailItem label="Situação" value={selectedCategory.active ? "Ativa" : "Inativa"} />
+                <DetailItem label="Criada em" value={formatDate(selectedCategory.createdAt)} />
+                <DetailItem label="Atualizada em" value={formatDate(selectedCategory.updatedAt)} />
+              </DetailSection>
+
+              <DetailSection title="Observações">
+                <div className="grid gap-1 sm:col-span-2">
+                  <span>{formatValue(selectedCategory.notes)}</span>
+                </div>
+              </DetailSection>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+      <div className="text-xs font-semibold uppercase text-muted-foreground">{title}</div>
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs uppercase text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
   );
 }
 
