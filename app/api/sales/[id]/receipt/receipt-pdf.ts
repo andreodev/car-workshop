@@ -472,6 +472,28 @@ function formatPhone(value: string | null) {
   return value;
 }
 
+function formatVehicle(value: {
+  plate: string;
+  brand: string | null;
+  model: string | null;
+  version: string | null;
+  modelYear: number | null;
+  color: string | null;
+} | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const model = [value.brand, value.model, value.version]
+    .filter(Boolean)
+    .join(" ");
+  const details = [model, value.modelYear, value.color]
+    .filter(Boolean)
+    .join(" • ");
+
+  return `${value.plate}${details ? ` - ${details}` : ""}`;
+}
+
 function paymentLabel(value: string) {
   const labels: Record<string, string> = {
     DINHEIRO: "Dinheiro",
@@ -517,6 +539,22 @@ export async function renderSaleReceiptPdf(id: string) {
     include: {
       client: true,
       sector: true,
+      serviceOrder: {
+        select: {
+          id: true,
+          code: true,
+          vehicle: {
+            select: {
+              plate: true,
+              brand: true,
+              model: true,
+              version: true,
+              modelYear: true,
+              color: true,
+            },
+          },
+        },
+      },
       payments: true,
       items: {
         include: {
@@ -776,6 +814,19 @@ export async function renderSaleReceiptPdf(id: string) {
             "Setor: ",
             h(Text, { style: styles.strong }, sale.sector?.name || "-")
           ),
+
+          sale.serviceOrder?.vehicle
+            ? h(
+                Text,
+                { style: styles.infoLine },
+                "Carro: ",
+                h(
+                  Text,
+                  { style: styles.strong },
+                  formatVehicle(sale.serviceOrder.vehicle)
+                )
+              )
+            : null,
 
           h(
             Text,

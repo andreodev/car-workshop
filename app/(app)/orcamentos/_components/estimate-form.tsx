@@ -189,6 +189,54 @@ function getCommissionBaseValue(item: EstimateItemFormValues, lineTotal: number)
   return item.type === "SERVICE" ? lineTotal : 0;
 }
 
+function getEstimateItemValidationError(
+  item: EstimateItemFormValues,
+  index: number,
+) {
+  const itemLabel = `Item ${index + 1}`;
+  const quantity = normalizeAmount(item.quantity);
+  const unitPrice = normalizeAmount(item.unitPrice);
+  const discountPercent = normalizeAmount(item.discount);
+  const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+  const lineTotal = Math.max(quantity * unitPrice - discount, 0);
+  const commissionBase = getCommissionBaseValue(item, lineTotal);
+  const isService = item.type === "SERVICE";
+
+  if (!item.description.trim()) {
+    return `${itemLabel}: informe a descrição.`;
+  }
+
+  if (isService && !item.mechanicId) {
+    return `${itemLabel}: selecione o mecânico.`;
+  }
+
+  if (isService && !item.sectorId) {
+    return `${itemLabel}: selecione o setor.`;
+  }
+
+  if (quantity <= 0) {
+    return `${itemLabel}: informe uma quantidade maior que zero.`;
+  }
+
+  if (unitPrice <= 0) {
+    return `${itemLabel}: informe um valor unitário maior que zero.`;
+  }
+
+  if (discountPercent < 0 || discountPercent > 100) {
+    return `${itemLabel}: desconto deve ficar entre 0% e 100%.`;
+  }
+
+  if (isService && commissionBase < 0) {
+    return `${itemLabel}: base de comissão não pode ser negativa.`;
+  }
+
+  if (isService && commissionBase > lineTotal) {
+    return `${itemLabel}: base de comissão não pode ser maior que o total do item.`;
+  }
+
+  return null;
+}
+
 function getVehicleLabel(
   vehicle?: {
     plate: string;
@@ -262,9 +310,18 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     staleTime: 60_000,
   });
 
-  const catalogItems = catalogItemsQuery.data?.items ?? [];
-  const mechanics = mechanicsQuery.data?.items ?? [];
-  const sectors = sectorsQuery.data?.items ?? [];
+  const catalogItems = useMemo(
+    () => catalogItemsQuery.data?.items ?? [],
+    [catalogItemsQuery.data],
+  );
+  const mechanics = useMemo(
+    () => mechanicsQuery.data?.items ?? [],
+    [mechanicsQuery.data],
+  );
+  const sectors = useMemo(
+    () => sectorsQuery.data?.items ?? [],
+    [sectorsQuery.data],
+  );
 
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
@@ -491,31 +548,12 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       return;
     }
 
-    const invalidItem = form.items.find((item) => {
-      const quantity = normalizeAmount(item.quantity);
-      const unitPrice = normalizeAmount(item.unitPrice);
-      const discountPercent = normalizeAmount(item.discount);
-      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
-      const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-      const commissionBase = getCommissionBaseValue(item, lineTotal);
-      const isService = item.type === "SERVICE";
+    const itemError = form.items
+      .map((item, index) => getEstimateItemValidationError(item, index))
+      .find(Boolean);
 
-      return (
-        !item.description.trim() ||
-        (isService && !item.mechanicId) ||
-        (isService && !item.sectorId) ||
-        quantity <= 0 ||
-        unitPrice <= 0 ||
-        discountPercent < 0 ||
-        discountPercent > 100 ||
-        (isService && (commissionBase < 0 || commissionBase > lineTotal))
-      );
-    });
-
-    if (invalidItem) {
-      setLocalError(
-        "Preencha os campos obrigatórios do item conforme o tipo selecionado.",
-      );
+    if (itemError) {
+      setLocalError(itemError);
       return;
     }
 
