@@ -173,7 +173,12 @@ async function handleDailyReportEmail(request: NextRequest) {
     date: report.dateKey,
     recipients,
     performance: performance.status,
-    balance: report.cash.balance,
+    cash: {
+      entries: report.cash.entries,
+      exits: report.cash.exits,
+      balance: report.cash.balance,
+      movementCount: report.cash.movementCount,
+    },
     test: isTestSend,
     resend: resendResult,
   });
