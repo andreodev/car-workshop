@@ -287,6 +287,7 @@ type ServiceOrderFormProps = {
 type QuickCatalogDialogState = {
   mode: "create" | "stock";
   itemId: string;
+  itemType?: ServiceOrderItemFormValues["type"];
   catalogItemId?: string;
 } | null;
 
@@ -394,35 +395,56 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const quickCatalogMutation = useMutation({
     mutationFn: async () => {
       if (!quickCatalogDialog) {
-        throw new Error("Ação de produto inválida.");
+        throw new Error("Ação de catálogo inválida.");
       }
 
       const quantity = normalizeAmount(quickCatalogForm.quantity);
 
-      if (quantity <= 0) {
+      if (quickCatalogDialog.mode === "stock" && quantity <= 0) {
         throw new Error("Informe uma quantidade maior que zero.");
       }
 
       if (quickCatalogDialog.mode === "create") {
         const name = quickCatalogForm.name.trim();
         const unitPrice = normalizeAmount(quickCatalogForm.unitPrice);
+        const itemType = quickCatalogDialog.itemType ?? "PRODUCT";
+        const catalogType = itemType === "SERVICE" ? "SERVICO" : "PRODUTO";
+
+        if (itemType === "PRODUCT" && quantity <= 0) {
+          throw new Error("Informe uma quantidade maior que zero.");
+        }
 
         if (!name) {
-          throw new Error("Informe o nome do produto.");
+          throw new Error(
+            itemType === "SERVICE"
+              ? "Informe o nome do serviço."
+              : "Informe o nome do produto."
+          );
         }
 
         if (unitPrice <= 0) {
-          throw new Error("Informe o valor unitário do produto.");
+          throw new Error(
+            itemType === "SERVICE"
+              ? "Informe o valor unitário do serviço."
+              : "Informe o valor unitário do produto."
+          );
         }
 
         return createCatalogItem({
           name,
-          type: "PRODUTO",
+          type: catalogType,
           unitPrice,
           salePrice: String(unitPrice),
-          stockCurrent: String(quantity),
-          stockMinimum: String(normalizeAmount(quickCatalogForm.stockMinimum)),
+          stockCurrent: itemType === "PRODUCT" ? String(Math.max(quantity, 0)) : "",
+          stockMinimum:
+            itemType === "PRODUCT"
+              ? String(normalizeAmount(quickCatalogForm.stockMinimum))
+              : "",
           unit: quickCatalogForm.unit.trim() || "UN",
+          sectorId:
+            itemType === "SERVICE"
+              ? form.items.find((item) => item.id === quickCatalogDialog.itemId)?.sectorId ?? ""
+              : "",
           active: true,
         });
       }
@@ -447,36 +469,23 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
         queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] }),
       ]);
 
-      if (quickCatalogDialog?.mode === "create") {
+      if (quickCatalogDialog?.mode === "create" || quickCatalogDialog?.mode === "stock") {
+        const itemType = catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE";
         setForm((prev) => ({
           ...prev,
           items: prev.items.map((item) =>
             item.id === quickCatalogDialog.itemId
               ? {
                   ...item,
-                  type: "PRODUCT",
+                  type: itemType,
                   catalogItemId: catalogItem.id,
                   description: catalogItem.name,
                   unitPrice: formatAmountInput(catalogItem.unitPrice),
                   sectorId: catalogItem.sectorId ?? item.sectorId,
-                }
-              : item
-          ),
-        }));
-      }
-
-      if (quickCatalogDialog?.mode === "stock") {
-        setForm((prev) => ({
-          ...prev,
-          items: prev.items.map((item) =>
-            item.id === quickCatalogDialog.itemId
-              ? {
-                  ...item,
-                  type: "PRODUCT",
-                  catalogItemId: catalogItem.id,
-                  description: catalogItem.name,
-                  unitPrice: formatAmountInput(catalogItem.unitPrice),
-                  sectorId: catalogItem.sectorId ?? item.sectorId,
+                  mechanicId:
+                    itemType === "SERVICE"
+                      ? item.mechanicId || form.mechanicId
+                      : item.mechanicId,
                 }
               : item
           ),
@@ -486,7 +495,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       toast({
         title:
           quickCatalogDialog?.mode === "create"
-            ? "Produto cadastrado"
+            ? catalogItem.type === "SERVICO"
+              ? "Serviço cadastrado"
+              : "Produto cadastrado"
             : "Estoque atualizado",
         description: "O catálogo foi atualizado sem sair da OS.",
         variant: "success",
@@ -651,14 +662,15 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     }));
   }
 
-  function openQuickProductCreate(itemId: string) {
+  function openQuickCatalogCreate(itemId: string) {
     const formItem = form.items.find((item) => item.id === itemId);
+    const itemType = formItem?.type ?? "PRODUCT";
 
-    setQuickCatalogDialog({ mode: "create", itemId });
+    setQuickCatalogDialog({ mode: "create", itemId, itemType });
     setQuickCatalogForm({
       ...emptyQuickCatalogForm,
       name: formItem?.description.trim() ?? "",
-      quantity: formItem?.quantity || "1",
+      quantity: itemType === "PRODUCT" ? formItem?.quantity || "1" : "0",
       unitPrice: formItem?.unitPrice || "0",
     });
   }
@@ -789,6 +801,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const quickDialogCatalogItem = quickDialogCatalogItemId
     ? catalogItems.find((item) => item.id === quickDialogCatalogItemId)
     : undefined;
+  const quickDialogItemType =
+    quickCatalogDialog?.itemType ?? quickDialogItem?.type ?? "PRODUCT";
   const productCatalogItems = catalogItems.filter((item) => item.type === "PRODUTO");
   const isQuickCatalogSaving = quickCatalogMutation.isPending;
 
@@ -1125,28 +1139,30 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         ))}
                                       </SelectContent>
                                     </Select>
-                                    {item.type === "PRODUCT" ? (
-                                      <div className="flex flex-col gap-2 pt-1">
-                                        {selectedCatalogItem ? (
-                                          <span
-                                            className={
-                                              hasInsufficientStock
-                                                ? "text-xs font-medium text-destructive"
-                                                : "text-xs text-muted-foreground"
-                                            }
-                                          >
-                                            Estoque: {selectedStock}. Solicitado: {quantity || 0}.
-                                          </span>
-                                        ) : null}
-                                        <div className="flex flex-wrap gap-2">
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="h-8"
-                                            onClick={() => openQuickProductCreate(item.id)}
-                                          >
-                                            Cadastrar produto
-                                          </Button>
+                                    <div className="flex flex-col gap-2 pt-1">
+                                      {item.type === "PRODUCT" && selectedCatalogItem ? (
+                                        <span
+                                          className={
+                                            hasInsufficientStock
+                                              ? "text-xs font-medium text-destructive"
+                                              : "text-xs text-muted-foreground"
+                                          }
+                                        >
+                                          Estoque: {selectedStock}. Solicitado: {quantity || 0}.
+                                        </span>
+                                      ) : null}
+                                      <div className="flex flex-wrap gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="h-8"
+                                          onClick={() => openQuickCatalogCreate(item.id)}
+                                        >
+                                          {item.type === "PRODUCT"
+                                            ? "Cadastrar produto"
+                                            : "Cadastrar serviço"}
+                                        </Button>
+                                        {item.type === "PRODUCT" ? (
                                           <Button
                                             type="button"
                                             variant={hasInsufficientStock ? "secondary" : "outline"}
@@ -1157,9 +1173,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           >
                                             Adicionar estoque
                                           </Button>
-                                        </div>
+                                        ) : null}
                                       </div>
-                                    ) : null}
+                                    </div>
                                   </div>
 
                                   {item.type === "SERVICE" ? (
@@ -1451,12 +1467,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           <DialogHeader>
             <DialogTitle>
               {quickCatalogDialog?.mode === "create"
-                ? "Cadastrar produto"
+                ? quickDialogItemType === "SERVICE"
+                  ? "Cadastrar serviço"
+                  : "Cadastrar produto"
                 : "Adicionar estoque"}
             </DialogTitle>
             <DialogDescription>
               {quickCatalogDialog?.mode === "create"
-                ? "Crie o produto e selecione-o automaticamente nesta OS."
+                ? quickDialogItemType === "SERVICE"
+                  ? "Crie o serviço e selecione-o automaticamente nesta OS."
+                  : "Crie o produto e selecione-o automaticamente nesta OS."
                 : "Selecione um produto existente e informe a quantidade que entrou no estoque."}
             </DialogDescription>
           </DialogHeader>
@@ -1471,7 +1491,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
             {quickCatalogDialog?.mode === "create" ? (
               <>
                 <div className="grid gap-2">
-                  <Label>Nome do produto</Label>
+                  <Label>
+                    {quickDialogItemType === "SERVICE" ? "Nome do serviço" : "Nome do produto"}
+                  </Label>
                   <Input
                     value={quickCatalogForm.name}
                     onChange={(event) =>
@@ -1483,20 +1505,28 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     autoFocus
                   />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="grid gap-2">
-                    <Label>Estoque inicial</Label>
-                    <Input
-                      inputMode="decimal"
-                      value={quickCatalogForm.quantity}
-                      onChange={(event) =>
-                        setQuickCatalogForm((prev) => ({
-                          ...prev,
-                          quantity: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
+                <div
+                  className={
+                    quickDialogItemType === "PRODUCT"
+                      ? "grid gap-3 sm:grid-cols-3"
+                      : "grid gap-3 sm:grid-cols-2"
+                  }
+                >
+                  {quickDialogItemType === "PRODUCT" ? (
+                    <div className="grid gap-2">
+                      <Label>Estoque inicial</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={quickCatalogForm.quantity}
+                        onChange={(event) =>
+                          setQuickCatalogForm((prev) => ({
+                            ...prev,
+                            quantity: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
                   <div className="grid gap-2">
                     <Label>Valor unitário</Label>
                     <Input
@@ -1523,19 +1553,21 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                     />
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label>Estoque mínimo</Label>
-                  <Input
-                    inputMode="decimal"
-                    value={quickCatalogForm.stockMinimum}
-                    onChange={(event) =>
-                      setQuickCatalogForm((prev) => ({
-                        ...prev,
-                        stockMinimum: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
+                {quickDialogItemType === "PRODUCT" ? (
+                  <div className="grid gap-2">
+                    <Label>Estoque mínimo</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={quickCatalogForm.stockMinimum}
+                      onChange={(event) =>
+                        setQuickCatalogForm((prev) => ({
+                          ...prev,
+                          stockMinimum: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                ) : null}
               </>
             ) : (
               <>
@@ -1628,7 +1660,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                 {isQuickCatalogSaving
                   ? "Salvando..."
                   : quickCatalogDialog?.mode === "create"
-                    ? "Cadastrar e usar"
+                    ? quickDialogItemType === "SERVICE"
+                      ? "Cadastrar serviço"
+                      : "Cadastrar produto"
                     : "Adicionar estoque"}
               </Button>
             </DialogFooter>
