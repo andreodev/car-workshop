@@ -11,7 +11,7 @@ import { fetchMechanics } from "../../mecanicos/mechanic-api";
 import {
   addCatalogItemStock,
   createCatalogItem,
-  fetchCatalogItems,
+  fetchAllCatalogItems,
   fetchSectors,
 } from "@/modules/pdv/api/pdv.service";
 import type { CatalogItem, CatalogItemListResponse } from "@/modules/pdv/types/pdv.types";
@@ -23,6 +23,7 @@ import {
   serviceOrderFormSteps,
   type ServiceOrderFormStepValue,
 } from "./service-order-form-stepper";
+import { CatalogItemCombobox } from "../../_components/catalog-item-combobox";
 import type {
   ServiceOrder,
   ServiceOrderFormValues,
@@ -342,7 +343,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
   const catalogItemsQuery = useQuery({
     queryKey: ["service-order-catalog-items"],
-    queryFn: () => fetchCatalogItems({ page: 1, pageSize: 100 }),
+    queryFn: () => fetchAllCatalogItems(),
     staleTime: 60_000,
   });
 
@@ -1021,11 +1022,6 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           );
                           const lineTotal = Math.max(quantity * unitPrice - discount, 0);
                           const commissionBase = getCommissionBaseValue(item, lineTotal);
-                          const availableCatalogItems = catalogItems.filter((catalogItem) =>
-                            item.type === "PRODUCT"
-                              ? catalogItem.type === "PRODUTO"
-                              : catalogItem.type === "SERVICO"
-                          );
                           const selectedCatalogItem = catalogItems.find(
                             (catalogItem) => catalogItem.id === item.catalogItemId
                           );
@@ -1105,40 +1101,18 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
                                   <div className="grid gap-2">
                                     <Label>Catálogo</Label>
-                                    <Select
-                                      value={item.catalogItemId || "MANUAL"}
-                                      onValueChange={(value) =>
-                                        updateItemCatalog(
-                                          item.id,
-                                          value === "MANUAL" ? "" : value
-                                        )
+                                    <CatalogItemCombobox
+                                      items={catalogItems}
+                                      value={item.catalogItemId}
+                                      type={item.type}
+                                      loading={catalogItemsQuery.isLoading}
+                                      manualLabel={
+                                        item.type === "PRODUCT" ? "Selecione produto" : "Manual"
                                       }
-                                    >
-                                      <SelectTrigger className="h-11 w-full">
-                                        <SelectValue
-                                          placeholder={
-                                            catalogItemsQuery.isLoading
-                                              ? "Carregando..."
-                                              : "Manual"
-                                          }
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="MANUAL">
-                                          {item.type === "PRODUCT"
-                                            ? "Selecione produto"
-                                            : "Manual"}
-                                        </SelectItem>
-                                        {availableCatalogItems.map((catalogItem) => (
-                                          <SelectItem
-                                            key={catalogItem.id}
-                                            value={catalogItem.id}
-                                          >
-                                            #{catalogItem.code} {catalogItem.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                      onChange={(value) =>
+                                        updateItemCatalog(item.id, value)
+                                      }
+                                    />
                                     <div className="flex flex-col gap-2 pt-1">
                                       {item.type === "PRODUCT" && selectedCatalogItem ? (
                                         <span

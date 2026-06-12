@@ -18,10 +18,11 @@ import Modal from "react-modal";
 
 import { fetchClients } from "@/modules/client/api/client.service";
 import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
+import { fetchAllCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { createEstimate, updateEstimate } from "../estimate-api";
 import { estimateStatusOptions } from "../status";
+import { CatalogItemCombobox } from "../../_components/catalog-item-combobox";
 import type {
   Estimate,
   EstimateFormValues,
@@ -48,8 +49,6 @@ import {
   formatAmountInput,
   maskEstimateItemField,
 } from "../estimate-input-masks";
-
-const noSelection = "__none__";
 
 function createEmptyItem(): EstimateItemFormValues {
   return {
@@ -306,7 +305,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
 
   const catalogItemsQuery = useQuery({
     queryKey: ["estimate-catalog-items"],
-    queryFn: () => fetchCatalogItems({ page: 1, pageSize: 100 }),
+    queryFn: () => fetchAllCatalogItems(),
     staleTime: 60_000,
   });
 
@@ -869,13 +868,6 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           );
           const commissionBase = getCommissionBaseValue(item, lineTotal);
 
-          const availableCatalogItems = catalogItems.filter(
-            (catalogItem) =>
-              item.type === "PRODUCT"
-                ? catalogItem.type === "PRODUTO"
-                : catalogItem.type === "SERVICO",
-          );
-
           return (
             <details
               key={item.id}
@@ -954,41 +946,15 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                   <div className="grid gap-2">
                     <Label>Catálogo opcional</Label>
 
-                    <Select
-                      value={item.catalogItemId || noSelection}
-                      onValueChange={(value) =>
-                        updateItemCatalog(
-                          item.id,
-                          value === noSelection ? "" : value,
-                        )
-                      }
-                    >
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue
-                          placeholder={
-                            catalogItemsQuery.isLoading
-                              ? "Carregando..."
-                              : "Selecione"
-                          }
-                        />
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        <SelectItem value={noSelection}>
-                          Sem vínculo com catálogo
-                        </SelectItem>
-
-                        {availableCatalogItems.map((catalogItem) => (
-                          <SelectItem
-                            key={catalogItem.id}
-                            value={catalogItem.id}
-                          >
-                            #{catalogItem.code}{" "}
-                            {catalogItem.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <CatalogItemCombobox
+                      items={catalogItems}
+                      value={item.catalogItemId}
+                      type={item.type}
+                      loading={catalogItemsQuery.isLoading}
+                      placeholder="Selecione"
+                      manualLabel="Sem vínculo com catálogo"
+                      onChange={(value) => updateItemCatalog(item.id, value)}
+                    />
                   </div>
 
                   {item.type === "SERVICE" ? (

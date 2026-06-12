@@ -143,6 +143,32 @@ export async function fetchCatalogItems(params: CatalogItemsParams) {
   return parseResponse<CatalogItemListResponse>(response);
 }
 
+export async function fetchAllCatalogItems(params: Omit<CatalogItemsParams, "page" | "pageSize"> = {}) {
+  const pageSize = 50;
+  const firstPage = await fetchCatalogItems({ ...params, page: 1, pageSize });
+  const totalPages = Math.max(1, Math.ceil(firstPage.total / firstPage.pageSize));
+
+  if (totalPages === 1) {
+    return firstPage;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      fetchCatalogItems({ ...params, page: index + 2, pageSize })
+    )
+  );
+
+  return {
+    ...firstPage,
+    items: [
+      ...firstPage.items,
+      ...remainingPages.flatMap((page) => page.items),
+    ],
+    page: 1,
+    pageSize: firstPage.pageSize,
+  };
+}
+
 export async function createCatalogItem(
   payload: Partial<Omit<CatalogItemFormValues, "name" | "type" | "unitPrice">> & {
     name: string;
@@ -335,6 +361,7 @@ export async function payServiceOrderPdv({
 
 export const pdvService = {
   listCatalogItems: fetchCatalogItems,
+  listAllCatalogItems: fetchAllCatalogItems,
   createCatalogItem,
   findCatalogItemById: fetchCatalogItem,
   updateCatalogItem,
