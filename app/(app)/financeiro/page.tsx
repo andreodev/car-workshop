@@ -145,6 +145,8 @@ type StatementRow = {
   status: ReactNode;
   notes: string;
   actions: ReactNode;
+  sortDate: string | null;
+  sortUpdatedAt: string | null;
   account?: FinancialAccount;
   movement?: CashMovement;
   categoryRecord?: FinancialCategory;
@@ -607,6 +609,8 @@ export default function FinancialPage() {
           : account.supplierOrder
             ? `Pedido #${account.supplierOrder.code}`
             : account.documentNumber || account.notes || "-",
+        sortDate: getAccountStatementDate(account),
+        sortUpdatedAt: account.updatedAt ?? account.createdAt,
         actions: (
           <div className="flex justify-end gap-1">
             <Button
@@ -674,6 +678,8 @@ export default function FinancialPage() {
           : movement.financialAccount
             ? `Conta #${movement.financialAccount.code}`
             : movement.documentNumber || movement.notes || "-",
+        sortDate: movement.movementDate,
+        sortUpdatedAt: movement.updatedAt ?? movement.createdAt,
         actions: (
           <div className="flex justify-end gap-1">
             <Button
@@ -739,6 +745,8 @@ export default function FinancialPage() {
           </Badge>
         ),
         notes: category.notes ?? "-",
+        sortDate: category.updatedAt ?? category.createdAt,
+        sortUpdatedAt: category.updatedAt ?? category.createdAt,
         actions: (
           <div className="flex justify-end gap-1">
             <Button
@@ -817,10 +825,24 @@ export default function FinancialPage() {
           .includes(search);
       })
       .sort((a, b) => {
-        const dateA = a.date ? new Date(a.date).getTime() : 0;
-        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        const dateA = a.sortDate ? new Date(a.sortDate).getTime() : 0;
+        const dateB = b.sortDate ? new Date(b.sortDate).getTime() : 0;
 
-        return dateB - dateA;
+        if (dateA !== dateB) {
+          return dateB - dateA;
+        }
+
+        const updatedA = a.sortUpdatedAt ? new Date(a.sortUpdatedAt).getTime() : 0;
+        const updatedB = b.sortUpdatedAt ? new Date(b.sortUpdatedAt).getTime() : 0;
+
+        if (updatedA !== updatedB) {
+          return updatedB - updatedA;
+        }
+
+        const codeA = Number(a.code);
+        const codeB = Number(b.code);
+
+        return (Number.isFinite(codeB) ? codeB : 0) - (Number.isFinite(codeA) ? codeA : 0);
       });
   }, [
     accountsQuery.data,
