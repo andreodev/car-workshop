@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 
 import { deleteCatalogItem, fetchCatalogItems } from "@/modules/pdv/api/pdv.service";
 import type { CatalogItemType } from "@/modules/pdv/types/pdv.types";
+import { formatStock } from "@/modules/pdv/utils/pdv-sale-utils";
 import Header from "@/components/ui/header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -172,7 +173,7 @@ export default function ProductsPage() {
 
         {data && data.items.length > 0 ? (
           <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            <Table className="min-w-[760px]">
+            <Table className="min-w-[840px]">
               <TableHeader>
                 <TableRow className="bg-muted/60 hover:bg-muted/60">
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
@@ -186,6 +187,9 @@ export default function ProductsPage() {
                   </TableHead>
                   <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     SKU
+                  </TableHead>
+                  <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
+                    Estoque
                   </TableHead>
                   <TableHead className="text-right font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                     Valor
@@ -210,6 +214,9 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {item.sku ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-foreground">
+                      {item.type === "PRODUTO" ? formatStock(item.stockCurrent) ?? "0" : "-"}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.unitPrice)}
