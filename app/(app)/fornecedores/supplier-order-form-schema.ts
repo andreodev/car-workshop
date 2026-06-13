@@ -19,7 +19,7 @@ const dateField = z
   .string({ error: "Previsão inválida." })
   .transform((value) => value.trim())
   .refine((value) => value.length > 0, { message: "Previsão é obrigatória." })
-  .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime()), {
+  .refine((value) => !Number.isNaN(new Date(`${value}T12:00:00.000Z`).getTime()), {
     message: "Informe uma previsão válida.",
   });
 
@@ -54,7 +54,7 @@ export function toNullableString(value: string) {
 }
 
 export function toDateAtNoon(value: string) {
-  return new Date(`${value}T12:00:00`);
+  return new Date(`${value}T12:00:00.000Z`);
 }
 
 export function toMoney(value: string) {

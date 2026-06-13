@@ -83,6 +83,8 @@ function toInputDate(value: string | null) {
   if (!value) {
     return "";
   }
+  const isoDate = value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (isoDate) return isoDate;
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -90,6 +92,19 @@ function toInputDate(value: string | null) {
   }
 
   return date.toLocaleDateString("en-CA");
+}
+
+function dateInputToUtcEndOfDay(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return new Date(value).toISOString();
+  }
+
+  const [, year, month, day] = match;
+  return new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999)
+  ).toISOString();
 }
 
 function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
@@ -561,7 +576,7 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       vehicleId: form.vehicleId,
       responsible: responsibleValue.trim(),
       validUntil: form.validUntil
-        ? new Date(`${form.validUntil}T23:59:59`).toISOString()
+        ? dateInputToUtcEndOfDay(form.validUntil)
         : null,
       status: form.status,
       type: form.type.trim() || "SIMPLES",

@@ -356,6 +356,14 @@ function formatCurrency(value: unknown) {
 
 function formatDate(value: Date | string | null) {
   if (!value) return "-";
+  if (typeof value === "string") {
+    const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/)?.slice(1);
+
+    if (isoDate) {
+      const [year, month, day] = isoDate;
+      return `${day}/${month}/${year}`;
+    }
+  }
 
   const date = value instanceof Date ? value : new Date(value);
 

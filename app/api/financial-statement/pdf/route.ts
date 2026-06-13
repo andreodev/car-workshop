@@ -313,14 +313,14 @@ function normalizeString(value: string | null) {
 function normalizeDateStart(value: string | null) {
   const normalized = normalizeString(value);
   if (!normalized) return null;
-  const date = new Date(`${normalized}T00:00:00`);
+  const date = new Date(`${normalized}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function normalizeDateEnd(value: string | null) {
   const normalized = normalizeString(value);
   if (!normalized) return null;
-  const date = new Date(`${normalized}T23:59:59.999`);
+  const date = new Date(`${normalized}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 

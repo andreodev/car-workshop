@@ -110,6 +110,12 @@ function formatDate(value: string | null) {
   if (!value) {
     return "-";
   }
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/)?.slice(1);
+
+  if (isoDate) {
+    const [year, month, day] = isoDate;
+    return `${day}/${month}/${year}`;
+  }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

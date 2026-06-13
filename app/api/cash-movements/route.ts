@@ -87,7 +87,7 @@ function normalizeDateStart(value: string | null) {
     return null;
   }
 
-  const date = new Date(`${normalized}T00:00:00`);
+  const date = new Date(`${normalized}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -97,7 +97,7 @@ function normalizeDateEnd(value: string | null) {
     return null;
   }
 
-  const date = new Date(`${normalized}T23:59:59.999`);
+  const date = new Date(`${normalized}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
