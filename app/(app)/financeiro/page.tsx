@@ -483,6 +483,7 @@ export default function FinancialPage() {
     cashTotals.entries > 0 ? (cashTotals.balance / cashTotals.entries) * 100 : 0;
   const openBalance = openAccountTotals.receivableOpen - openAccountTotals.payableOpen;
   const projectedBalance = cashTotals.balance + openBalance;
+  const walletBalance = accountTotals.received - accountTotals.paid;
   const cashChartData = [
     {
       name: "Entradas",
@@ -1197,8 +1198,8 @@ export default function FinancialPage() {
               value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
                 accountTotals.paid
               )}`}
-              detail="Recebidas / pagas no período"
-              tone="text-foreground"
+              detail={`Saldo carteira: ${formatCurrency(walletBalance)}`}
+              tone={walletBalance < 0 ? "text-rose-700" : "text-foreground"}
             />
           </div>
         </div>
