@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     paddingBottom: 12,
     paddingLeft: 12,
-    fontSize: 9,
+    fontSize: 8.2,
     fontFamily: "Helvetica",
     backgroundColor: colors.page,
     color: colors.primary,
@@ -40,8 +40,8 @@ const styles = StyleSheet.create({
   topBar: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 10,
-    marginBottom: 7,
+    padding: 8,
+    marginBottom: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   },
 
   receiptLabel: {
-    fontSize: 7,
+    fontSize: 6.5,
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.secondary,
@@ -79,23 +79,23 @@ const styles = StyleSheet.create({
   },
 
   companyName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 700,
     color: colors.primary,
     marginBottom: 2,
   },
 
   companyInfo: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: colors.secondary,
-    lineHeight: 1.25,
+    lineHeight: 1.18,
   },
 
   receiptBox: {
     width: 150,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 9,
+    padding: 8,
   },
 
   receiptNumber: {
@@ -120,23 +120,23 @@ const styles = StyleSheet.create({
   },
 
   receiptMeta: {
-    fontSize: 7,
+    fontSize: 6.5,
     color: colors.secondary,
-    lineHeight: 1.35,
+    lineHeight: 1.25,
   },
 
   paymentHighlight: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 9,
-    marginBottom: 7,
+    padding: 8,
+    marginBottom: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
 
   totalLabel: {
-    fontSize: 7,
+    fontSize: 6.5,
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.secondary,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
 
   totalValue: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.primary,
     fontWeight: 700,
   },
@@ -156,37 +156,37 @@ const styles = StyleSheet.create({
     color: colors.primary,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    fontSize: 7,
+    fontSize: 6.5,
     fontWeight: 700,
   },
 
   gridTwo: {
     flexDirection: "row",
-    gap: 7,
-    marginBottom: 7,
+    gap: 6,
+    marginBottom: 6,
   },
 
   card: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 9,
+    padding: 8,
   },
 
   sectionTitle: {
-    fontSize: 7,
+    fontSize: 6.5,
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.secondary,
-    marginBottom: 6,
+    marginBottom: 5,
     fontWeight: 700,
   },
 
   infoLine: {
-    marginBottom: 3,
+    marginBottom: 2,
     color: colors.secondary,
-    lineHeight: 1.25,
-    fontSize: 8,
+    lineHeight: 1.18,
+    fontSize: 7.2,
   },
 
   strong: {
@@ -197,11 +197,11 @@ const styles = StyleSheet.create({
   tableWrapper: {
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 7,
+    marginBottom: 6,
   },
 
   tableTitle: {
-    padding: 8,
+    padding: 6,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -210,12 +210,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
 
   tableHeaderText: {
-    fontSize: 7,
+    fontSize: 6.4,
     color: colors.primary,
     fontWeight: 700,
     textTransform: "uppercase",
@@ -225,26 +225,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.softBorder,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    paddingHorizontal: 6,
   },
 
   tableRowLast: {
     flexDirection: "row",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    paddingHorizontal: 6,
   },
 
   itemName: {
     fontWeight: 700,
     color: colors.primary,
-    marginBottom: 1,
-    fontSize: 8.5,
+    marginBottom: 0.5,
+    fontSize: 7.2,
   },
 
   itemSub: {
     color: colors.secondary,
-    fontSize: 7,
+    fontSize: 6,
   },
 
   cellItem: { flex: 3 },
@@ -260,20 +260,20 @@ const styles = StyleSheet.create({
   totalsWrapper: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginBottom: 7,
+    marginBottom: 6,
   },
 
   totalsSummary: {
     width: 220,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 9,
+    padding: 8,
   },
 
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 5,
+    marginBottom: 4,
   },
 
   totalRowFinal: {
@@ -281,29 +281,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 7,
+    paddingTop: 6,
     marginTop: 3,
   },
 
   totalRowLabel: {
     color: colors.secondary,
-    fontSize: 8,
+    fontSize: 7.2,
   },
 
   totalRowValue: {
     color: colors.primary,
     fontWeight: 700,
-    fontSize: 8,
+    fontSize: 7.2,
   },
 
   totalRowFinalLabel: {
-    fontSize: 9,
+    fontSize: 8,
     color: colors.primary,
     fontWeight: 700,
   },
 
   totalRowFinalValue: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.primary,
     fontWeight: 700,
   },
@@ -311,29 +311,29 @@ const styles = StyleSheet.create({
   paymentsWrapper: {
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 7,
+    marginBottom: 6,
   },
 
   paymentsHeader: {
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
 
   paymentRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: colors.softBorder,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
 
   paymentRowLast: {
     flexDirection: "row",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
 
   cellPaymentMethod: {
@@ -351,25 +351,25 @@ const styles = StyleSheet.create({
   },
 
   paymentMethodText: {
-    fontSize: 8,
+    fontSize: 7.2,
     color: colors.primary,
     fontWeight: 700,
   },
 
   paymentAmountText: {
-    fontSize: 8,
+    fontSize: 7.2,
     color: colors.primary,
     fontWeight: 700,
   },
 
   paymentFeeText: {
-    fontSize: 8,
+    fontSize: 7.2,
     color: colors.secondary,
   },
 
   signatureWrapper: {
-    marginTop: 16,
-    marginBottom: 10,
+    marginTop: 12,
+    marginBottom: 8,
     flexDirection: "row",
     justifyContent: "center",
   },
@@ -387,17 +387,17 @@ const styles = StyleSheet.create({
   },
 
   signatureText: {
-    fontSize: 8,
+    fontSize: 7,
     color: colors.secondary,
   },
 
   footer: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 8,
-    fontSize: 7.5,
+    padding: 7,
+    fontSize: 6.8,
     color: colors.secondary,
-    lineHeight: 1.3,
+    lineHeight: 1.2,
   },
 });
 
