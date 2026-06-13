@@ -50,6 +50,8 @@ const brands = [
   { value: "fiat", label: "Fiat" },
   { value: "citroen", label: "Citroën" },
   { value: "mercedes", label: "Mercedes" },
+  { value: "audi", label: "Audi" },
+  { value: "mitsubishi", label: "Mitsubishi" },
 ];
 
 export function VehicleForm({ mode, initialData }: VehicleFormProps) {

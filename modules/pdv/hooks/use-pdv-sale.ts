@@ -51,6 +51,8 @@ type PaymentLine = {
   installments: number;
 };
 
+type ServiceOrderDiscountMode = "PERCENT" | "AMOUNT";
+
 type ServiceOrderCommissionPreview = {
   baseTotal: number;
   itemsCount: number;
@@ -141,6 +143,30 @@ function calculateDiscountPercent(
   }
 
   return Number(((discountValue / subtotal) * 100).toFixed(2));
+}
+
+function calculateServiceOrderDiscountAmount(
+  saleTotal: number,
+  mode: ServiceOrderDiscountMode,
+  value: string,
+) {
+  if (saleTotal <= 0) {
+    return 0;
+  }
+
+  if (mode === "AMOUNT") {
+    return Math.min(
+      Math.max(toCurrencyNumber(parseDecimal(value)), 0),
+      saleTotal
+    );
+  }
+
+  const discountPercentValue = Math.min(
+    Math.max(toCurrencyNumber(parseDecimal(value)), 0),
+    100
+  );
+
+  return toCurrencyNumber(saleTotal * (discountPercentValue / 100));
 }
 
 function getTotalsAmount(totals: unknown) {
@@ -277,7 +303,9 @@ export function usePdvSale({
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [discountPercent, setDiscountPercent] = useState("0");
-  const [serviceOrderDiscountPercent, setServiceOrderDiscountPercent] =
+  const [serviceOrderDiscountMode, setServiceOrderDiscountModeState] =
+    useState<ServiceOrderDiscountMode>("PERCENT");
+  const [serviceOrderDiscountValue, setServiceOrderDiscountValue] =
     useState("0");
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -382,7 +410,8 @@ export function usePdvSale({
     setQuantity("1");
     setUnitPrice("");
     setDiscountPercent("0");
-    setServiceOrderDiscountPercent("0");
+    setServiceOrderDiscountModeState("PERCENT");
+    setServiceOrderDiscountValue("0");
     setServiceOrderCommissionPreview(null);
     setPaymentMethodState("DINHEIRO");
     setPaymentLines([createPaymentLine("DINHEIRO")]);
@@ -482,13 +511,17 @@ export function usePdvSale({
       return 0;
     }
 
-    const discountPercentValue = Math.min(
-      Math.max(toCurrencyNumber(parseDecimal(serviceOrderDiscountPercent)), 0),
-      100
+    return calculateServiceOrderDiscountAmount(
+      saleTotal,
+      serviceOrderDiscountMode,
+      serviceOrderDiscountValue
     );
-
-    return toCurrencyNumber(saleTotal * (discountPercentValue / 100));
-  }, [isServiceOrderMode, saleTotal, serviceOrderDiscountPercent]);
+  }, [
+    isServiceOrderMode,
+    saleTotal,
+    serviceOrderDiscountMode,
+    serviceOrderDiscountValue,
+  ]);
 
   const paymentBaseTotal = useMemo(
     () =>
@@ -577,23 +610,25 @@ export function usePdvSale({
     setDiscountPercent(maskPercentInput(value));
   }, []);
 
-  const updateServiceOrderDiscountPercent = useCallback(
+  const updateServiceOrderDiscountValue = useCallback(
     (value: string) => {
-      const masked = maskPercentInput(value);
+      const masked =
+        serviceOrderDiscountMode === "AMOUNT"
+          ? maskCurrencyInput(value)
+          : maskPercentInput(value);
 
-      setServiceOrderDiscountPercent(masked);
+      setServiceOrderDiscountValue(masked);
 
       if (!isServiceOrderMode) {
         return;
       }
 
-      const discountPercentValue = Math.min(
-        Math.max(toCurrencyNumber(parseDecimal(masked)), 0),
-        100
+      const discountAmount = calculateServiceOrderDiscountAmount(
+        saleTotal,
+        serviceOrderDiscountMode,
+        masked
       );
-      const nextBaseTotal = toCurrencyNumber(
-        saleTotal - saleTotal * (discountPercentValue / 100)
-      );
+      const nextBaseTotal = toCurrencyNumber(saleTotal - discountAmount);
 
       setPaymentLines((current) => {
         if (current.length !== 1) {
@@ -604,12 +639,43 @@ export function usePdvSale({
           {
             ...current[0],
             amount:
-              nextBaseTotal > 0 ? maskCurrencyInput(toCentsInput(nextBaseTotal)) : "",
+              nextBaseTotal > 0
+                ? maskCurrencyInput(toCentsInput(nextBaseTotal))
+                : "",
           },
         ];
       });
     },
-    [isServiceOrderMode, saleTotal]
+    [isServiceOrderMode, saleTotal, serviceOrderDiscountMode]
+  );
+
+  const updateServiceOrderDiscountMode = useCallback(
+    (mode: ServiceOrderDiscountMode) => {
+      const currentDiscountAmount = calculateServiceOrderDiscountAmount(
+        saleTotal,
+        serviceOrderDiscountMode,
+        serviceOrderDiscountValue
+      );
+
+      setServiceOrderDiscountModeState(mode);
+
+      if (mode === "AMOUNT") {
+        setServiceOrderDiscountValue(
+          currentDiscountAmount > 0
+            ? maskCurrencyInput(toCentsInput(currentDiscountAmount))
+            : "0"
+        );
+        return;
+      }
+
+      const nextPercent =
+        saleTotal > 0
+          ? Number(((currentDiscountAmount / saleTotal) * 100).toFixed(2))
+          : 0;
+
+      setServiceOrderDiscountValue(maskPercentInput(String(nextPercent)));
+    },
+    [saleTotal, serviceOrderDiscountMode, serviceOrderDiscountValue]
   );
 
   const updatePaymentLine = useCallback(
@@ -770,7 +836,8 @@ export function usePdvSale({
         setQuantity("1");
         setUnitPrice("");
         setDiscountPercent("0");
-        setServiceOrderDiscountPercent("0");
+        setServiceOrderDiscountModeState("PERCENT");
+        setServiceOrderDiscountValue("0");
         setSuccessMessage(null);
         setLocalError(null);
       } catch (error) {
@@ -1269,7 +1336,8 @@ export function usePdvSale({
       saleTotal,
       selectedClient,
       selectedProduct,
-      serviceOrderDiscountPercent,
+      serviceOrderDiscountMode,
+      serviceOrderDiscountValue,
       serviceOrderCommissionPreview,
       serviceOrderPaymentDiscountAmount,
       serviceOrderLoading,
@@ -1300,7 +1368,8 @@ export function usePdvSale({
       setClientSearch,
       setDiscountPercent: updateDiscountPercent,
       setPaymentMethod,
-      setServiceOrderDiscountPercent: updateServiceOrderDiscountPercent,
+      setServiceOrderDiscountMode: updateServiceOrderDiscountMode,
+      setServiceOrderDiscountValue: updateServiceOrderDiscountValue,
       setPaymentLines,
       setPaymentDialogOpen,
       setProductHighlightIndex,

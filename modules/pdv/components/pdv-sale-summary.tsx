@@ -81,9 +81,20 @@ function calculatePaymentLineFee(payment: {
   return toCurrencyNumber(amount * (feePercent / 100));
 }
 
+function calculatePaymentLineTotal(payment: {
+  amount: string;
+  feePercent: string;
+}) {
+  return toCurrencyNumber(
+    parseDecimal(payment.amount) + calculatePaymentLineFee(payment)
+  );
+}
+
 export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
   const { refs, state, actions, mutations } = controller;
   const commissionPreview = state.serviceOrderCommissionPreview;
+  const hasPaymentDifference = Math.abs(state.paymentDifference) > 0.009;
+  const differenceLabel = state.paymentDifference > 0 ? "Falta" : "Sobra";
 
   const isSaving =
     mutations.saleMutation.isPending ||
@@ -282,125 +293,180 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
       open={state.paymentDialogOpen}
       onOpenChange={actions.setPaymentDialogOpen}
     >
-      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b border-border px-4 py-3 sm:px-5">
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-4">
-            {state.isServiceOrderMode ? (
+        <div className="grid max-h-[calc(100dvh-9.5rem)] gap-4 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="grid gap-3 sm:grid-cols-[1.3fr_1fr_1fr_1fr]">
               <div>
-                <p className="text-xs text-muted-foreground">Desconto</p>
-                <p className="text-sm font-semibold sm:text-lg">
-                  {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
+                <p className="text-xs font-medium uppercase text-muted-foreground">
+                  Total a receber
+                </p>
+                <p className="text-2xl font-semibold tracking-tight">
+                  {formatCurrency(state.expectedPaymentTotal)}
                 </p>
               </div>
-            ) : null}
 
-            <div>
-              <p className="text-xs text-muted-foreground">Total esperado</p>
-              <p className="text-sm font-semibold sm:text-lg">
-                {formatCurrency(state.expectedPaymentTotal)}
-              </p>
-            </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Cobrado</p>
+                <p className="text-base font-semibold">
+                  {formatCurrency(state.paymentTotal)}
+                </p>
+              </div>
 
-            <div>
-              <p className="text-xs text-muted-foreground">Total cobrado</p>
-              <p className="text-sm font-semibold sm:text-lg">
-                {formatCurrency(state.paymentTotal)}
-              </p>
-            </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Taxas</p>
+                <p className="text-base font-semibold">
+                  {formatCurrency(state.paymentFeeTotal)}
+                </p>
+              </div>
 
-            <div>
-              <p className="text-xs text-muted-foreground">Taxa</p>
-              <p className="text-sm font-semibold sm:text-lg">
-                {formatCurrency(state.paymentFeeTotal)}
-              </p>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {hasPaymentDifference ? differenceLabel : "Saldo"}
+                </p>
+                <p
+                  className={
+                    hasPaymentDifference
+                      ? "text-base font-semibold text-destructive"
+                      : "text-base font-semibold text-emerald-600"
+                  }
+                >
+                  {hasPaymentDifference
+                    ? formatCurrency(Math.abs(state.paymentDifference))
+                    : "Fechado"}
+                </p>
+              </div>
             </div>
           </div>
 
           {state.isServiceOrderMode ? (
-            <div className="grid gap-2 rounded-lg border border-border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-end">
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">
-                  Desconto antes do pagamento (%)
-                </p>
+            <div className="grid gap-3 rounded-lg border border-border bg-background p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="grid flex-1 gap-3 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Desconto
+                    </p>
 
-                <Input
-                  className="h-10"
-                  value={state.serviceOrderDiscountPercent}
-                  onChange={(event) =>
-                    actions.setServiceOrderDiscountPercent(event.target.value)
-                  }
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
+                    <Select
+                      value={state.serviceOrderDiscountMode}
+                      onValueChange={(value) =>
+                        actions.setServiceOrderDiscountMode(
+                          value as typeof state.serviceOrderDiscountMode
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="Tipo" />
+                      </SelectTrigger>
 
-              <p className="text-xs text-muted-foreground">
-                Valor do desconto:{" "}
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
-                </span>
-              </p>
-            </div>
-          ) : null}
+                      <SelectContent>
+                        <SelectItem value="PERCENT">Porcentagem</SelectItem>
+                        <SelectItem value="AMOUNT">Valor direto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          {state.isServiceOrderMode && commissionPreview ? (
-            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold text-foreground">
-                    Conferência de comissão
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {state.serviceOrderDiscountMode === "AMOUNT"
+                        ? "Valor em R$"
+                        : "Percentual"}
+                    </p>
 
-                  <p className="text-xs text-muted-foreground">
-                    {commissionPreview.itemsCount} item
-                    {commissionPreview.itemsCount === 1 ? "" : "s"} com base
-                    comissionável para {commissionPreview.mechanicsCount} mecânico
-                    {commissionPreview.mechanicsCount === 1 ? "" : "s"}.
-                  </p>
+                    <Input
+                      className="h-10"
+                      value={state.serviceOrderDiscountValue}
+                      onChange={(event) =>
+                        actions.setServiceOrderDiscountValue(event.target.value)
+                      }
+                      inputMode="decimal"
+                      placeholder={
+                        state.serviceOrderDiscountMode === "AMOUNT" ? "0,00" : "0"
+                      }
+                    />
+                  </div>
                 </div>
 
-                <span className="font-semibold">
-                  Base {formatCurrency(commissionPreview.baseTotal)}
-                </span>
+                <div className="rounded-md bg-muted/50 px-3 py-2 sm:min-w-40">
+                  <p className="text-xs text-muted-foreground">
+                    Desconto aplicado
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {formatCurrency(state.serviceOrderPaymentDiscountAmount)}
+                  </p>
+                </div>
               </div>
 
-              {commissionPreview.mechanicsCount === 0 ? (
-                <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
-                  Revise os itens da OS: sem mecânico vinculado, a comissão não será lançada.
-                </p>
+              {commissionPreview ? (
+                <div className="border-t border-border pt-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Comissão
+                      </p>
+
+                      <p className="text-xs text-muted-foreground">
+                        {commissionPreview.itemsCount} item
+                        {commissionPreview.itemsCount === 1 ? "" : "s"} com base
+                        para {commissionPreview.mechanicsCount} mecânico
+                        {commissionPreview.mechanicsCount === 1 ? "" : "s"}.
+                      </p>
+                    </div>
+
+                    <span className="text-sm font-semibold">
+                      Base {formatCurrency(commissionPreview.baseTotal)}
+                    </span>
+                  </div>
+
+                  {commissionPreview.mechanicsCount === 0 ? (
+                    <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                      Revise os itens da OS: sem mecânico vinculado, a comissão não será lançada.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
 
-          <div className="space-y-3">
+          <div className="grid gap-2">
             {state.paymentLines.map((payment, index) => (
               <div
                 key={payment.localId}
                 className="grid gap-3 rounded-lg border border-border bg-background p-3"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">
-                    Forma {index + 1}
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Forma {index + 1}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Total desta forma:{" "}
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(calculatePaymentLineTotal(payment))}
+                      </span>
+                    </p>
+                  </div>
 
                   <Button
                     type="button"
-                    size="icon"
+                    size="icon-sm"
                     variant="ghost"
                     onClick={() => actions.removePaymentLine(payment.localId)}
                     disabled={state.paymentLines.length <= 1}
+                    aria-label={`Remover forma ${index + 1}`}
                   >
                     <HugeiconsIcon icon={Delete02Icon} strokeWidth={2.5} />
                   </Button>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)]">
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Forma</p>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Forma</p>
 
                     <Select
                       value={payment.paymentMethod}
@@ -434,7 +500,9 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Valor base</p>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Valor base
+                    </p>
 
                     <Input
                       className="h-10"
@@ -452,7 +520,9 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                   </div>
 
                   <div>
-                    <p className="mb-1 text-xs text-muted-foreground">Taxa (%)</p>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Taxa (%)
+                    </p>
 
                     <Input
                       className="h-10"
@@ -469,7 +539,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
                     />
 
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Valor: {formatCurrency(calculatePaymentLineFee(payment))}
+                      {formatCurrency(calculatePaymentLineFee(payment))}
                     </p>
                   </div>
                 </div>
@@ -508,7 +578,12 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             ))}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Use mais de uma forma quando o cliente dividir o pagamento.
+            </p>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               type="button"
               variant="outline"
@@ -527,11 +602,12 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
             >
               Preencher com total
             </Button>
+            </div>
           </div>
 
-          {Math.abs(state.paymentDifference) > 0.009 && (
+          {hasPaymentDifference && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              Diferença de {formatCurrency(Math.abs(state.paymentDifference))}
+              {differenceLabel} {formatCurrency(Math.abs(state.paymentDifference))} para fechar o pagamento.
             </div>
           )}
 
@@ -545,11 +621,11 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
           ) : null}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="border-t border-border bg-popover px-4 py-3 sm:px-5">
           <Button
             type="button"
             variant="outline"
-            className="h-10"
+            className="h-10 sm:w-auto"
             onClick={() => actions.setPaymentDialogOpen(false)}
           >
             Cancelar
@@ -557,7 +633,7 @@ export function PdvSaleSummary({ controller }: PdvSaleSummaryProps) {
 
           <Button
             type="button"
-            className="h-10"
+            className="h-10 sm:w-auto"
             onClick={actions.saveSale}
             disabled={finishDisabled}
           >
