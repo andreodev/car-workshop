@@ -399,6 +399,16 @@ export default function FinancialPage() {
     placeholderData: keepPreviousData,
   });
 
+  const walletBalanceQuery = useQuery({
+    queryKey: ["cash-movements", "wallet-balance"],
+    queryFn: () =>
+      fetchCashMovements({
+        page: 1,
+        pageSize: 1,
+      }),
+    staleTime: 30_000,
+  });
+
   const openAccountsQuery = useQuery({
     queryKey: ["financial-open-summary"],
     queryFn: fetchFinancialOpenSummary,
@@ -455,6 +465,15 @@ export default function FinancialPage() {
     };
   }, [accountsQuery.data]);
 
+  const walletTotals = useMemo(() => {
+    const summary = walletBalanceQuery.data?.summary ?? [];
+
+    return {
+      entries: sumCash(summary, "ENTRADA"),
+      exits: sumCash(summary, "SAIDA"),
+    };
+  }, [walletBalanceQuery.data]);
+
   const openAccountTotals = useMemo(() => {
     const summary = openAccountsQuery.data;
 
@@ -483,7 +502,7 @@ export default function FinancialPage() {
     cashTotals.entries > 0 ? (cashTotals.balance / cashTotals.entries) * 100 : 0;
   const openBalance = openAccountTotals.receivableOpen - openAccountTotals.payableOpen;
   const projectedBalance = cashTotals.balance + openBalance;
-  const walletBalance = accountTotals.received - accountTotals.paid;
+  const walletBalance = walletTotals.entries - walletTotals.exits;
   const cashChartData = [
     {
       name: "Entradas",
@@ -1198,7 +1217,7 @@ export default function FinancialPage() {
               value={`${formatCurrency(accountTotals.received)} / ${formatCurrency(
                 accountTotals.paid
               )}`}
-              detail={`Saldo carteira: ${formatCurrency(walletBalance)}`}
+              detail={`Carteira atual: ${formatCurrency(walletBalance)}`}
               tone={walletBalance < 0 ? "text-rose-700" : "text-foreground"}
             />
           </div>
