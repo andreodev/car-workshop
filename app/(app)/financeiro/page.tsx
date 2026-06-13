@@ -300,6 +300,29 @@ function formatDate(value: string | null) {
   });
 }
 
+function formatTime(value: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return `${formatDate(value)} ${formatTime(value)}`;
+}
+
 function formatValue(value: string | null | undefined) {
   return value && value.trim() ? value : "-";
 }
@@ -1570,7 +1593,14 @@ export default function FinancialPage() {
 
                   <TableCell>{row.typeLabel}</TableCell>
                   <TableCell>{row.category}</TableCell>
-                  <TableCell>{formatDate(row.date)}</TableCell>
+                  <TableCell>
+                    <div>{formatDate(row.date)}</div>
+                    {row.sortUpdatedAt ? (
+                      <div className="text-xs text-muted-foreground">
+                        Salvo às {formatTime(row.sortUpdatedAt)}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>{row.paymentMethod}</TableCell>
 
                   <TableCell className="text-right font-semibold">
@@ -1889,8 +1919,8 @@ export default function FinancialPage() {
                     <span>{formatDate(selectedAccount.paymentDate)}</span>
                   </div>
 
-                  <DetailItem label="Criado em" value={formatDate(selectedAccount.createdAt)} />
-                  <DetailItem label="Atualizado em" value={formatDate(selectedAccount.updatedAt)} />
+                  <DetailItem label="Criado em" value={formatDateTime(selectedAccount.createdAt)} />
+                  <DetailItem label="Atualizado em" value={formatDateTime(selectedAccount.updatedAt)} />
                 </div>
               </div>
 
@@ -2030,8 +2060,8 @@ export default function FinancialPage() {
                       : "-"
                   }
                 />
-                <DetailItem label="Criado em" value={formatDate(selectedMovement.createdAt)} />
-                <DetailItem label="Atualizado em" value={formatDate(selectedMovement.updatedAt)} />
+                <DetailItem label="Criado em" value={formatDateTime(selectedMovement.createdAt)} />
+                <DetailItem label="Atualizado em" value={formatDateTime(selectedMovement.updatedAt)} />
               </DetailSection>
 
               <DetailSection title="Observações">
@@ -2052,8 +2082,8 @@ export default function FinancialPage() {
                   value={getFinancialCategoryTypeLabel(selectedCategory.type)}
                 />
                 <DetailItem label="Situação" value={selectedCategory.active ? "Ativa" : "Inativa"} />
-                <DetailItem label="Criada em" value={formatDate(selectedCategory.createdAt)} />
-                <DetailItem label="Atualizada em" value={formatDate(selectedCategory.updatedAt)} />
+                <DetailItem label="Criada em" value={formatDateTime(selectedCategory.createdAt)} />
+                <DetailItem label="Atualizada em" value={formatDateTime(selectedCategory.updatedAt)} />
               </DetailSection>
 
               <DetailSection title="Observações">

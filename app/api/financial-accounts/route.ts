@@ -295,7 +295,12 @@ export async function GET(request: NextRequest) {
         serviceOrder: { select: { id: true, code: true, status: true } },
         supplierOrder: { select: { id: true, code: true, status: true } },
       },
-      orderBy: [{ paymentDate: "desc" }, { dueDate: "desc" }, { code: "desc" }],
+      orderBy: [
+        { paymentDate: "desc" },
+        { dueDate: "desc" },
+        { updatedAt: "desc" },
+        { createdAt: "desc" },
+      ],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

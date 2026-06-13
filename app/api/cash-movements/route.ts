@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
         sale: { select: { id: true, code: true, status: true } },
         financialAccount: { select: { id: true, code: true, type: true } },
       },
-      orderBy: [{ movementDate: "desc" }, { code: "desc" }],
+      orderBy: [{ movementDate: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

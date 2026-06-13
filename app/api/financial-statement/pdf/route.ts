@@ -615,7 +615,12 @@ export async function GET(request: Request) {
             serviceOrder: { select: { id: true, code: true } },
             supplierOrder: { select: { id: true, code: true } },
           },
-          orderBy: [{ dueDate: "desc" }, { code: "desc" }],
+          orderBy: [
+            { paymentDate: "desc" },
+            { dueDate: "desc" },
+            { updatedAt: "desc" },
+            { createdAt: "desc" },
+          ],
           take: 5000,
         })
       : Promise.resolve([]),
@@ -627,7 +632,11 @@ export async function GET(request: Request) {
             sale: { select: { id: true, code: true } },
             financialAccount: { select: { id: true, code: true } },
           },
-          orderBy: [{ movementDate: "desc" }, { code: "desc" }],
+          orderBy: [
+            { movementDate: "desc" },
+            { updatedAt: "desc" },
+            { createdAt: "desc" },
+          ],
           take: 5000,
         })
       : Promise.resolve([]),
