@@ -225,6 +225,28 @@ function formatCurrency(value: string | number | null | undefined) {
   }).format(Number.isFinite(parsed) ? parsed : 0);
 }
 
+function formatMoneyInput(value: string | number | null | undefined) {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 10);
+
+  if (!digits) {
+    return "";
+  }
+
+  const amount = Number(digits) / 100;
+
+  return amount.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function parseMoneyInput(value: string) {
+  const normalized = value.replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized.replace(/[^\d.-]/g, ""));
+
+  return Number.isFinite(parsed) ? String(parsed) : "";
+}
+
 function formatCompactCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -292,7 +314,7 @@ function movementToForm(movement: CashMovement): CashMovementFormValues {
     categoryId: movement.categoryId ?? "",
     description: movement.description,
     movementDate: toDateInput(movement.movementDate),
-    amount: String(movement.amount ?? ""),
+    amount: formatMoneyInput(movement.amount),
     paymentMethod: movement.paymentMethod ?? "",
     documentNumber: movement.documentNumber ?? "",
     notes: movement.notes ?? "",
@@ -998,7 +1020,10 @@ export default function FinancialPage() {
   function handleMovementSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
-    saveMovementMutation.mutate(movementForm);
+    saveMovementMutation.mutate({
+      ...movementForm,
+      amount: parseMoneyInput(movementForm.amount),
+    });
   }
 
   function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
@@ -1676,7 +1701,13 @@ export default function FinancialPage() {
               </Field>
 
               <Field label="Valor">
-                <Input type="number" step="0.01" min="0" value={movementForm.amount} onChange={(event) => setMovementForm((form) => ({ ...form, amount: event.target.value }))} required />
+                <Input
+                  inputMode="decimal"
+                  value={movementForm.amount}
+                  onChange={(event) => setMovementForm((form) => ({ ...form, amount: formatMoneyInput(event.target.value) }))}
+                  placeholder="0,00"
+                  required
+                />
               </Field>
 
               <Field label="Forma">
