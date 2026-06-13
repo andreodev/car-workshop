@@ -28,6 +28,7 @@ import type {
 import Header from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/toast";
 import {
   Dialog,
@@ -537,6 +538,7 @@ export default function Page() {
     useState<MechanicCommissionAccount | null>(null);
   const [selectedPayable, setSelectedPayable] =
     useState<FinancialAccount | null>(null);
+  const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
 
   const accountsQuery = useQuery({
     queryKey: ["financial-payables"],
@@ -561,17 +563,33 @@ export default function Page() {
   });
 
   const markAsPaidMutation = useMutation({
-    mutationFn: (accountId: string) =>
-      updateFinancialAccountStatus(accountId, "PAGA"),
-    onSuccess: () => {
+    mutationFn: async (accountIds: string[]) => {
+      await Promise.all(
+        accountIds.map((accountId) =>
+          updateFinancialAccountStatus(accountId, "PAGA")
+        )
+      );
+
+      return accountIds.length;
+    },
+    onSuccess: (accountsCount, accountIds) => {
+      setSelectedCommissionIds((current) =>
+        current.filter((id) => !accountIds.includes(id))
+      );
       queryClient.invalidateQueries({ queryKey: ["financial-payables"] });
       queryClient.invalidateQueries({ queryKey: ["financial-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["mechanic-commissions-payable"] });
       queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
 
       toast({
-        title: "Conta marcada como paga",
-        description: "O pagamento foi registrado e o caixa foi atualizado.",
+        title:
+          accountsCount > 1
+            ? "Comissões marcadas como pagas"
+            : "Conta marcada como paga",
+        description:
+          accountsCount > 1
+            ? `${accountsCount} pagamentos foram registrados e o caixa foi atualizado.`
+            : "O pagamento foi registrado e o caixa foi atualizado.",
         variant: "success",
       });
     },
@@ -649,7 +667,61 @@ export default function Page() {
       return;
     }
 
-    markAsPaidMutation.mutate(accountId);
+    markAsPaidMutation.mutate([accountId]);
+  };
+
+  const handleMarkSelectedCommissionsAsPaid = (
+    mechanicName: string,
+    accounts: MechanicCommissionAccount[]
+  ) => {
+    const selectedPendingIds = accounts
+      .filter(
+        (account) =>
+          account.status !== "PAGA" && selectedCommissionIds.includes(account.id)
+      )
+      .map((account) => account.id);
+
+    if (selectedPendingIds.length === 0) {
+      return;
+    }
+
+    const confirmMessage =
+      selectedPendingIds.length === 1
+        ? `Marcar 1 comissão de ${mechanicName} como paga? O lançamento será registrado no caixa.`
+        : `Marcar ${selectedPendingIds.length} comissões de ${mechanicName} como pagas? Os lançamentos serão registrados no caixa.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    markAsPaidMutation.mutate(selectedPendingIds);
+  };
+
+  const handleToggleCommission = (accountId: string, checked: boolean) => {
+    setSelectedCommissionIds((current) => {
+      if (checked) {
+        return current.includes(accountId) ? current : [...current, accountId];
+      }
+
+      return current.filter((id) => id !== accountId);
+    });
+  };
+
+  const handleToggleCommissionGroup = (
+    accounts: MechanicCommissionAccount[],
+    checked: boolean
+  ) => {
+    const pendingIds = accounts
+      .filter((account) => account.status !== "PAGA")
+      .map((account) => account.id);
+
+    setSelectedCommissionIds((current) => {
+      if (checked) {
+        return Array.from(new Set([...current, ...pendingIds]));
+      }
+
+      return current.filter((id) => !pendingIds.includes(id));
+    });
   };
 
   return (
@@ -807,7 +879,10 @@ export default function Page() {
                     variant={commissionStatus === option.value ? "default" : "ghost"}
                     size="sm"
                     className="h-8"
-                    onClick={() => setCommissionStatus(option.value)}
+                    onClick={() => {
+                      setSelectedCommissionIds([]);
+                      setCommissionStatus(option.value);
+                    }}
                   >
                     {option.label}
                   </Button>
@@ -822,7 +897,10 @@ export default function Page() {
                     variant={commissionPeriod === option.value ? "default" : "ghost"}
                     size="sm"
                     className="h-8"
-                    onClick={() => setCommissionPeriod(option.value)}
+                    onClick={() => {
+                      setSelectedCommissionIds([]);
+                      setCommissionPeriod(option.value);
+                    }}
                   >
                     {option.label}
                   </Button>
@@ -847,7 +925,22 @@ export default function Page() {
           </div>
         ) : mechanicCommissionsQuery.data?.groups.length ? (
           <div className="divide-y">
-            {mechanicCommissionsQuery.data.groups.map((group) => (
+            {mechanicCommissionsQuery.data.groups.map((group) => {
+              const pendingGroupAccounts = group.accounts.filter(
+                (account) => account.status !== "PAGA"
+              );
+              const selectedGroupAccounts = pendingGroupAccounts.filter((account) =>
+                selectedCommissionIds.includes(account.id)
+              );
+              const selectedGroupTotal = selectedGroupAccounts.reduce(
+                (acc, account) => acc + Number(account.amount ?? 0),
+                0
+              );
+              const allGroupPendingSelected =
+                pendingGroupAccounts.length > 0 &&
+                selectedGroupAccounts.length === pendingGroupAccounts.length;
+
+              return (
               <div key={group.mechanicName} className="p-5">
                 <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -868,12 +961,40 @@ export default function Page() {
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {pendingGroupAccounts.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="gap-2"
+                        disabled={
+                          markAsPaidMutation.isPending ||
+                          selectedGroupAccounts.length === 0
+                        }
+                        onClick={() =>
+                          handleMarkSelectedCommissionsAsPaid(
+                            group.mechanicName,
+                            group.accounts
+                          )
+                        }
+                      >
+                        <Check className="size-4" />
+                        Pagar selecionadas
+                      </Button>
+                    ) : null}
+
                     <div className="text-left sm:text-right">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {selectedCommissionStatusOption.totalLabel}
+                        {selectedGroupAccounts.length > 0
+                          ? `${selectedGroupAccounts.length} selecionada(s)`
+                          : selectedCommissionStatusOption.totalLabel}
                       </p>
                       <p className="text-xl font-bold text-rose-700">
-                        {formatCurrency(group.total)}
+                        {formatCurrency(
+                          selectedGroupAccounts.length > 0
+                            ? selectedGroupTotal
+                            : group.total
+                        )}
                       </p>
                     </div>
 
@@ -891,9 +1012,25 @@ export default function Page() {
                 </div>
 
                 <div className="overflow-x-auto rounded-md border">
-                  <Table className="min-w-[1220px]">
+                  <Table className="min-w-[1280px]">
                     <TableHeader>
                       <TableRow className="bg-muted/50">
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={allGroupPendingSelected}
+                            disabled={
+                              pendingGroupAccounts.length === 0 ||
+                              markAsPaidMutation.isPending
+                            }
+                            aria-label={`Selecionar comissões pendentes de ${group.mechanicName}`}
+                            onCheckedChange={(checked) =>
+                              handleToggleCommissionGroup(
+                                group.accounts,
+                                checked === true
+                              )
+                            }
+                          />
+                        </TableHead>
                         <TableHead>OS</TableHead>
                         <TableHead>Placa</TableHead>
                         <TableHead>Cliente</TableHead>
@@ -911,6 +1048,19 @@ export default function Page() {
                     <TableBody>
                       {group.accounts.map((account) => (
                         <TableRow key={account.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedCommissionIds.includes(account.id)}
+                              disabled={
+                                account.status === "PAGA" ||
+                                markAsPaidMutation.isPending
+                              }
+                              aria-label={`Selecionar comissão da conta ${account.code}`}
+                              onCheckedChange={(checked) =>
+                                handleToggleCommission(account.id, checked === true)
+                              }
+                            />
+                          </TableCell>
                           <TableCell className="font-mono">
                             {account.serviceOrder
                               ? `#${account.serviceOrder.code}`
@@ -972,7 +1122,8 @@ export default function Page() {
                   </Table>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="p-10 text-center text-sm text-muted-foreground">
