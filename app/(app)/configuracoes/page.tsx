@@ -63,7 +63,7 @@ const settingGroups = [
       },
       {
         title: "Produtos e serviços",
-        description: "Catálogo, preços, estoque e dados fiscais usados no PDV e OS.",
+        description: "Catálogo, preços, estoque e dados fiscais usados no caixa e OS.",
         href: "/produtos",
         status: "Ativo",
         icon: Package,
@@ -103,7 +103,7 @@ const settingGroups = [
         icon: ClipboardList,
       },
       {
-        title: "PDV",
+        title: "Caixa",
         description: "Venda balcão, formas de pagamento e consulta do movimento.",
         href: "/pdv",
         status: "Ativo",

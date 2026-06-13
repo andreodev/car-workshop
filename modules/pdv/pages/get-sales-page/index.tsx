@@ -593,7 +593,7 @@ export default function PdvSalesPage({ defaultResponsible }: SalesListProps) {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <Header
-          title="PDV"
+          title="Caixa"
           description="Consulte vendas de balcão, abra uma nova venda e acompanhe o movimento."
         />
 

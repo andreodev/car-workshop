@@ -472,7 +472,7 @@ export default async function DashboardPage({
           <Button asChild variant="secondary" className="h-8 gap-2 px-3">
             <Link href="/pdv">
               <ShoppingCart className="size-3.5" />
-              PDV
+              Caixa
             </Link>
           </Button>
         </div>
