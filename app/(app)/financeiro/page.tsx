@@ -212,6 +212,9 @@ function lastDaysRange(days: number) {
 
 function toDateInput(value: string | null) {
   if (!value) return "";
+  const isoDate = value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (isoDate) return isoDate;
+
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
 }
@@ -235,6 +238,19 @@ function formatMoneyInput(value: string | number | null | undefined) {
   const amount = Number(digits) / 100;
 
   return amount.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMoneyFromDecimal(value: string | number | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+
+  return parsed.toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -266,6 +282,12 @@ function formatPercent(value: number) {
 
 function formatDate(value: string | null) {
   if (!value) return "-";
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/)?.slice(1);
+
+  if (isoDate) {
+    const [year, month, day] = isoDate;
+    return `${day}/${month}/${year}`;
+  }
 
   const date = new Date(value);
 
@@ -314,7 +336,7 @@ function movementToForm(movement: CashMovement): CashMovementFormValues {
     categoryId: movement.categoryId ?? "",
     description: movement.description,
     movementDate: toDateInput(movement.movementDate),
-    amount: formatMoneyInput(movement.amount),
+    amount: formatMoneyFromDecimal(movement.amount),
     paymentMethod: movement.paymentMethod ?? "",
     documentNumber: movement.documentNumber ?? "",
     notes: movement.notes ?? "",

@@ -60,13 +60,24 @@ function normalizeMoney(value: unknown) {
   return Math.round(parsed * 100) / 100;
 }
 
+function parseDateOnly(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day] = match;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function normalizeDate(value: unknown) {
   const normalized = normalizeString(value);
   if (!normalized) {
     return null;
   }
 
-  const parsed = new Date(`${normalized}T00:00:00`);
+  const parsed = parseDateOnly(normalized) ?? new Date(`${normalized}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
