@@ -37,7 +37,7 @@ export const menuGroups = [
       { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
       { title: "Orçamentos", href: "/orcamentos", icon: FileText },
       { title: "Pedidos e Serviços", href: "/pedidos", icon: ClipboardList },
-      { title: "PDV", href: "/pdv", icon: ShoppingCart },
+      { title: "Caixa", href: "/pdv", icon: ShoppingCart },
     ],
   },
   {
