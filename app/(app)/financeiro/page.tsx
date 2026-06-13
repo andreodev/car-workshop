@@ -627,6 +627,16 @@ export default function FinancialPage() {
               type="button"
               variant="ghost"
               size="icon-sm"
+              title="Extrato PDF"
+              onClick={() => openAccountStatementPdf(account.id)}
+            >
+              <Download className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               title="Editar"
               onClick={() => openEditAccount(account)}
             >
@@ -690,6 +700,16 @@ export default function FinancialPage() {
               onClick={() => openMovementDetails(movement)}
             >
               <Eye className="size-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Extrato PDF"
+              onClick={() => openMovementStatementPdf(movement.id)}
+            >
+              <Download className="size-3.5" />
             </Button>
 
             <Button
@@ -1002,6 +1022,24 @@ export default function FinancialPage() {
 
     const url = `/api/financial-statement/pdf?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function openAccountStatementPdf(accountId: string) {
+    const params = new URLSearchParams({ accountId });
+    window.open(
+      `/api/financial-statement/pdf?${params.toString()}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function openMovementStatementPdf(movementId: string) {
+    const params = new URLSearchParams({ movementId });
+    window.open(
+      `/api/financial-statement/pdf?${params.toString()}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   const totalItems =
@@ -1730,6 +1768,19 @@ export default function FinancialPage() {
 
           {detailKind === "CONTA" && selectedAccount ? (
             <div className="grid gap-4 text-sm">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openAccountStatementPdf(selectedAccount.id)}
+                >
+                  <Download className="size-3.5" />
+                  Extrato PDF
+                </Button>
+              </div>
+
               <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
                 <div className="text-xs font-semibold uppercase text-muted-foreground">Resumo</div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -1850,6 +1901,19 @@ export default function FinancialPage() {
 
           {detailKind === "CAIXA" && selectedMovement ? (
             <div className="grid gap-4 text-sm">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openMovementStatementPdf(selectedMovement.id)}
+                >
+                  <Download className="size-3.5" />
+                  Extrato PDF
+                </Button>
+              </div>
+
               <DetailSection title="Resumo">
                 <DetailItem label="Registro" value={`#${selectedMovement.code}`} />
                 <DetailItem label="Tipo" value={getCashMovementTypeLabel(selectedMovement.type)} />
