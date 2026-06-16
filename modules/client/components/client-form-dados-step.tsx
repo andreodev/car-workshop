@@ -10,6 +10,8 @@ import {
 } from "./client-form-fields";
 
 export function ClientFormDadosStep(props: ClientFormFieldProps) {
+  const isCompany = props.form.personType === "JURIDICA";
+
   return (
     <>
       <ClientFormSection
@@ -38,11 +40,11 @@ export function ClientFormDadosStep(props: ClientFormFieldProps) {
           />
           <ClientInputField
             field="cpf"
-            label="CPF"
+            label={isCompany ? "CNPJ" : "CPF"}
             wrapperClassName="grid gap-2 lg:col-span-3"
-            placeholder="000.000.000-00"
+            placeholder={isCompany ? "00.000.000/0000-00" : "000.000.000-00"}
             inputMode="numeric"
-            maxLength={14}
+            maxLength={isCompany ? 18 : 14}
             {...props}
           />
           <ClientInputField

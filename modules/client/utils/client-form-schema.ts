@@ -64,7 +64,7 @@ export const clientFormSchema = z
     name: textField("Nome", 120).refine((value) => value.length > 0, {
       message: "Nome é obrigatório.",
     }),
-    cpf: digitsField("CPF", 11, [11]),
+    cpf: digitsField("CPF/CNPJ", 14, [11, 14]),
     rg: digitsField("RG", 14),
     birthDate: dateField,
     notesBasic: textField("Anotações internas", 1000),
@@ -96,6 +96,14 @@ export const clientFormSchema = z
         code: z.ZodIssueCode.custom,
         path: ["cpf"],
         message: "CPF deve ter 11 dígitos.",
+      });
+    }
+
+    if (values.personType === "JURIDICA" && values.cpf !== "" && values.cpf.length !== 14) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["cpf"],
+        message: "CNPJ deve ter 14 dígitos.",
       });
     }
   });

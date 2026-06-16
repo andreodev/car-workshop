@@ -1,4 +1,5 @@
 import type { ClientFormValues } from "../types/client.types";
+import type { ClientPersonType } from "../types/client.types";
 
 type ClientInputMask = (value: string) => string;
 
@@ -36,6 +37,25 @@ export function maskCpf(value: string) {
     .replace(/^(\d{3})(\d)/, "$1.$2")
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+export function maskCnpj(value: string) {
+  const digits = onlyDigits(value).slice(0, 14);
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+export function maskCpfCnpj(value: string) {
+  const digits = onlyDigits(value);
+
+  return digits.length > 11 ? maskCnpj(digits) : maskCpf(digits);
+}
+
+export function maskDocumentByPersonType(value: string, personType: ClientPersonType) {
+  return personType === "JURIDICA" ? maskCnpj(value) : maskCpf(value);
 }
 
 export function maskCep(value: string) {
@@ -94,7 +114,7 @@ export const clientInputMasks = {
   status: (value) => value,
   icms: (value) => value,
   name: (value) => limitUppercaseText(value, textLimits.name),
-  cpf: maskCpf,
+  cpf: maskCpfCnpj,
   rg: maskRg,
   birthDate: maskDateInput,
   notesBasic: (value) => limitUppercaseText(value, textLimits.notesBasic),

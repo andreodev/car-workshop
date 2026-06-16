@@ -10,7 +10,11 @@ import { fetchAddressByCep } from "../api/client-cep.service";
 import { emptyClientForm, fieldToStepMap } from "../components/client-form-constants";
 import type { ClientFormStepValue } from "../components/client-form-stepper";
 import { clientFormSchema } from "../utils/client-form-schema";
-import { maskClientFormField, onlyDigits } from "../utils/client-input-masks";
+import {
+  maskClientFormField,
+  maskDocumentByPersonType,
+  onlyDigits,
+} from "../utils/client-input-masks";
 import {
   getClientFormErrorMap,
   mapClientToFormValues,
@@ -118,13 +122,27 @@ export function useClientForm({ mode, initialData }: UseClientFormParams) {
     field: K,
     rawValue: ClientFormValues[K],
   ) {
-    const nextValue = maskClientFormField(field, rawValue);
+    const nextValue =
+      field === "cpf" && typeof rawValue === "string"
+        ? (maskDocumentByPersonType(rawValue, form.personType) as ClientFormValues[K])
+        : maskClientFormField(field, rawValue);
 
     if (field === "cep") {
       setHasEditedCep(true);
     }
 
-    setForm((prev) => ({ ...prev, [field]: nextValue }));
+    setForm((prev) => {
+      const nextForm = { ...prev, [field]: nextValue };
+
+      if (field === "personType") {
+        nextForm.cpf = maskDocumentByPersonType(
+          prev.cpf,
+          nextValue as ClientFormValues["personType"],
+        );
+      }
+
+      return nextForm;
+    });
     setFieldErrors((prev) => {
       if (!prev[field]) {
         return prev;

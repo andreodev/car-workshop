@@ -29,7 +29,7 @@ import {
 import { useClientsPage } from "../../hooks/use-clients-page";
 import {
   formatCep,
-  formatCpf,
+  formatCpfCnpj,
   formatPhone,
 } from "../../utils/client-form-utils";
 import { onlyDigits } from "../../utils/client-input-masks";
@@ -88,7 +88,7 @@ export default function ClientsPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Nome, CPF ou telefone"
+                placeholder="Nome, CPF/CNPJ ou telefone"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 className="h-10 rounded-lg bg-input/20 pl-9 pr-9 text-sm"
@@ -195,7 +195,7 @@ export default function ClientsPage() {
                       Nome
                     </TableHead>
                     <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
-                      CPF
+                      CPF/CNPJ
                     </TableHead>
                     <TableHead className="font-heading text-xs font-600 uppercase tracking-wider text-muted-foreground">
                       CEP
@@ -232,7 +232,7 @@ export default function ClientsPage() {
                           {client.name}
                         </TableCell>
                         <TableCell className="font-mono text-sm text-muted-foreground">
-                          {client.cpf ? formatCpf(client.cpf) : "-"}
+                          {client.cpf ? formatCpfCnpj(client.cpf) : "-"}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {client.cep ? formatCep(client.cep) : "-"}

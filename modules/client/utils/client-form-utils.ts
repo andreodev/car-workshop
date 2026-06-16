@@ -2,7 +2,9 @@ import type { Client, ClientFormValues } from "../types/client.types";
 import {
   maskCep,
   maskClientFormField,
+  maskCpfCnpj,
   maskCpf,
+  maskDocumentByPersonType,
   maskIbgeCode,
   maskPhone,
   maskRg,
@@ -12,6 +14,7 @@ import {
 export type ClientFormErrors = Partial<Record<keyof ClientFormValues, string>>;
 
 export const formatCpf = maskCpf;
+export const formatCpfCnpj = maskCpfCnpj;
 export const formatCep = maskCep;
 export const formatPhone = maskPhone;
 export const formatRg = maskRg;
@@ -32,7 +35,7 @@ export function mapClientToFormValues(client: Client): ClientFormValues {
     status: client.status,
     icms: client.icms,
     name: maskClientFormField("name", client.name ?? ""),
-    cpf: formatCpf(client.cpf ?? ""),
+    cpf: maskDocumentByPersonType(client.cpf ?? "", client.personType),
     rg: formatRg(client.rg ?? ""),
     birthDate: normalizeDateInput(client.birthDate),
     notesBasic: maskClientFormField("notesBasic", client.notesBasic ?? ""),

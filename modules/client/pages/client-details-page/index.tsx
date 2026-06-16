@@ -31,7 +31,7 @@ import { clientsService } from "../../api/client.service";
 import type { Client } from "../../types/client.types";
 import {
   formatCep,
-  formatCpf,
+  formatCpfCnpj,
   formatPhone,
   formatRg,
 } from "../../utils/client-form-utils";
@@ -232,7 +232,10 @@ export default function ClientDetailsPage({ id }: ClientDetailsPageProps) {
         <CardContent>
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <DetailItem label="Tipo" value={formatPersonType(data.personType)} />
-            <DetailItem label="CPF" value={data.cpf ? formatCpf(data.cpf) : null} />
+            <DetailItem
+              label={data.personType === "JURIDICA" ? "CNPJ" : "CPF"}
+              value={data.cpf ? formatCpfCnpj(data.cpf) : null}
+            />
             <DetailItem label="RG" value={data.rg ? formatRg(data.rg) : null} />
             <DetailItem label="Nascimento" value={formatDate(data.birthDate)} />
           </dl>
