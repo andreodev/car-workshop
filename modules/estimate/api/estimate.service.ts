@@ -5,7 +5,7 @@ import type {
   EstimatePayload,
   EstimateStatusPayload,
   EstimateVisibility,
-} from "./types";
+} from "../types/estimate.types";
 
 const DEFAULT_PAGE_SIZE = 10;
 

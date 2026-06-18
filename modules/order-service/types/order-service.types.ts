@@ -1,3 +1,11 @@
+export type StatusFilter = ServiceOrderStatus | "TODOS";
+export type BoardColumn = {
+  status: ServiceOrderStatus;
+  title: string;
+  description: string;
+  className: string;
+};
+
 export type ServiceOrderStatus =
   | "ABERTA"
   | "EM_ANDAMENTO"
@@ -6,6 +14,8 @@ export type ServiceOrderStatus =
   | "FINALIZADA"
   | "CANCELADA"
   | "PAGA";
+
+
 
 export type ServiceOrderItemType = "SERVICE" | "PRODUCT";
 

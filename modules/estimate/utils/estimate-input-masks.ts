@@ -1,4 +1,4 @@
-import type { EstimateItemFormValues } from "./types";
+import type { EstimateItemFormValues } from "../types/estimate.types";
 
 type DecimalMaskOptions = {
   decimalPlaces?: number;

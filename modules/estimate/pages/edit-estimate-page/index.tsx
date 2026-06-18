@@ -3,25 +3,20 @@
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchCompanySettings } from "@/app/(app)/configuracoes/dados-empresa/company-settings-api";
-import type { CompanySettings } from "@/app/(app)/configuracoes/dados-empresa/types";
-import { EstimatePrint, fetchEstimate } from "@/modules/estimate";
+import { EstimateForm } from "../../components/estimate-form";
+import { fetchEstimate } from "../../api/estimate.service";
 
-type EstimatePrintPageProps = {
+type EstimateEditPageProps = {
   params: Promise<{
     id: string;
   }>;
 };
 
-export default function EstimatePrintPage({ params }: EstimatePrintPageProps) {
+export default function EstimateEditPage({ params }: EstimateEditPageProps) {
   const { id } = use(params);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["estimate", id],
     queryFn: () => fetchEstimate(id),
-  });
-  const { data: companySettings } = useQuery<CompanySettings | null>({
-    queryKey: ["company-settings"],
-    queryFn: fetchCompanySettings,
   });
 
   if (isLoading) {
@@ -40,5 +35,5 @@ export default function EstimatePrintPage({ params }: EstimatePrintPageProps) {
     );
   }
 
-  return <EstimatePrint estimate={data} companySettings={companySettings ?? null} />;
+  return <EstimateForm mode="edit" initialData={data} />;
 }

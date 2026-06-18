@@ -1,5 +1,5 @@
-import type { CompanySettings } from "../../configuracoes/dados-empresa/types";
-import type { Estimate } from "../types";
+import type { CompanySettings } from "@/app/(app)/configuracoes/dados-empresa/types";
+import type { Estimate } from "../types/estimate.types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import logo from "@/assets/logo/logo.png";
 import Image from "next/image";

@@ -46,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getEstimateStatusOption } from "./orcamentos/status";
+import { getEstimateStatusOption } from "@/modules/estimate/utils/estimate-status";
 import { getServiceOrderStatusOption } from "./ordens-servico/status";
 
 export const dynamic = "force-dynamic";

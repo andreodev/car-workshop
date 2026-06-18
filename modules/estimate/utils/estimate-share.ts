@@ -1,4 +1,4 @@
-import type { Estimate } from "./types";
+import type { Estimate } from "../types/estimate.types";
 
 function formatShareCurrency(value: string) {
   const parsed = Number(value);

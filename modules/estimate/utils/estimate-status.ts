@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import type { EstimateStatus } from "./types";
+import type { EstimateStatus } from "../types/estimate.types";
 import type { Badge } from "@/components/ui/badge";
 
 type BadgeVariant = ComponentProps<typeof Badge>["variant"];

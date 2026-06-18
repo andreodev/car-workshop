@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Car,
+  Calculator,
   CheckCircle2,
+  ChevronDown,
   Circle,
   ClipboardList,
   Plus,
@@ -17,24 +19,38 @@ import { useRouter } from "next/navigation";
 import Modal from "react-modal";
 
 import { fetchClients } from "@/modules/client/api/client.service";
-import { fetchMechanics } from "../../mecanicos/mechanic-api";
-import { fetchAllCatalogItems, fetchSectors } from "@/modules/pdv/api/pdv.service";
+import { fetchMechanics } from "@/app/(app)/mecanicos/mechanic-api";
+import {
+  addCatalogItemStock,
+  createCatalogItem,
+  fetchAllCatalogItems,
+  fetchSectors,
+} from "@/modules/pdv/api/pdv.service";
+import type { CatalogItem, CatalogItemListResponse } from "@/modules/pdv/types/pdv.types";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
-import { createEstimate, updateEstimate } from "../estimate-api";
-import { estimateStatusOptions } from "../status";
-import { CatalogItemCombobox } from "../../_components/catalog-item-combobox";
+import { createEstimate, updateEstimate } from "../api/estimate.service";
+import { estimateStatusOptions } from "../utils/estimate-status";
+import { CatalogItemCombobox } from "@/app/(app)/_components/catalog-item-combobox";
 import type {
   Estimate,
   EstimateFormValues,
   EstimateItemFormValues,
   EstimatePayload,
-} from "../types";
+} from "../types/estimate.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormLoadingState } from "@/components/ui/form-loading-state";
 import Header from "@/components/ui/header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -48,7 +64,7 @@ import { vehiclesService } from "@/modules/vehicle/api/vehicle.service";
 import {
   formatAmountInput,
   maskEstimateItemField,
-} from "../estimate-input-masks";
+} from "../utils/estimate-input-masks";
 
 function createEmptyItem(): EstimateItemFormValues {
   return {
@@ -272,6 +288,33 @@ type EstimateFormProps = {
   initialData?: Estimate | null;
 };
 
+type QuickCatalogDialogState = {
+  mode: "create" | "stock";
+  itemId: string;
+  itemType?: EstimateItemFormValues["type"];
+  catalogItemId?: string;
+} | null;
+
+type QuickCatalogFormValues = {
+  name: string;
+  quantity: string;
+  unitPrice: string;
+  unit: string;
+  stockMinimum: string;
+  notes: string;
+};
+
+const emptyQuickCatalogForm: QuickCatalogFormValues = {
+  name: "",
+  quantity: "1",
+  unitPrice: "0",
+  unit: "UN",
+  stockMinimum: "0",
+  notes: "",
+};
+
+type EstimateFormStep = "client" | "items" | "review";
+
 export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -279,6 +322,14 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     initialData ? mapEstimateToForm(initialData) : emptyForm,
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const [quickCatalogDialog, setQuickCatalogDialog] =
+    useState<QuickCatalogDialogState>(null);
+  const [quickCatalogForm, setQuickCatalogForm] =
+    useState<QuickCatalogFormValues>(emptyQuickCatalogForm);
+  const [activeStep, setActiveStep] = useState<EstimateFormStep>("client");
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const sessionQuery = useAuthSession();
   const sessionName =
     sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
@@ -337,6 +388,157 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     [sectorsQuery.data],
   );
 
+  function mergeCatalogItemIntoCaches(catalogItem: CatalogItem) {
+    const updater = (data: CatalogItemListResponse | undefined) => {
+      if (!data) return data;
+
+      const exists = data.items.some((item) => item.id === catalogItem.id);
+      const items = exists
+        ? data.items.map((item) => (item.id === catalogItem.id ? catalogItem : item))
+        : [catalogItem, ...data.items];
+
+      return {
+        ...data,
+        items,
+        total: exists ? data.total : Math.max(data.total + 1, items.length),
+      };
+    };
+
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["estimate-catalog-items"] },
+      updater,
+    );
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["catalog-items"] },
+      updater,
+    );
+    queryClient.setQueriesData<CatalogItemListResponse>(
+      { queryKey: ["pdv-catalog-items"] },
+      updater,
+    );
+  }
+
+  const quickCatalogMutation = useMutation({
+    mutationFn: async () => {
+      if (!quickCatalogDialog) {
+        throw new Error("Ação de catálogo inválida.");
+      }
+
+      const quantity = normalizeAmount(quickCatalogForm.quantity);
+
+      if (quickCatalogDialog.mode === "stock" && quantity <= 0) {
+        throw new Error("Informe uma quantidade maior que zero.");
+      }
+
+      if (quickCatalogDialog.mode === "create") {
+        const name = quickCatalogForm.name.trim();
+        const unitPrice = normalizeAmount(quickCatalogForm.unitPrice);
+        const itemType = quickCatalogDialog.itemType ?? "PRODUCT";
+        const catalogType = itemType === "SERVICE" ? "SERVICO" : "PRODUTO";
+
+        if (itemType === "PRODUCT" && quantity <= 0) {
+          throw new Error("Informe uma quantidade maior que zero.");
+        }
+
+        if (!name) {
+          throw new Error(
+            itemType === "SERVICE"
+              ? "Informe o nome do serviço."
+              : "Informe o nome do produto.",
+          );
+        }
+
+        if (unitPrice <= 0) {
+          throw new Error(
+            itemType === "SERVICE"
+              ? "Informe o valor unitário do serviço."
+              : "Informe o valor unitário do produto.",
+          );
+        }
+
+        return createCatalogItem({
+          name,
+          type: catalogType,
+          unitPrice,
+          salePrice: String(unitPrice),
+          stockCurrent: itemType === "PRODUCT" ? String(Math.max(quantity, 0)) : "",
+          stockMinimum:
+            itemType === "PRODUCT"
+              ? String(normalizeAmount(quickCatalogForm.stockMinimum))
+              : "",
+          unit: quickCatalogForm.unit.trim() || "UN",
+          sectorId:
+            itemType === "SERVICE"
+              ? form.items.find((item) => item.id === quickCatalogDialog.itemId)?.sectorId ?? ""
+              : "",
+          active: true,
+        });
+      }
+
+      const formItem = form.items.find((item) => item.id === quickCatalogDialog.itemId);
+      const catalogItemId = quickCatalogDialog.catalogItemId || formItem?.catalogItemId;
+
+      if (!catalogItemId) {
+        throw new Error("Selecione o produto para adicionar estoque.");
+      }
+
+      return addCatalogItemStock(catalogItemId, {
+        quantity,
+        notes: quickCatalogForm.notes.trim() || undefined,
+      });
+    },
+    onSuccess: async (catalogItem) => {
+      mergeCatalogItemIntoCaches(catalogItem);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["estimate-catalog-items"] }),
+        queryClient.invalidateQueries({ queryKey: ["catalog-items"] }),
+        queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] }),
+      ]);
+
+      if (quickCatalogDialog?.mode === "create" || quickCatalogDialog?.mode === "stock") {
+        const itemType = catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE";
+        setForm((prev) => ({
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === quickCatalogDialog.itemId
+              ? {
+                  ...item,
+                  type: itemType,
+                  catalogItemId: catalogItem.id,
+                  description: catalogItem.name,
+                  unitPrice: formatAmountInput(catalogItem.unitPrice),
+                  sectorId: catalogItem.sectorId ?? item.sectorId,
+                }
+              : item,
+          ),
+        }));
+      }
+
+      toast({
+        title:
+          quickCatalogDialog?.mode === "create"
+            ? catalogItem.type === "SERVICO"
+              ? "Serviço cadastrado"
+              : "Produto cadastrado"
+            : "Estoque atualizado",
+        description: "O catálogo foi atualizado sem sair do orçamento.",
+        variant: "success",
+      });
+      setQuickCatalogDialog(null);
+      setQuickCatalogForm(emptyQuickCatalogForm);
+      setLocalError(null);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Não foi possível atualizar o catálogo.";
+      toast({
+        title: "Erro no catálogo",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const availableVehicles = useMemo(() => {
     const vehicles = vehiclesQuery.data?.items ?? [];
 
@@ -377,6 +579,9 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     },
     onSuccess: (estimate) => {
       queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
+      queryClient.invalidateQueries({ queryKey: ["estimate-catalog-items"] });
       queryClient.setQueryData(["estimate", estimate.id], estimate);
       toast({
         title: mode === "edit" ? "Orçamento atualizado" : "Orçamento criado",
@@ -514,7 +719,57 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     }));
   }
 
+  function toggleItemExpanded(itemId: string) {
+    setExpandedItemIds((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+
+      return next;
+    });
+  }
+
+  function openQuickCatalogCreate(itemId: string) {
+    const formItem = form.items.find((item) => item.id === itemId);
+    const itemType = formItem?.type ?? "PRODUCT";
+
+    setQuickCatalogDialog({ mode: "create", itemId, itemType });
+    setQuickCatalogForm({
+      ...emptyQuickCatalogForm,
+      name: formItem?.description.trim() ?? "",
+      quantity: itemType === "PRODUCT" ? formItem?.quantity || "1" : "0",
+      unitPrice: formItem?.unitPrice || "0",
+    });
+  }
+
+  function openQuickStockAdd(itemId: string, catalogItem: CatalogItem | undefined) {
+    const formItem = form.items.find((item) => item.id === itemId);
+    const requestedQuantity = normalizeAmount(formItem?.quantity ?? "1");
+    const currentStock = normalizeAmount(catalogItem?.stockCurrent ?? "0");
+    const missingQuantity = Math.max(requestedQuantity - currentStock, 1);
+
+    setQuickCatalogDialog({
+      mode: "stock",
+      itemId,
+      catalogItemId: catalogItem?.id ?? formItem?.catalogItemId,
+    });
+    setQuickCatalogForm({
+      ...emptyQuickCatalogForm,
+      quantity: String(missingQuantity),
+      notes: "Reposição feita durante edição do orçamento.",
+    });
+  }
+
   function removeItem(itemId: string) {
+    setExpandedItemIds((prev) => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
     setForm((prev) => {
       const nextItems = prev.items.filter((item) => item.id !== itemId);
 
@@ -617,10 +872,16 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
       normalizeAmount(item.unitPrice) > 0
     );
   }).length;
-  const workflowSteps = [
-    { label: "Cliente", done: Boolean(form.clientId && form.vehicleId) },
-    { label: "Itens", done: validItemsCount > 0 },
-    { label: "Salvar", done: false },
+  const canProceedFromClient = Boolean(form.clientId && form.vehicleId);
+  const canProceedFromItems = validItemsCount > 0;
+  const workflowSteps: Array<{
+    id: EstimateFormStep;
+    label: string;
+    done: boolean;
+  }> = [
+    { id: "client", label: "Cliente", done: canProceedFromClient },
+    { id: "items", label: "Itens", done: canProceedFromItems },
+    { id: "review", label: "Salvar", done: false },
   ];
   const completedWorkflowCount = workflowSteps.filter(
     (step) => step.done,
@@ -634,6 +895,20 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     mechanicsQuery.isLoading ||
     sectorsQuery.isLoading ||
     catalogItemsQuery.isLoading;
+  const quickDialogItem = quickCatalogDialog
+    ? form.items.find((item) => item.id === quickCatalogDialog.itemId)
+    : undefined;
+  const quickDialogCatalogItemId =
+    quickCatalogDialog?.mode === "stock"
+      ? quickCatalogDialog.catalogItemId || quickDialogItem?.catalogItemId
+      : quickDialogItem?.catalogItemId;
+  const quickDialogCatalogItem = quickDialogCatalogItemId
+    ? catalogItems.find((item) => item.id === quickDialogCatalogItemId)
+    : undefined;
+  const quickDialogItemType =
+    quickCatalogDialog?.itemType ?? quickDialogItem?.type ?? "PRODUCT";
+  const productCatalogItems = catalogItems.filter((item) => item.type === "PRODUTO");
+  const isQuickCatalogSaving = quickCatalogMutation.isPending;
 
   if (isLoadingOptions) {
     return (
@@ -706,41 +981,56 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         </div>
       </section>
 
-<section className="w-full border border-border bg-card p-4">
-  <div className="flex w-full flex-col gap-3">
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-      <div
-        className="h-full rounded-full bg-primary transition-all"
-        style={{ width: `${workflowProgress}%` }}
-      />
-    </div>
-
-    <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
-      {workflowSteps.map((step) => {
-        const StepIcon = step.done ? CheckCircle2 : Circle;
-
-        return (
-          <div
-            key={step.label}
-            className="flex items-center gap-2 text-xs text-muted-foreground"
-          >
-            <StepIcon
-              className={
-                step.done
-                  ? "size-3.5 text-emerald-600"
-                  : "size-3.5 text-muted-foreground"
-              }
+      <section className="w-full border border-border bg-card p-5">
+        <div className="flex w-full flex-col gap-4">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${workflowProgress}%` }}
             />
-
-            <span className={step.done ? "font-medium text-foreground" : ""}>
-              {step.label}
-            </span>
           </div>
-        );
-      })}
-    </div>
-  </div>
-</section>
+
+          <div className="grid w-full gap-2 sm:grid-cols-3">
+            {workflowSteps.map((step, index) => {
+              const isActive = activeStep === step.id;
+              const StepIcon = step.done ? CheckCircle2 : Circle;
+
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={[
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition",
+                    isActive
+                      ? "bg-primary/10 text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60",
+                  ].join(" ")}
+                  onClick={() => setActiveStep(step.id)}
+                >
+                  <StepIcon
+                    className={[
+                      "size-4 shrink-0",
+                      step.done
+                        ? "text-emerald-600"
+                        : isActive
+                          ? "text-primary"
+                          : "text-muted-foreground",
+                    ].join(" ")}
+                  />
+                  <span className="min-w-0">
+                    <span className={isActive ? "font-semibold" : "font-medium"}>
+                      {step.label}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Etapa {index + 1}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {errorMessage ? (
         <div className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -748,9 +1038,8 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         </div>
       ) : null}
 
-      <div className="grid flex-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
-  {/* LEFT */}
-  <aside className="space-y-5">
+      <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        {activeStep === "client" ? (
     <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="border-b border-border px-5 py-4">
         <div className="flex items-center gap-2">
@@ -838,13 +1127,12 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           />
         </div>
       </div>
-    </section>
-
-  </aside>
-
-  {/* CENTER */}
-  <div className="min-w-0 space-y-5">
-    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+	    </section>
+        ) : null}
+	
+        {activeStep === "items" ? (
+	  <div className="min-w-0 space-y-5">
+	    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -882,54 +1170,80 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
             0,
           );
           const commissionBase = getCommissionBaseValue(item, lineTotal);
+          const selectedCatalogItem = catalogItems.find(
+            (catalogItem) => catalogItem.id === item.catalogItemId,
+          );
+          const selectedStock = normalizeAmount(
+            selectedCatalogItem?.stockCurrent ?? "0",
+          );
+	          const hasInsufficientStock =
+	            item.type === "PRODUCT" &&
+	            Boolean(selectedCatalogItem) &&
+	            quantity > selectedStock;
+	          const isExpanded = expandedItemIds.has(item.id);
+	
+	          return (
+	            <div
+	              key={item.id}
+	              className="group overflow-hidden rounded-2xl border border-border bg-background"
+	            >
+	              <div className="flex items-center gap-2 px-5 py-4 transition hover:bg-muted/40">
+	                <button
+	                  type="button"
+	                  className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-4 text-left"
+	                  onClick={() => toggleItemExpanded(item.id)}
+	                >
+	                  <div className="min-w-0">
+	                    <div className="flex items-center gap-3">
+	                      <span className="text-sm font-semibold text-foreground">
+	                        Item {index + 1}
+	                      </span>
 
-          return (
-            <details
-              key={item.id}
-              className="group overflow-hidden rounded-2xl border border-border bg-background"
-              open={index === 0}
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/40">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-foreground">
-                      Item {index + 1}
-                    </span>
+	                      <Badge variant="outline">
+	                        {item.type === "PRODUCT" ? "Produto" : "Serviço"}
+	                      </Badge>
+	                      {hasInsufficientStock ? (
+	                        <Badge variant="destructive">Estoque baixo</Badge>
+	                      ) : null}
+	                    </div>
 
-                    <Badge variant="outline">
-                      {item.type === "PRODUCT"
-                        ? "Produto"
-                        : "Serviço"}
-                    </Badge>
-                  </div>
+	                    <p className="mt-1 truncate text-xs text-muted-foreground">
+	                      {item.description.toLocaleUpperCase() || "Nenhuma descrição"}
+	                    </p>
+	                  </div>
 
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {item.description.toLocaleUpperCase() || "Nenhuma descrição"}
-                  </p>
-                </div>
+	                  <div className="flex items-center gap-4">
+	                    <span className="font-mono text-sm font-semibold">
+	                      {formatCurrency(lineTotal)}
+	                    </span>
+	                    <ChevronDown
+	                      className={[
+	                        "size-4 text-muted-foreground transition-transform",
+	                        isExpanded ? "rotate-180" : "",
+	                      ].join(" ")}
+	                    />
+	                  </div>
+	                </button>
 
-                <div className="flex items-center gap-4">
-                  <span className="font-mono text-sm font-semibold">
-                    {formatCurrency(lineTotal)}
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      removeItem(item.id);
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </summary>
-
-              <div className="border-t border-border p-5">
-                <div className="grid gap-5 md:grid-cols-2">
+	                <Button
+	                  type="button"
+	                  variant="ghost"
+	                  size="icon"
+	                  className="size-8 shrink-0"
+	                  onClick={() => removeItem(item.id)}
+	                >
+	                  <Trash2 className="size-4" />
+	                </Button>
+	              </div>
+	
+	              {isExpanded ? (
+	              <div className="border-t border-border p-6">
+	                <div className="space-y-7">
+	                  <div className="space-y-4">
+	                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+	                      Identificação
+	                    </p>
+	                <div className="grid gap-5 md:grid-cols-2">
                   <div className="grid gap-2">
                     <Label>Tipo</Label>
 
@@ -970,12 +1284,56 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                       manualLabel="Sem vínculo com catálogo"
                       onChange={(value) => updateItemCatalog(item.id, value)}
                     />
+                    <div className="flex flex-col gap-2 pt-1">
+                      {item.type === "PRODUCT" && selectedCatalogItem ? (
+                        <span
+                          className={
+                            hasInsufficientStock
+                              ? "text-xs font-medium text-destructive"
+                              : "text-xs text-muted-foreground"
+                          }
+                        >
+                          Estoque: {selectedStock}. Solicitado: {quantity || 0}.
+                        </span>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => openQuickCatalogCreate(item.id)}
+                        >
+                          {item.type === "PRODUCT"
+                            ? "Cadastrar produto"
+                            : "Cadastrar serviço"}
+                        </Button>
+                        {item.type === "PRODUCT" ? (
+                          <Button
+                            type="button"
+                            variant={hasInsufficientStock ? "secondary" : "outline"}
+                            className="h-8"
+                            onClick={() =>
+                              openQuickStockAdd(item.id, selectedCatalogItem)
+                            }
+                          >
+                            Adicionar estoque
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
 
-                  {item.type === "SERVICE" ? (
-                    <>
-                      <div className="grid gap-2">
-                        <Label>Mecânico do item</Label>
+	                </div>
+	                  </div>
+
+	                  {item.type === "SERVICE" ? (
+	                    <div className="space-y-4">
+	                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+	                        Responsáveis
+	                      </p>
+	                      <div className="grid gap-5 md:grid-cols-2">
+	                      <div className="grid gap-2">
+	                        <Label>Mecânico do item</Label>
 
                         <Select
                           value={item.mechanicId}
@@ -1029,12 +1387,18 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                               </SelectItem>
                             ))}
                           </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  ) : null}
-
-                  <div className="grid gap-2 md:col-span-2">
+	                        </Select>
+	                      </div>
+	                      </div>
+	                    </div>
+	                  ) : null}
+	
+	                  <div className="space-y-4">
+	                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+	                      Precificação
+	                    </p>
+	                    <div className="grid gap-5 md:grid-cols-2">
+	                  <div className="grid gap-2 md:col-span-2">
                     <Label>{item.type === "SERVICE" ? "Nome do serviço" : "Nome do produto"}</Label>
 
                     <Input
@@ -1102,15 +1466,23 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                     />
                   </div>
 
-                  {item.type === "SERVICE" ? (
-                    <>
-                      <div className="grid gap-2">
-                        <Label>Base comissão</Label>
-
-                        <Input
-                          className="h-11"
-                          inputMode="decimal"
-                          value={item.commissionBase}
+	                  {item.type === "SERVICE" ? (
+	                    <>
+	                      <div className="rounded-xl bg-muted/40 p-4">
+	                        <div className="flex items-start justify-between gap-4">
+	                          <div>
+	                            <Label>Base comissão</Label>
+	                            <p className="mt-1 text-xs text-muted-foreground">
+	                              Valor usado para cálculo da comissão.
+	                            </p>
+	                          </div>
+	                          <Calculator className="size-4 text-muted-foreground" />
+	                        </div>
+	
+	                        <Input
+	                          className="mt-3 h-10 bg-background"
+	                          inputMode="decimal"
+	                          value={item.commissionBase}
                           onChange={(event) =>
                             updateMaskedItem(
                               item.id,
@@ -1118,30 +1490,86 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
                               event.target.value,
                             )
                           }
-                          placeholder={formatCurrency(lineTotal)}
-                        />
-                      </div>
-
-                      <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">Base comissionável</span>
-                          <span className="font-mono font-semibold">
-                            {formatCurrency(commissionBase)}
+	                          placeholder={formatCurrency(lineTotal)}
+	                        />
+	                      </div>
+	
+	                      <div className="rounded-xl bg-muted/40 p-4 text-sm md:col-span-2">
+	                        <div className="flex items-center justify-between gap-3">
+	                          <span className="flex items-center gap-2 text-muted-foreground">
+	                            <Calculator className="size-4" />
+	                            Base comissionável
+	                          </span>
+	                          <span className="font-mono font-semibold">
+	                            {formatCurrency(commissionBase)}
                           </span>
                         </div>
                       </div>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            </details>
-          );
+	                    </>
+	                  ) : null}
+	                    </div>
+	                  </div>
+	                </div>
+	              </div>
+	              ) : null}
+	            </div>
+	          );
         })}
       </div>
-    </section>
-  </div>
+	    </section>
+	  </div>
+        ) : null}
 
-  {/* RIGHT */}
+        {activeStep === "review" ? (
+          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="border-b border-border px-7 py-5">
+              <h2 className="text-base font-semibold text-foreground">
+                Revisão do orçamento
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Confira os dados principais antes de salvar.
+              </p>
+            </div>
+
+            <div className="grid gap-6 p-7 lg:grid-cols-2">
+              <div className="space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Proposta
+                </p>
+                <div className="rounded-xl bg-muted/40 p-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedClient?.name ?? "Cliente pendente"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {getVehicleLabel(selectedVehicle)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Validade: {form.validUntil || "Não informada"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Itens
+                </p>
+                <div className="rounded-xl bg-muted/40 p-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {validItemsCount}/{form.items.length} itens válidos
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {selectedMechanic?.name ?? "Mecânico pendente"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Base comissão: {formatCurrency(totals.commissionBaseTotal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+	
+	  {/* RIGHT */}
   <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
     <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="border-b border-border px-5 py-4">
@@ -1218,16 +1646,51 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
           </span>
         </div>
 
-        <div className="pt-2">
-          <Button
-  type="button"
-  className="h-10 px-5 w-full"
-  disabled={isSaving}
-  onClick={() => setIsObservationModalOpen(true)}
->
-  {isSaving ? "Salvando..." : "Salvar orçamento"}
-</Button>
-        </div>
+	        <div className="space-y-3 pt-2">
+	          <Button
+	            type="button"
+	            className="h-10 w-full px-5"
+	            disabled={
+	              isSaving ||
+	              (activeStep === "client" && !canProceedFromClient) ||
+	              (activeStep === "items" && !canProceedFromItems)
+	            }
+	            onClick={() => {
+	              if (activeStep === "client") {
+	                setActiveStep("items");
+	                return;
+	              }
+
+	              if (activeStep === "items") {
+	                setActiveStep("review");
+	                return;
+	              }
+
+	              setIsObservationModalOpen(true);
+	            }}
+	          >
+	            {isSaving
+	              ? "Salvando..."
+	              : activeStep === "client"
+	                ? "Continuar para itens"
+	                : activeStep === "items"
+	                  ? "Continuar para salvar"
+	                  : "Salvar orçamento"}
+	          </Button>
+
+	          {activeStep !== "client" ? (
+	            <Button
+	              type="button"
+	              variant="outline"
+	              className="h-10 w-full"
+	              onClick={() =>
+	                setActiveStep(activeStep === "review" ? "items" : "client")
+	              }
+	            >
+	              Voltar
+	            </Button>
+	          ) : null}
+	        </div>
 
         <Button
           type="button"
@@ -1241,6 +1704,220 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
     </section>
   </aside>
 </div>
+<Dialog
+  open={Boolean(quickCatalogDialog)}
+  onOpenChange={(open) => {
+    if (!open && !isQuickCatalogSaving) {
+      setQuickCatalogDialog(null);
+      setQuickCatalogForm(emptyQuickCatalogForm);
+      quickCatalogMutation.reset();
+    }
+  }}
+>
+  <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-w-lg">
+    <DialogHeader>
+      <DialogTitle>
+        {quickCatalogDialog?.mode === "create"
+          ? quickDialogItemType === "SERVICE"
+            ? "Cadastrar serviço"
+            : "Cadastrar produto"
+          : "Adicionar estoque"}
+      </DialogTitle>
+      <DialogDescription>
+        {quickCatalogDialog?.mode === "create"
+          ? quickDialogItemType === "SERVICE"
+            ? "Crie o serviço e selecione-o automaticamente neste orçamento."
+            : "Crie o produto e selecione-o automaticamente neste orçamento."
+          : "Selecione um produto existente e informe a quantidade que entrou no estoque."}
+      </DialogDescription>
+    </DialogHeader>
+
+    <div className="space-y-4">
+      {quickCatalogDialog?.mode === "create" ? (
+        <>
+          <div className="grid gap-2">
+            <Label>
+              {quickDialogItemType === "SERVICE" ? "Nome do serviço" : "Nome do produto"}
+            </Label>
+            <Input
+              value={quickCatalogForm.name}
+              onChange={(event) =>
+                setQuickCatalogForm((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              autoFocus
+            />
+          </div>
+          <div
+            className={
+              quickDialogItemType === "PRODUCT"
+                ? "grid gap-3 sm:grid-cols-3"
+                : "grid gap-3 sm:grid-cols-2"
+            }
+          >
+            {quickDialogItemType === "PRODUCT" ? (
+              <div className="grid gap-2">
+                <Label>Estoque inicial</Label>
+                <Input
+                  inputMode="decimal"
+                  value={quickCatalogForm.quantity}
+                  onChange={(event) =>
+                    setQuickCatalogForm((prev) => ({
+                      ...prev,
+                      quantity: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            ) : null}
+            <div className="grid gap-2">
+              <Label>Valor unitário</Label>
+              <Input
+                inputMode="decimal"
+                value={quickCatalogForm.unitPrice}
+                onChange={(event) =>
+                  setQuickCatalogForm((prev) => ({
+                    ...prev,
+                    unitPrice: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Unidade</Label>
+              <Input
+                value={quickCatalogForm.unit}
+                onChange={(event) =>
+                  setQuickCatalogForm((prev) => ({
+                    ...prev,
+                    unit: event.target.value.toUpperCase(),
+                  }))
+                }
+              />
+            </div>
+          </div>
+          {quickDialogItemType === "PRODUCT" ? (
+            <div className="grid gap-2">
+              <Label>Estoque mínimo</Label>
+              <Input
+                inputMode="decimal"
+                value={quickCatalogForm.stockMinimum}
+                onChange={(event) =>
+                  setQuickCatalogForm((prev) => ({
+                    ...prev,
+                    stockMinimum: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="grid gap-2">
+            <Label>Produto existente</Label>
+            <Select
+              value={quickDialogCatalogItem?.id ?? ""}
+              onValueChange={(value) =>
+                setQuickCatalogDialog((prev) =>
+                  prev?.mode === "stock"
+                    ? { ...prev, catalogItemId: value }
+                    : prev,
+                )
+              }
+            >
+              <SelectTrigger className="h-11 w-full">
+                <SelectValue placeholder="Selecione o produto" />
+              </SelectTrigger>
+              <SelectContent>
+                {productCatalogItems.map((catalogItem) => (
+                  <SelectItem key={catalogItem.id} value={catalogItem.id}>
+                    #{catalogItem.code} {catalogItem.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+            <p className="font-medium text-foreground">
+              {quickDialogCatalogItem?.name ?? "Produto selecionado"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Estoque atual:{" "}
+              {normalizeAmount(quickDialogCatalogItem?.stockCurrent ?? "0")}.
+              Quantidade no orçamento: {normalizeAmount(quickDialogItem?.quantity ?? "0")}.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            <Label>Quantidade para adicionar</Label>
+            <Input
+              inputMode="decimal"
+              value={quickCatalogForm.quantity}
+              onChange={(event) =>
+                setQuickCatalogForm((prev) => ({
+                  ...prev,
+                  quantity: event.target.value,
+                }))
+              }
+              autoFocus
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Observação</Label>
+            <Textarea
+              value={quickCatalogForm.notes}
+              onChange={(event) =>
+                setQuickCatalogForm((prev) => ({
+                  ...prev,
+                  notes: event.target.value,
+                }))
+              }
+              rows={3}
+            />
+          </div>
+        </>
+      )}
+
+      {quickCatalogMutation.error ? (
+        <p className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+          {quickCatalogMutation.error instanceof Error
+            ? quickCatalogMutation.error.message
+            : "Não foi possível salvar."}
+        </p>
+      ) : null}
+    </div>
+
+    <DialogFooter>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={isQuickCatalogSaving}
+        onClick={() => {
+          setQuickCatalogDialog(null);
+          setQuickCatalogForm(emptyQuickCatalogForm);
+          quickCatalogMutation.reset();
+        }}
+      >
+        Cancelar
+      </Button>
+      <Button
+        type="button"
+        disabled={isQuickCatalogSaving}
+        onClick={() => quickCatalogMutation.mutate()}
+      >
+        {isQuickCatalogSaving
+          ? "Salvando..."
+          : quickCatalogDialog?.mode === "create"
+            ? quickDialogItemType === "SERVICE"
+              ? "Cadastrar serviço"
+              : "Cadastrar produto"
+            : "Adicionar estoque"}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 <Modal
   isOpen={isObservationModalOpen}
   onRequestClose={() => setIsObservationModalOpen(false)}

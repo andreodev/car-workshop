@@ -1,7 +1,5 @@
-"use client";
+import { CreateEstimatePage } from "@/modules/estimate";
 
-import { EstimateForm } from "../_components/estimate-form";
-
-export default function NewEstimatePage() {
-  return <EstimateForm mode="create" />;
+export default function Page() {
+  return <CreateEstimatePage />;
 }
