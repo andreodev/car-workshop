@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Copy, ExternalLink } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
-import type { ServiceOrderStatus } from "../../types";
 import { getServiceOrderStatusOption, serviceOrderStatusOptions } from "../../status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { ServiceOrderStatus } from "@/modules/order-service/types/order-service.types";
 
 function formatDateTime(value: string | null) {
   if (!value) {

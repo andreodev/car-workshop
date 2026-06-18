@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import type { ServiceOrderStatus } from "./types";
+import type { ServiceOrderStatus } from "@/modules/order-service/types/order-service.types";
 import type { Badge } from "@/components/ui/badge";
 
 type BadgeVariant = ComponentProps<typeof Badge>["variant"];

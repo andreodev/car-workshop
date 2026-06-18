@@ -1,4 +1,4 @@
-import type { ServiceOrderItemFormValues } from "./types";
+import type { ServiceOrderItemFormValues } from "@/modules/order-service/types/order-service.types";
 
 type DecimalMaskOptions = {
   decimalPlaces?: number;

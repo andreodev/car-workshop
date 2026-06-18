@@ -3,7 +3,7 @@ import type {
   ServiceOrderListResponse,
   ServiceOrderPayload,
   ServiceOrderStatusPayload,
-} from "./types";
+} from "@/modules/order-service/types/order-service.types";
 
 const DEFAULT_PAGE_SIZE = 10;
 

@@ -29,7 +29,7 @@ import type {
   ServiceOrderFormValues,
   ServiceOrderItemFormValues,
   ServiceOrderPayload,
-} from "../types";
+} from "@/modules/order-service/types/order-service.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormLoadingState } from "@/components/ui/form-loading-state";
