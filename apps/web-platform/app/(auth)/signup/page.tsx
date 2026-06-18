@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
+  Building2,
   Car,
   Eye,
   EyeOff,
@@ -25,7 +26,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 
 import banner from "@/assets/banner/banner.png";
-
 
 const initialState: SignupState = { error: undefined };
 
@@ -184,6 +184,28 @@ export default function SignupPage() {
                 <form action={action} className="space-y-5">
                   <div className="space-y-2">
                     <Label
+                      htmlFor="companyName"
+                      className="text-sm font-semibold text-slate-700"
+                    >
+                      Nome da oficina
+                    </Label>
+
+                    <div className="relative">
+                      <Building2 className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+
+                      <Input
+                        id="companyName"
+                        name="companyName"
+                        placeholder="Ex: Rikinho Auto Center"
+                        autoComplete="organization"
+                        disabled={pending}
+                        className="h-13 rounded-2xl border-slate-200 bg-slate-50 pl-12 text-sm shadow-none transition-all placeholder:text-slate-400 focus-visible:border-red-500 focus-visible:bg-white focus-visible:ring-red-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
                       htmlFor="name"
                       className="text-sm font-semibold text-slate-700"
                     >
@@ -266,7 +288,7 @@ export default function SignupPage() {
                     </div>
 
                     <p className="text-xs text-slate-400">
-                      Use uma senha com pelo menos 6 caracteres.
+                      Use uma senha com pelo menos 8 caracteres.
                     </p>
                   </div>
 
