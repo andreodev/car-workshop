@@ -6,7 +6,6 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
-  Building2,
   Car,
   Eye,
   EyeOff,
@@ -98,12 +97,12 @@ export default function SignupPage() {
               </div>
 
               <h1 className="max-w-xl text-5xl font-black leading-[1.05] tracking-tight xl:text-6xl">
-                Crie sua conta e tenha controle total da operação.
+                Crie seu acesso e acompanhe a operação.
               </h1>
 
               <p className="mt-5 max-w-xl text-base leading-7 text-white/70">
-                Cadastre sua oficina para gerenciar clientes, veículos, ordens
-                de serviço, vendas e financeiro em uma única plataforma.
+                Acesse clientes, veículos, ordens de serviço, vendas e
+                financeiro da oficina em uma única plataforma.
               </p>
 
               <div className="mt-10 grid max-w-3xl grid-cols-3 gap-4">
@@ -176,34 +175,11 @@ export default function SignupPage() {
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Configure seu acesso e comece a gerenciar sua oficina de
-                    forma simples e profissional.
+                    Configure seu acesso para entrar na plataforma da oficina.
                   </p>
                 </div>
 
                 <form action={action} className="space-y-5">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="companyName"
-                      className="text-sm font-semibold text-slate-700"
-                    >
-                      Nome da oficina
-                    </Label>
-
-                    <div className="relative">
-                      <Building2 className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-
-                      <Input
-                        id="companyName"
-                        name="companyName"
-                        placeholder="Ex: Rikinho Auto Center"
-                        autoComplete="organization"
-                        disabled={pending}
-                        className="h-13 rounded-2xl border-slate-200 bg-slate-50 pl-12 text-sm shadow-none transition-all placeholder:text-slate-400 focus-visible:border-red-500 focus-visible:bg-white focus-visible:ring-red-500/20"
-                      />
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
                     <Label
                       htmlFor="name"

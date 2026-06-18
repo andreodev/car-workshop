@@ -1,7 +1,6 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/app/lib/prisma";
@@ -10,56 +9,96 @@ export type SignupState = {
   error?: string;
 };
 
-const MAX_SLUG_BASE_LENGTH = 48;
+const DEFAULT_SIGNUP_TENANT_SLUG = "oficina-principal";
 
-function normalizeTenantSlug(value: string) {
-  const slug = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_SLUG_BASE_LENGTH)
-    .replace(/-+$/g, "");
-
-  return slug || "oficina";
+function getConfiguredSignupTenantId() {
+  return (
+    process.env.SIGNUP_TENANT_ID ??
+    process.env.DEFAULT_TENANT_ID ??
+    process.env.TENANT_ID ??
+    null
+  );
 }
 
-async function buildUniqueTenantSlug(
-  tx: Prisma.TransactionClient,
-  companyName: string
-) {
-  const baseSlug = normalizeTenantSlug(companyName);
+async function resolveSignupTenantId() {
+  const configuredTenantId = getConfiguredSignupTenantId();
 
-  for (let suffix = 0; suffix < 20; suffix += 1) {
-    const slug = suffix === 0 ? baseSlug : `${baseSlug}-${suffix + 1}`;
-    const existingTenant = await tx.tenant.findUnique({
-      where: { slug },
+  if (configuredTenantId) {
+    const tenant = await prisma.tenant.findFirst({
+      where: {
+        id: configuredTenantId,
+        status: { in: ["TRIAL", "ACTIVE"] },
+      },
       select: { id: true },
     });
 
-    if (!existingTenant) {
-      return slug;
-    }
+    return tenant?.id ?? null;
   }
 
-  return `${baseSlug}-${Date.now().toString(36)}`;
+  const defaultTenant = await prisma.tenant.findFirst({
+    where: {
+      slug: DEFAULT_SIGNUP_TENANT_SLUG,
+      status: { in: ["TRIAL", "ACTIVE"] },
+    },
+    select: { id: true },
+  });
+
+  if (defaultTenant) {
+    return defaultTenant.id;
+  }
+
+  const tenants = await prisma.tenant.findMany({
+    where: {
+      status: { in: ["TRIAL", "ACTIVE"] },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 2,
+    select: { id: true },
+  });
+
+  if (tenants.length === 1) {
+    return tenants[0].id;
+  }
+
+  return null;
+}
+
+async function createUserAccess(params: {
+  email: string;
+  name: string;
+  passwordHash: string;
+  tenantId: string;
+}) {
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        name: params.name || null,
+        email: params.email,
+        passwordHash: params.passwordHash,
+      },
+      select: { id: true },
+    });
+
+    await tx.tenantUser.create({
+      data: {
+        tenantId: params.tenantId,
+        userId: user.id,
+        role: "STAFF",
+        isActive: true,
+      },
+    });
+  });
 }
 
 export async function signup(
   _prevState: SignupState,
   formData: FormData
 ): Promise<SignupState> {
-  const companyName = String(formData.get("companyName") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
   const password = String(formData.get("password") ?? "");
-
-  if (!companyName) {
-    return { error: "Nome da oficina é obrigatório." };
-  }
 
   if (!email || !password) {
     return { error: "E-mail e senha são obrigatórios." };
@@ -76,34 +115,20 @@ export async function signup(
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const tenantId = await resolveSignupTenantId();
 
-  await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        name: name || null,
-        email,
-        passwordHash,
-      },
-      select: { id: true },
-    });
-    const slug = await buildUniqueTenantSlug(tx, companyName);
-    const tenant = await tx.tenant.create({
-      data: {
-        name: companyName,
-        slug,
-        status: "TRIAL",
-      },
-      select: { id: true },
-    });
+  if (!tenantId) {
+    return {
+      error:
+        "Empresa de cadastro não configurada. Defina SIGNUP_TENANT_ID no ambiente.",
+    };
+  }
 
-    await tx.tenantUser.create({
-      data: {
-        tenantId: tenant.id,
-        userId: user.id,
-        role: "OWNER",
-        isActive: true,
-      },
-    });
+  await createUserAccess({
+    email,
+    name,
+    passwordHash,
+    tenantId,
   });
 
   redirect("/login");
