@@ -1,0 +1,30 @@
+package response
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type errorBody struct {
+	Error errorPayload `json:"error"`
+}
+
+type errorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func JSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func Error(w http.ResponseWriter, status int, code string, message string) {
+	JSON(w, status, errorBody{
+		Error: errorPayload{
+			Code:    code,
+			Message: message,
+		},
+	})
+}

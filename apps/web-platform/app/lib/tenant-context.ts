@@ -9,18 +9,13 @@ import {
   TENANT_HOST_KIND_HEADER,
   TENANT_SLUG_HEADER,
 } from "@/app/lib/tenant-headers";
-
-type TenantHostKind =
-  | "platform-root"
-  | "tenant-subdomain"
-  | "custom-domain"
-  | "unknown";
-
-type ResolvedTenantSignal = {
-  host: string | null;
-  kind: TenantHostKind;
-  slug: string | null;
-};
+import {
+  classifyTenantHost,
+  hostFromHeaders,
+  normalizeHost,
+  type TenantHostKind,
+  type TenantHostSignal,
+} from "@/app/lib/tenant-host";
 
 export type TenantContext = {
   tenantId: string;
@@ -43,81 +38,14 @@ export class TenantAccessError extends Error {
   }
 }
 
-function normalizeHost(value: string | null) {
-  return value?.split(":")[0]?.trim().toLowerCase() || null;
-}
-
-function hostFromUrl(value: string | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    return new URL(value).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-function platformRootDomains() {
-  const domains = [
-    process.env.PLATFORM_ROOT_DOMAIN,
-    process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN,
-    process.env.PLATFORM_APP_DOMAIN,
-    process.env.NEXT_PUBLIC_PLATFORM_APP_DOMAIN,
-    hostFromUrl(process.env.NEXTAUTH_URL),
-    "localhost",
-    "127.0.0.1",
-  ];
-
-  return new Set(
-    domains.filter(Boolean).map((domain) => domain?.toLowerCase())
-  );
-}
-
-function classifyHost(host: string | null): ResolvedTenantSignal {
-  if (!host) {
-    return { host: null, kind: "unknown", slug: null };
-  }
-
-  const rootDomains = platformRootDomains();
-
-  if (rootDomains.has(host)) {
-    return { host, kind: "platform-root", slug: null };
-  }
-
-  for (const rootDomain of rootDomains) {
-    if (rootDomain && host.endsWith(`.${rootDomain}`)) {
-      return {
-        host,
-        kind: "tenant-subdomain",
-        slug: host.slice(0, -(rootDomain.length + 1)),
-      };
-    }
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    const isLocalNetworkIp = /^192\.168\.\d+\.\d+$/.test(host);
-    const isPrivateIp =
-      /^10\.\d+\.\d+\.\d+$/.test(host) ||
-      /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host);
-
-    if (isLocalNetworkIp || isPrivateIp) {
-      return { host, kind: "platform-root", slug: null };
-    }
-  }
-
-  return { host, kind: "custom-domain", slug: null };
-}
-
 async function readTenantSignal(
   request?: NextRequest
-): Promise<ResolvedTenantSignal> {
+): Promise<TenantHostSignal> {
   if (request) {
     const host = normalizeHost(
-      request.headers.get(TENANT_HOST_HEADER) ?? request.headers.get("host")
+      request.headers.get(TENANT_HOST_HEADER) ?? hostFromHeaders(request.headers)
     );
-    const classified = classifyHost(host);
+    const classified = classifyTenantHost(host);
 
     return {
       host,
@@ -130,9 +58,9 @@ async function readTenantSignal(
 
   const headerStore = await headers();
   const host = normalizeHost(
-    headerStore.get(TENANT_HOST_HEADER) ?? headerStore.get("host")
+    headerStore.get(TENANT_HOST_HEADER) ?? hostFromHeaders(headerStore)
   );
-  const classified = classifyHost(host);
+  const classified = classifyTenantHost(host);
 
   return {
     host,
@@ -146,6 +74,18 @@ async function readTenantSignal(
 async function getSelectedTenantId(request?: NextRequest) {
   const session = await getServerAuthSession();
 
+  if (process.env.NODE_ENV !== "production") {
+    const devTenantId =
+      request?.headers.get("x-tenant-id") ??
+      request?.nextUrl.searchParams.get("tenant") ??
+      request?.nextUrl.searchParams.get("tenantId") ??
+      null;
+
+    if (devTenantId) {
+      return devTenantId;
+    }
+  }
+
   const sessionSelectedTenantId =
     session?.selectedTenantId ??
     (session?.user as { selectedTenantId?: string | null } | undefined)
@@ -156,20 +96,11 @@ async function getSelectedTenantId(request?: NextRequest) {
     return sessionSelectedTenantId;
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    return (
-      request?.headers.get("x-tenant-id") ??
-      request?.nextUrl.searchParams.get("tenant") ??
-      request?.nextUrl.searchParams.get("tenantId") ??
-      null
-    );
-  }
-
   return null;
 }
 
 async function resolveTenantFromSignal(
-  signal: ResolvedTenantSignal,
+  signal: TenantHostSignal,
   request?: NextRequest
 ) {
   if (signal.kind === "platform-root") {

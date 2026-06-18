@@ -6,65 +6,19 @@ import {
   TENANT_HOST_KIND_HEADER,
   TENANT_SLUG_HEADER,
 } from "@/app/lib/tenant-headers";
-
-function normalizeHost(value: string | null) {
-  return value?.split(":")[0]?.trim().toLowerCase() || "";
-}
-
-function hostFromUrl(value: string | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    return new URL(value).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-function platformRootDomains() {
-  return new Set(
-    [
-      process.env.PLATFORM_ROOT_DOMAIN,
-      process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN,
-      process.env.PLATFORM_APP_DOMAIN,
-      process.env.NEXT_PUBLIC_PLATFORM_APP_DOMAIN,
-      hostFromUrl(process.env.NEXTAUTH_URL),
-      "localhost",
-      "127.0.0.1",
-    ]
-      .filter(Boolean)
-      .map((domain) => domain?.toLowerCase())
-  );
-}
-
-function classifyHost(host: string) {
-  const rootDomains = platformRootDomains();
-
-  if (!host || rootDomains.has(host)) {
-    return { kind: "platform-root", slug: null };
-  }
-
-  for (const rootDomain of rootDomains) {
-    if (rootDomain && host.endsWith(`.${rootDomain}`)) {
-      return {
-        kind: "tenant-subdomain",
-        slug: host.slice(0, -(rootDomain.length + 1)),
-      };
-    }
-  }
-
-  return { kind: "custom-domain", slug: null };
-}
+import { classifyTenantHost, hostFromHeaders } from "@/app/lib/tenant-host";
 
 export function proxy(request: NextRequest) {
-  const host = normalizeHost(request.headers.get("host"));
-  const tenantSignal = classifyHost(host);
+  const host = hostFromHeaders(request.headers);
+  const tenantSignal = classifyTenantHost(host);
   const requestHeaders = new Headers(request.headers);
 
   requestHeaders.delete(RESOLVED_TENANT_ID_HEADER);
-  requestHeaders.set(TENANT_HOST_HEADER, host);
+  if (tenantSignal.host) {
+    requestHeaders.set(TENANT_HOST_HEADER, tenantSignal.host);
+  } else {
+    requestHeaders.delete(TENANT_HOST_HEADER);
+  }
   requestHeaders.set(TENANT_HOST_KIND_HEADER, tenantSignal.kind);
   requestHeaders.delete(TENANT_SLUG_HEADER);
 

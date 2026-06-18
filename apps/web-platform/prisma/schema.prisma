@@ -36,40 +36,50 @@ enum TenantRole {
 }
 
 model Tenant {
-  id                      String                          @id @default(cuid())
-  name                    String
-  slug                    String                          @unique
-  status                  TenantStatus                    @default(TRIAL)
-  customDomain            String?                         @unique
-  customDomainVerifiedAt  DateTime?
-  users                   TenantUser[]
-  masterAdmins            MasterAdmin[]
-  clients                 Client[]
-  vehicles                Vehicle[]
-  serviceOrders           ServiceOrder[]
-  serviceOrderInspections ServiceOrderVehicleInspection[]
-  serviceOrderItems       ServiceOrderItem[]
-  estimates               Estimate[]
-  estimateItems           EstimateItem[]
-  catalogItems            CatalogItem[]
-  sectors                 Sector[]
-  mechanics               Mechanic[]
-  suppliers               Supplier[]
-  supplierOrders          SupplierOrder[]
-  sales                   Sale[]
-  saleItems               SaleItem[]
-  salePayments            SalePayment[]
-  stockMovements          StockMovement[]
-  financialAccounts       FinancialAccount[]
-  financialCategories     FinancialCategory[]
-  cashMovements           CashMovement[]
-  companySettings         CompanySettings?
-  createdAt               DateTime                        @default(now())
-  updatedAt               DateTime                        @updatedAt
+  id                            String                          @id @default(cuid())
+  name                          String
+  slug                          String                          @unique
+  status                        TenantStatus                    @default(TRIAL)
+  customDomain                  String?                         @unique
+  customDomainVerifiedAt        DateTime?
+  customDomainVerificationToken String?
+  customDomainLastError         String?
+  customDomainStatus            CustomDomainStatus              @default(PENDING)
+  users                         TenantUser[]
+  masterAdmins                  MasterAdmin[]
+  clients                       Client[]
+  vehicles                      Vehicle[]
+  serviceOrders                 ServiceOrder[]
+  serviceOrderInspections       ServiceOrderVehicleInspection[]
+  serviceOrderItems             ServiceOrderItem[]
+  estimates                     Estimate[]
+  estimateItems                 EstimateItem[]
+  catalogItems                  CatalogItem[]
+  sectors                       Sector[]
+  mechanics                     Mechanic[]
+  suppliers                     Supplier[]
+  supplierOrders                SupplierOrder[]
+  sales                         Sale[]
+  saleItems                     SaleItem[]
+  salePayments                  SalePayment[]
+  stockMovements                StockMovement[]
+  financialAccounts             FinancialAccount[]
+  financialCategories           FinancialCategory[]
+  cashMovements                 CashMovement[]
+  companySettings               CompanySettings?
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @updatedAt
 
   @@index([slug])
   @@index([customDomain])
+  @@index([customDomainStatus])
   @@index([status])
+}
+
+enum CustomDomainStatus {
+  PENDING
+  VERIFIED
+  ERROR
 }
 
 model TenantUser {

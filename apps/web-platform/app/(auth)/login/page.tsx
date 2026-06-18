@@ -85,7 +85,7 @@ export default function LoginPage() {
     markBrowserSession();
     sessionStorage.removeItem("dashboard-welcome");
     await queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
-    router.push("/");
+    router.push("/selecionar-oficina");
     router.refresh();
   }
 

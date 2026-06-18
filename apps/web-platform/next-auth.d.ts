@@ -9,6 +9,7 @@ declare module "next-auth" {
     };
     selectedTenantId?: string | null;
     tenantRole?: TenantRole | null;
+    tenantMembershipCount?: number;
   }
 }
 
@@ -17,5 +18,6 @@ declare module "next-auth/jwt" {
     userId?: string;
     selectedTenantId?: string | null;
     tenantRole?: TenantRole | null;
+    tenantMembershipCount?: number;
   }
 }

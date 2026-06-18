@@ -39,10 +39,16 @@ function getInitials(name?: string | null, email?: string | null) {
     return initials || source.slice(0, 2).toUpperCase();
 }
 
-export function AppSidebar() {
+type AppSidebarProps = {
+    logoUrl?: string | null;
+    brandName?: string | null;
+};
+
+export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
     const pathname = usePathname();
     const { data: session } = useAuthSession();
     const user = session?.user;
+    const resolvedBrandName = brandName ?? "Rikinho Auto Center";
     const displayName = user?.name ?? "Usuario";
     const displayEmail = user?.email ?? "sem-email";
     const initials = getInitials(user?.name, user?.email);
@@ -67,16 +73,25 @@ export function AppSidebar() {
                     <SidebarTrigger
                         className="absolute right-[-18px] top-12 z-50 hidden h-9 w-9 items-center justify-center rounded-full bg-white text-primary shadow-lg transition-all duration-300 hover:scale-105 md:flex"
                     />
-                    <Image
-                        src="/assets/logo.png"
-                        alt="Rikinho Auto Center"
-                        width={120}
-                        height={72}
-                        className="h-16 w-auto object-contain drop-shadow-sm transition-all duration-300 group-data-[collapsible=icon]:hidden"
-                        priority
-                    />
+                    {logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={logoUrl}
+                            alt={resolvedBrandName}
+                            className="h-16 w-auto object-contain drop-shadow-sm transition-all duration-300 group-data-[collapsible=icon]:hidden"
+                        />
+                    ) : (
+                        <Image
+                            src="/assets/logo.png"
+                            alt={resolvedBrandName}
+                            width={120}
+                            height={72}
+                            className="h-16 w-auto object-contain drop-shadow-sm transition-all duration-300 group-data-[collapsible=icon]:hidden"
+                            priority
+                        />
+                    )}
                     <div className="hidden size-11 items-center justify-center rounded-full bg-white/10 text-red-500 text-sm font-semibold tracking-[0.2em] group-data-[collapsible=icon]:flex">
-                        RAC
+                        {resolvedBrandName.slice(0, 3).toUpperCase()}
                     </div>
                 </SidebarHeader>
 

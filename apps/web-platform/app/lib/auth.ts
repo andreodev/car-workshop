@@ -33,7 +33,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (token.userId && !token.selectedTenantId) {
-        const membership = await prisma.tenantUser.findFirst({
+        const memberships = await prisma.tenantUser.findMany({
           where: {
             userId: token.userId,
             isActive: true,
@@ -43,11 +43,13 @@ export const authOptions: NextAuthOptions = {
             tenantId: true,
             role: true,
           },
+          take: 2,
         });
+        const membership = memberships[0] ?? null;
 
         token.selectedTenantId = membership?.tenantId ?? null;
         token.tenantRole = membership?.role ?? null;
-        console.log("Selected tenant ID for user", token.userId, "is", token.selectedTenantId);
+        token.tenantMembershipCount = memberships.length;
       }
 
       return token;
@@ -59,6 +61,7 @@ export const authOptions: NextAuthOptions = {
 
       session.selectedTenantId = token.selectedTenantId ?? null;
       session.tenantRole = token.tenantRole ?? null;
+      session.tenantMembershipCount = token.tenantMembershipCount ?? 0;
 
       return session;
     },
