@@ -47,10 +47,25 @@ function normalizeHost(value: string | null) {
   return value?.split(":")[0]?.trim().toLowerCase() || null;
 }
 
+function hostFromUrl(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function platformRootDomains() {
   const domains = [
     process.env.PLATFORM_ROOT_DOMAIN,
     process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN,
+    process.env.PLATFORM_APP_DOMAIN,
+    process.env.NEXT_PUBLIC_PLATFORM_APP_DOMAIN,
+    hostFromUrl(process.env.NEXTAUTH_URL),
     "localhost",
     "127.0.0.1",
   ];
