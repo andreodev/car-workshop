@@ -9,12 +9,16 @@ PLATFORM_APP_DOMAIN=app.meudominio.com.br
 NEXT_PUBLIC_PLATFORM_APP_DOMAIN=app.meudominio.com.br
 NEXT_PUBLIC_PLATFORM_BASE_URL=https://app.meudominio.com.br
 NEXT_PUBLIC_CUSTOM_DOMAIN_CNAME_TARGET=cname.vercel-dns.com
+VERCEL_TOKEN=
+VERCEL_PROJECT_ID=
 ```
 
 - `PLATFORM_ROOT_DOMAIN`: base domain used for tenant subdomains, such as `oficinaA.meudominio.com.br`.
 - `PLATFORM_APP_DOMAIN`: main platform/admin host. It is treated as platform root and does not resolve to a tenant by host.
 - `NEXT_PUBLIC_PLATFORM_BASE_URL`: public base URL used when redirecting users from platform-root flows.
 - `NEXT_PUBLIC_CUSTOM_DOMAIN_CNAME_TARGET`: DNS CNAME target shown in the admin custom-domain screen.
+- `VERCEL_TOKEN`: token used by the admin API to add verified custom domains to the Vercel project.
+- `VERCEL_PROJECT_ID`: Vercel project id that receives each customer custom domain.
 
 ## Wildcard subdomains
 
@@ -37,7 +41,8 @@ NEXT_PUBLIC_CUSTOM_DOMAIN_CNAME_TARGET=cname.vercel-dns.com
    - Name: `_workshop-verification`
    - Value: generated verification token
 5. Run domain verification from the admin.
-6. When DNS matches, set `customDomainVerifiedAt` and mark the domain as `VERIFIED`.
+6. When DNS matches, the backend calls Vercel's project-domain API and adds the domain to `VERCEL_PROJECT_ID`.
+7. After Vercel accepts it, set `customDomainVerifiedAt` and mark the domain as `VERIFIED`.
 
 ## Resolution order
 

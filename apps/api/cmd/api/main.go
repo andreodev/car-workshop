@@ -15,6 +15,7 @@ import (
 	"car-workshop-admin-api/internal/handlers"
 	apphttp "car-workshop-admin-api/internal/http"
 	"car-workshop-admin-api/internal/http/middleware"
+	"car-workshop-admin-api/internal/integrations/vercel"
 	"car-workshop-admin-api/internal/repositories"
 	"car-workshop-admin-api/internal/usecases"
 )
@@ -39,7 +40,8 @@ func main() {
 	healthHandler := handlers.NewHealthHandler(pool)
 	workshopRepository := repositories.NewWorkshopRepository(pool)
 	masterAdminRepository := repositories.NewMasterAdminRepository(pool)
-	workshopUsecase := usecases.NewWorkshopUsecase(workshopRepository, cfg.CustomDomainCNAMETarget)
+	vercelDomainRegistrar := vercel.NewDomainRegistrar(cfg.VercelToken, cfg.VercelProjectID)
+	workshopUsecase := usecases.NewWorkshopUsecase(workshopRepository, cfg.CustomDomainCNAMETarget, vercelDomainRegistrar)
 	workshopHandler := handlers.NewWorkshopHandler(workshopUsecase)
 	masterGuard := middleware.NewMasterAdminGuard(cfg.AdminJWTSecret, masterAdminRepository)
 	corsMiddleware := middleware.NewCORSMiddleware(cfg.CORSOrigins)

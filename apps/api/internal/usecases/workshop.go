@@ -27,18 +27,24 @@ type WorkshopRepository interface {
 	RemoveCustomDomain(ctx context.Context, id string) (domain.Workshop, error)
 }
 
+type ProjectDomainRegistrar interface {
+	AddProjectDomain(ctx context.Context, customDomain string) error
+}
+
 type WorkshopUsecase struct {
-	repository  WorkshopRepository
-	cnameTarget string
+	repository      WorkshopRepository
+	cnameTarget     string
+	domainRegistrar ProjectDomainRegistrar
 }
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var domainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
-func NewWorkshopUsecase(repository WorkshopRepository, cnameTarget string) *WorkshopUsecase {
+func NewWorkshopUsecase(repository WorkshopRepository, cnameTarget string, domainRegistrar ProjectDomainRegistrar) *WorkshopUsecase {
 	return &WorkshopUsecase{
-		repository:  repository,
-		cnameTarget: normalizeDNSTarget(cnameTarget),
+		repository:      repository,
+		cnameTarget:     normalizeDNSTarget(cnameTarget),
+		domainRegistrar: domainRegistrar,
 	}
 }
 
@@ -150,6 +156,14 @@ func (u *WorkshopUsecase) VerifyCustomDomain(ctx context.Context, id string) (do
 		return domain.CustomDomainResult{Workshop: workshop, Instructions: instructions}, nil
 	}
 
+	if err := u.addCustomDomainToVercel(ctx, *workshop.CustomDomain); err != nil {
+		workshop, markErr := u.repository.MarkCustomDomainError(ctx, id, err.Error())
+		if markErr != nil {
+			return domain.CustomDomainResult{}, markErr
+		}
+		return domain.CustomDomainResult{Workshop: workshop, Instructions: instructions}, nil
+	}
+
 	workshop, err = u.repository.MarkCustomDomainVerified(ctx, id)
 	if err != nil {
 		return domain.CustomDomainResult{}, err
@@ -159,6 +173,14 @@ func (u *WorkshopUsecase) VerifyCustomDomain(ctx context.Context, id string) (do
 		Workshop:     workshop,
 		Instructions: instructions,
 	}, nil
+}
+
+func (u *WorkshopUsecase) addCustomDomainToVercel(ctx context.Context, customDomain string) error {
+	if u.domainRegistrar == nil {
+		return fmt.Errorf("configuracao da Vercel ausente: defina VERCEL_TOKEN e VERCEL_PROJECT_ID")
+	}
+
+	return u.domainRegistrar.AddProjectDomain(ctx, customDomain)
 }
 
 func (u *WorkshopUsecase) RemoveCustomDomain(ctx context.Context, id string) (domain.Workshop, error) {

@@ -34,6 +34,8 @@ Para rodar a API fora do Docker, use `localhost`:
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/car_workshop
 ADMIN_CORS_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
 CUSTOM_DOMAIN_CNAME_TARGET=cname.vercel-dns.com
+VERCEL_TOKEN=
+VERCEL_PROJECT_ID=
 ```
 
 Esta API não mantém uma migration paralela para tabelas que o Prisma do `web-platform` não conhece. Enquanto o Prisma for o dono do schema compartilhado, qualquer novo campo estrutural, como cores, banner ou ícone, deve entrar primeiro em uma migration Prisma do schema principal. Hoje a API usa `Tenant` e `CompanySettings`; a imagem suportada neste primeiro contrato é `logoUrl`.
@@ -156,7 +158,7 @@ Retorna a oficina atualizada e instruções DNS:
 POST /admin/workshops/{id}/custom-domain/verify
 ```
 
-Consulta o CNAME do domínio e marca `customDomainStatus` como `VERIFIED` quando apontar para `CUSTOM_DOMAIN_CNAME_TARGET`. Em caso de erro, salva `customDomainLastError` e mantém o domínio sem `customDomainVerifiedAt`.
+Consulta o CNAME do domínio, adiciona o domínio no projeto da Vercel usando `VERCEL_TOKEN` e `VERCEL_PROJECT_ID`, e só então marca `customDomainStatus` como `VERIFIED`. Em caso de erro no DNS ou na Vercel, salva `customDomainLastError` e mantém o domínio sem `customDomainVerifiedAt`.
 
 ### Remover domínio
 
