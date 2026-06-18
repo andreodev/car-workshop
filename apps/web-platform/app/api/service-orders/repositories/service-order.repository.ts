@@ -54,9 +54,13 @@ export const serviceOrderInclude = {
   vehicleInspection: vehicleInspectionInclude,
 } satisfies Prisma.ServiceOrderInclude;
 
-async function findSyncedServiceOrder(tx: Prisma.TransactionClient, id: string) {
-  const order = await tx.serviceOrder.findUnique({
-    where: { id },
+async function findSyncedServiceOrder(
+  tx: Prisma.TransactionClient,
+  id: string,
+  tenantId: string
+) {
+  const order = await tx.serviceOrder.findFirst({
+    where: { id, tenantId },
     include: serviceOrderInclude,
   });
 
@@ -86,77 +90,77 @@ export const serviceOrderRepository = {
     };
   },
 
-  async findCatalogItemsByIds(ids: string[]) {
+  async findCatalogItemsByIds(ids: string[], tenantId: string) {
     return prisma.catalogItem.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, type: true, active: true },
     });
   },
 
-  async findClientById(clientId: string) {
-    return prisma.client.findUnique({
-      where: { id: clientId },
+  async findClientById(clientId: string, tenantId: string) {
+    return prisma.client.findFirst({
+      where: { id: clientId, tenantId },
       select: { id: true },
     });
   },
 
-  async findVehicleById(vehicleId: string) {
-    return prisma.vehicle.findUnique({
-      where: { id: vehicleId },
+  async findVehicleById(vehicleId: string, tenantId: string) {
+    return prisma.vehicle.findFirst({
+      where: { id: vehicleId, tenantId },
       select: { id: true, clientId: true },
     });
   },
 
-  async findMechanicById(mechanicId: string) {
-    return prisma.mechanic.findUnique({
-      where: { id: mechanicId },
+  async findMechanicById(mechanicId: string, tenantId: string) {
+    return prisma.mechanic.findFirst({
+      where: { id: mechanicId, tenantId },
       select: { id: true, active: true },
     });
   },
 
-  async findMechanicsByIds(ids: string[]) {
+  async findMechanicsByIds(ids: string[], tenantId: string) {
     return prisma.mechanic.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, active: true },
     });
   },
 
-  async findSectorsByIds(ids: string[]) {
+  async findSectorsByIds(ids: string[], tenantId: string) {
     return prisma.sector.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, active: true },
     });
   },
 
-  async findById(id: string) {
-    return prisma.serviceOrder.findUnique({
-      where: { id },
+  async findById(id: string, tenantId: string) {
+    return prisma.serviceOrder.findFirst({
+      where: { id, tenantId },
       include: serviceOrderInclude,
     });
   },
 
-  async exists(id: string) {
-    return prisma.serviceOrder.findUnique({
-      where: { id },
+  async exists(id: string, tenantId: string) {
+    return prisma.serviceOrder.findFirst({
+      where: { id, tenantId },
       select: { id: true },
     });
   },
 
-  async createWithSync(data: Prisma.ServiceOrderCreateInput) {
+  async createWithSync(data: Prisma.ServiceOrderCreateInput, tenantId: string) {
     return prisma.$transaction(async (tx) => {
       const createdOrder = await tx.serviceOrder.create({
         data,
         include: serviceOrderInclude,
       });
 
-      await syncServiceOrderReceivable(tx, createdOrder.id);
-      await syncServiceOrderStockMovements(tx, createdOrder.id);
+      await syncServiceOrderReceivable(tx, createdOrder.id, tenantId);
+      await syncServiceOrderStockMovements(tx, createdOrder.id, tenantId);
 
-      return findSyncedServiceOrder(tx, createdOrder.id);
+      return findSyncedServiceOrder(tx, createdOrder.id, tenantId);
     });
   },
 
-  async updateWithSync(id: string, data: Prisma.ServiceOrderUpdateInput) {
+  async updateWithSync(id: string, data: Prisma.ServiceOrderUpdateInput, tenantId: string) {
     return prisma.$transaction(
       async (tx) => {
         const updatedOrder = await tx.serviceOrder.update({
@@ -165,10 +169,10 @@ export const serviceOrderRepository = {
           include: serviceOrderInclude,
         });
 
-        await syncServiceOrderReceivable(tx, id);
-        await syncServiceOrderStockMovements(tx, id);
+        await syncServiceOrderReceivable(tx, id, tenantId);
+        await syncServiceOrderStockMovements(tx, id, tenantId);
 
-        return findSyncedServiceOrder(tx, updatedOrder.id);
+        return findSyncedServiceOrder(tx, updatedOrder.id, tenantId);
       },
       {
         timeout: 15000,
@@ -177,7 +181,11 @@ export const serviceOrderRepository = {
     );
   },
 
-  async updateStatusWithSync(id: string, status: Prisma.ServiceOrderUpdateInput["status"]) {
+  async updateStatusWithSync(
+    id: string,
+    status: Prisma.ServiceOrderUpdateInput["status"],
+    tenantId: string
+  ) {
     return prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.serviceOrder.update({
         where: { id },
@@ -185,22 +193,22 @@ export const serviceOrderRepository = {
         include: serviceOrderInclude,
       });
 
-      await syncServiceOrderReceivable(tx, id);
-      await syncServiceOrderStockMovements(tx, id);
+      await syncServiceOrderReceivable(tx, id, tenantId);
+      await syncServiceOrderStockMovements(tx, id, tenantId);
 
-      return findSyncedServiceOrder(tx, updatedOrder.id);
+      return findSyncedServiceOrder(tx, updatedOrder.id, tenantId);
     });
   },
 
-  async cancelWithSync(id: string) {
+  async cancelWithSync(id: string, tenantId: string) {
     return prisma.$transaction(async (tx) => {
       await tx.serviceOrder.update({
         where: { id },
         data: { status: "CANCELADA" },
       });
 
-      await syncServiceOrderReceivable(tx, id);
-      await syncServiceOrderStockMovements(tx, id);
+      await syncServiceOrderReceivable(tx, id, tenantId);
+      await syncServiceOrderStockMovements(tx, id, tenantId);
     });
   },
 };

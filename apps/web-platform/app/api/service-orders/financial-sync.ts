@@ -14,10 +14,11 @@ function buildVehicleLabel(order: {
 
 export async function syncServiceOrderReceivable(
   tx: Prisma.TransactionClient,
-  serviceOrderId: string
+  serviceOrderId: string,
+  tenantId: string
 ) {
-  const order = await tx.serviceOrder.findUnique({
-    where: { id: serviceOrderId },
+  const order = await tx.serviceOrder.findFirst({
+    where: { id: serviceOrderId, tenantId },
     include: {
       client: { select: { id: true, name: true } },
       vehicle: { select: { plate: true, model: true } },
@@ -48,6 +49,7 @@ export async function syncServiceOrderReceivable(
 
   const vehicleLabel = buildVehicleLabel(order);
   const receivableData = {
+    tenantId,
     type: "RECEBER" as const,
     status: "ABERTA" as const,
     description: `OS #${order.code}`,

@@ -32,12 +32,32 @@ export const authOptions: NextAuthOptions = {
         token.userId = user.id;
       }
 
+      if (token.userId && !token.selectedTenantId) {
+        const membership = await prisma.tenantUser.findFirst({
+          where: {
+            userId: token.userId,
+            isActive: true,
+          },
+          orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+          select: {
+            tenantId: true,
+            role: true,
+          },
+        });
+
+        token.selectedTenantId = membership?.tenantId ?? null;
+        token.tenantRole = membership?.role ?? null;
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.userId) {
         session.user.id = token.userId;
       }
+
+      session.selectedTenantId = token.selectedTenantId ?? null;
+      session.tenantRole = token.tenantRole ?? null;
 
       return session;
     },

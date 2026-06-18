@@ -8,16 +8,96 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?      @unique
   emailVerified DateTime?
   image         String?
   passwordHash  String?
   accounts      Account[]
   sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  tenantUsers   TenantUser[]
+  masterAdmin   MasterAdmin?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+model Tenant {
+  id                      String                          @id @default(cuid())
+  name                    String
+  slug                    String                          @unique
+  status                  TenantStatus                    @default(TRIAL)
+  customDomain            String?                         @unique
+  customDomainVerifiedAt  DateTime?
+  users                   TenantUser[]
+  masterAdmins            MasterAdmin[]
+  clients                 Client[]
+  vehicles                Vehicle[]
+  serviceOrders           ServiceOrder[]
+  serviceOrderInspections ServiceOrderVehicleInspection[]
+  serviceOrderItems       ServiceOrderItem[]
+  estimates               Estimate[]
+  estimateItems           EstimateItem[]
+  catalogItems            CatalogItem[]
+  sectors                 Sector[]
+  mechanics               Mechanic[]
+  suppliers               Supplier[]
+  supplierOrders          SupplierOrder[]
+  sales                   Sale[]
+  saleItems               SaleItem[]
+  salePayments            SalePayment[]
+  stockMovements          StockMovement[]
+  financialAccounts       FinancialAccount[]
+  financialCategories     FinancialCategory[]
+  cashMovements           CashMovement[]
+  companySettings         CompanySettings?
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
+
+  @@index([slug])
+  @@index([customDomain])
+  @@index([status])
+}
+
+model TenantUser {
+  id        String     @id @default(cuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      TenantRole @default(STAFF)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId, role])
+  @@index([tenantId, isActive])
+}
+
+model MasterAdmin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 model Account {
@@ -176,6 +256,8 @@ enum ServiceOrderItemType {
 
 model Client {
   id         String           @id @default(cuid())
+  tenantId   String?
+  tenant     Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   personType ClientPersonType @default(FISICA)
   status     ClientStatus     @default(ATIVO)
   icms       ClientIcms       @default(ISENTO)
@@ -220,10 +302,13 @@ model Client {
   @@index([name])
   @@index([cpf])
   @@index([email])
+  @@index([tenantId])
 }
 
 model Vehicle {
   id              String        @id @default(cuid())
+  tenantId        String?
+  tenant          Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code            Int           @unique @default(dbgenerated("public.generate_public_code('Vehicle', 'code')"))
   clientId        String
   client          Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
@@ -248,16 +333,20 @@ model Vehicle {
   serviceOrders ServiceOrder[]
   estimates     Estimate[]
 
+  @@unique([tenantId, code])
   @@index([plate])
   @@index([brand])
   @@index([model])
   @@index([clientId])
   @@index([status])
   @@index([code])
+  @@index([tenantId])
 }
 
 model ServiceOrder {
   id                 String                         @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code               Int                            @unique @default(dbgenerated("public.generate_public_code('ServiceOrder', 'code')"))
   status             ServiceOrderStatus             @default(ABERTA)
   clientId           String
@@ -285,16 +374,20 @@ model ServiceOrder {
   createdAt          DateTime                       @default(now())
   updatedAt          DateTime                       @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([clientId])
   @@index([vehicleId])
   @@index([mechanicId])
   @@index([status])
   @@index([entryAt])
+  @@index([tenantId])
 }
 
 model ServiceOrderVehicleInspection {
   id             String                               @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?                              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   serviceOrderId String                               @unique
   serviceOrder   ServiceOrder                         @relation(fields: [serviceOrderId], references: [id], onDelete: Restrict)
   token          String                               @unique
@@ -307,6 +400,7 @@ model ServiceOrderVehicleInspection {
 
   @@index([token])
   @@index([status])
+  @@index([tenantId])
 }
 
 model ServiceOrderVehicleInspectionPhoto {
@@ -325,6 +419,8 @@ model ServiceOrderVehicleInspectionPhoto {
 
 model ServiceOrderItem {
   id             String               @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   serviceOrderId String
   serviceOrder   ServiceOrder         @relation(fields: [serviceOrderId], references: [id], onDelete: Restrict)
   type           ServiceOrderItemType @default(SERVICE)
@@ -349,10 +445,13 @@ model ServiceOrderItem {
   @@index([mechanicId])
   @@index([sectorId])
   @@index([type])
+  @@index([tenantId])
 }
 
 model Estimate {
   id                      String         @id @default(cuid())
+  tenantId                String?
+  tenant                  Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code                    Int            @unique @default(dbgenerated("public.generate_public_code('Estimate', 'code')"))
   status                  EstimateStatus @default(RASCUNHO)
   type                    String         @default("SIMPLES")
@@ -375,16 +474,20 @@ model Estimate {
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([clientId])
   @@index([vehicleId])
   @@index([mechanicId])
   @@index([status])
   @@index([validUntil])
+  @@index([tenantId])
 }
 
 model EstimateItem {
   id             String       @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   estimateId     String
   estimate       Estimate     @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   catalogItemId  String?
@@ -406,10 +509,13 @@ model EstimateItem {
   @@index([catalogItemId])
   @@index([mechanicId])
   @@index([sectorId])
+  @@index([tenantId])
 }
 
 model CatalogItem {
   id                      String             @id @default(cuid())
+  tenantId                String?
+  tenant                  Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code                    Int                @unique @default(dbgenerated("public.generate_public_code('CatalogItem', 'code')"))
   type                    CatalogItemType    @default(PRODUTO)
   name                    String
@@ -520,6 +626,7 @@ model CatalogItem {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([name])
   @@index([sku])
@@ -528,34 +635,42 @@ model CatalogItem {
   @@index([sectorId])
   @@index([active])
   @@index([type])
+  @@index([tenantId])
 }
 
 model Sector {
-  id        String        @id @default(cuid())
-  code      Int           @unique @default(dbgenerated("public.generate_public_code('Sector', 'code')"))
-  name      String        @unique
-  active    Boolean       @default(true)
-  notes     String?       @db.Text
-  sales     Sale[]
-  products  CatalogItem[]
+  id                String             @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              Int                @unique @default(dbgenerated("public.generate_public_code('Sector', 'code')"))
+  name              String             @unique
+  active            Boolean            @default(true)
+  notes             String?            @db.Text
+  sales             Sale[]
+  products          CatalogItem[]
   serviceOrderItems ServiceOrderItem[]
   estimateItems     EstimateItem[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
+  @@unique([tenantId, code])
+  @@unique([tenantId, name])
   @@index([code])
   @@index([name])
   @@index([active])
+  @@index([tenantId])
 }
 
 model Mechanic {
-  id                String         @id @default(cuid())
-  code              Int            @unique @default(dbgenerated("public.generate_public_code('Mechanic', 'code')"))
-  name              String         @unique
-  active            Boolean        @default(true)
-  commissionPercent Decimal        @default(0) @db.Decimal(5, 2)
-  notes             String?        @db.Text
-  paymentKey        String?        @db.Text
+  id                String             @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              Int                @unique @default(dbgenerated("public.generate_public_code('Mechanic', 'code')"))
+  name              String             @unique
+  active            Boolean            @default(true)
+  commissionPercent Decimal            @default(0) @db.Decimal(5, 2)
+  notes             String?            @db.Text
+  paymentKey        String?            @db.Text
   paymentKeyHolder  String?
   paymentBank       String?
   paymentKeyType    String?
@@ -563,16 +678,21 @@ model Mechanic {
   serviceOrderItems ServiceOrderItem[]
   estimates         Estimate[]
   estimateItems     EstimateItem[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
+  @@unique([tenantId, code])
+  @@unique([tenantId, name])
   @@index([code])
   @@index([name])
   @@index([active])
+  @@index([tenantId])
 }
 
 model Supplier {
   id                String             @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code              Int                @unique @default(dbgenerated("public.generate_public_code('Supplier', 'code')"))
   personType        SupplierPersonType @default(FISICA)
   name              String
@@ -600,15 +720,19 @@ model Supplier {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([name])
   @@index([cpf])
   @@index([email])
   @@index([productLine])
+  @@index([tenantId])
 }
 
 model SupplierOrder {
   id                  String              @id @default(cuid())
+  tenantId            String?
+  tenant              Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code                Int                 @unique @default(dbgenerated("public.generate_public_code('SupplierOrder', 'code')"))
   status              SupplierOrderStatus @default(ABERTO)
   supplierId          String
@@ -623,15 +747,19 @@ model SupplierOrder {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([supplierId])
   @@index([employee])
   @@index([forecastAt])
   @@index([status])
+  @@index([tenantId])
 }
 
 model Sale {
   id             String            @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code           Int               @unique @default(dbgenerated("public.generate_public_code('Sale', 'code')"))
   status         SaleStatus        @default(CONCLUIDA)
   clientId       String?
@@ -657,6 +785,7 @@ model Sale {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([clientId])
   @@index([serviceOrderId])
@@ -664,10 +793,13 @@ model Sale {
   @@index([status])
   @@index([createdAt])
   @@index([responsible])
+  @@index([tenantId])
 }
 
 model SaleItem {
   id             String          @id @default(cuid())
+  tenantId       String?
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   saleId         String
   sale           Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
   catalogItemId  String?
@@ -683,10 +815,13 @@ model SaleItem {
 
   @@index([saleId])
   @@index([catalogItemId])
+  @@index([tenantId])
 }
 
 model StockMovement {
   id                 String            @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   type               StockMovementType
   catalogItemId      String
   catalogItem        CatalogItem       @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
@@ -712,10 +847,13 @@ model StockMovement {
   @@index([serviceOrderItemId])
   @@index([type])
   @@index([createdAt])
+  @@index([tenantId])
 }
 
 model FinancialAccount {
   id              String                 @id @default(cuid())
+  tenantId        String?
+  tenant          Tenant?                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code            Int                    @unique @default(dbgenerated("public.generate_public_code('FinancialAccount', 'code')"))
   type            FinancialAccountType
   status          FinancialAccountStatus @default(ABERTA)
@@ -741,6 +879,7 @@ model FinancialAccount {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([type])
   @@index([status])
@@ -750,10 +889,13 @@ model FinancialAccount {
   @@index([serviceOrderId])
   @@index([supplierOrderId])
   @@index([description])
+  @@index([tenantId])
 }
 
 model FinancialCategory {
   id            String                @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code          Int                   @unique @default(dbgenerated("public.generate_public_code('FinancialCategory', 'code')"))
   name          String                @unique
   type          FinancialCategoryType @default(AMBOS)
@@ -763,14 +905,19 @@ model FinancialCategory {
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
+  @@unique([tenantId, code])
+  @@unique([tenantId, name])
   @@index([code])
   @@index([name])
   @@index([type])
   @@index([active])
+  @@index([tenantId])
 }
 
 model CashMovement {
   id                 String             @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code               Int                @unique @default(dbgenerated("public.generate_public_code('CashMovement', 'code')"))
   type               CashMovementType
   categoryId         String?
@@ -788,6 +935,7 @@ model CashMovement {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
+  @@unique([tenantId, code])
   @@index([code])
   @@index([type])
   @@index([categoryId])
@@ -795,10 +943,13 @@ model CashMovement {
   @@index([financialAccountId])
   @@index([movementDate])
   @@index([description])
+  @@index([tenantId])
 }
 
 model CompanySettings {
   id                    String   @id @default(cuid())
+  tenantId              String?  @unique
+  tenant                Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   singletonKey          String   @unique @default("company")
   legalName             String
   tradeName             String?
@@ -826,10 +977,14 @@ model CompanySettings {
   @@index([legalName])
   @@index([tradeName])
   @@index([document])
+  @@index([tenantId])
 }
 
 model SalePayment {
   id String @id @default(cuid())
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   saleId String
   sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -844,4 +999,5 @@ model SalePayment {
 
   @@index([saleId])
   @@index([paymentMethod])
+  @@index([tenantId])
 }

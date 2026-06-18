@@ -12,6 +12,7 @@ function formatStock(value: unknown) {
 async function createServiceOrderStockMovement(
   tx: Prisma.TransactionClient,
   data: {
+    tenantId: string;
     type: "SAIDA" | "ESTORNO";
     catalogItemId: string;
     serviceOrderId: string;
@@ -29,10 +30,11 @@ async function createServiceOrderStockMovement(
 async function decrementStock(
   tx: Prisma.TransactionClient,
   catalogItemId: string,
-  quantity: Prisma.Decimal
+  quantity: Prisma.Decimal,
+  tenantId: string
 ) {
-  const catalogItem = await tx.catalogItem.findUnique({
-    where: { id: catalogItemId },
+  const catalogItem = await tx.catalogItem.findFirst({
+    where: { id: catalogItemId, tenantId },
     select: { id: true, name: true, stockCurrent: true },
   });
 
@@ -50,6 +52,7 @@ async function decrementStock(
   const updateResult = await tx.catalogItem.updateMany({
     where: {
       id: catalogItem.id,
+      tenantId,
       stockCurrent: { not: null, gte: quantity },
     },
     data: {
@@ -63,8 +66,8 @@ async function decrementStock(
     );
   }
 
-  const updatedItem = await tx.catalogItem.findUnique({
-    where: { id: catalogItem.id },
+  const updatedItem = await tx.catalogItem.findFirst({
+    where: { id: catalogItem.id, tenantId },
     select: { stockCurrent: true },
   });
 
@@ -77,10 +80,11 @@ async function decrementStock(
 async function incrementStock(
   tx: Prisma.TransactionClient,
   catalogItemId: string,
-  quantity: Prisma.Decimal
+  quantity: Prisma.Decimal,
+  tenantId: string
 ) {
-  const catalogItem = await tx.catalogItem.findUnique({
-    where: { id: catalogItemId },
+  const catalogItem = await tx.catalogItem.findFirst({
+    where: { id: catalogItemId, tenantId },
     select: { id: true, stockCurrent: true },
   });
 
@@ -105,8 +109,8 @@ async function incrementStock(
     });
   }
 
-  const updatedItem = await tx.catalogItem.findUnique({
-    where: { id: catalogItem.id },
+  const updatedItem = await tx.catalogItem.findFirst({
+    where: { id: catalogItem.id, tenantId },
     select: { stockCurrent: true },
   });
 
@@ -118,10 +122,11 @@ async function incrementStock(
 
 export async function syncServiceOrderStockMovements(
   tx: Prisma.TransactionClient,
-  serviceOrderId: string
+  serviceOrderId: string,
+  tenantId: string
 ) {
-  const order = await tx.serviceOrder.findUnique({
-    where: { id: serviceOrderId },
+  const order = await tx.serviceOrder.findFirst({
+    where: { id: serviceOrderId, tenantId },
     include: {
       items: {
         include: {
@@ -138,6 +143,7 @@ export async function syncServiceOrderStockMovements(
   const movements = await tx.stockMovement.findMany({
     where: {
       serviceOrderId,
+      tenantId,
       type: { in: ["SAIDA", "ESTORNO"] },
     },
     select: {
@@ -224,8 +230,9 @@ export async function syncServiceOrderStockMovements(
     }
 
     if (delta.greaterThan(0)) {
-      const stock = await decrementStock(tx, target.catalogItemId, delta);
+      const stock = await decrementStock(tx, target.catalogItemId, delta, tenantId);
       await createServiceOrderStockMovement(tx, {
+        tenantId,
         type: "SAIDA",
         catalogItemId: target.catalogItemId,
         serviceOrderId: order.id,
@@ -240,8 +247,9 @@ export async function syncServiceOrderStockMovements(
     }
 
     const quantity = delta.abs();
-    const stock = await incrementStock(tx, target.catalogItemId, quantity);
+    const stock = await incrementStock(tx, target.catalogItemId, quantity, tenantId);
     await createServiceOrderStockMovement(tx, {
+      tenantId,
       type: "ESTORNO",
       catalogItemId: target.catalogItemId,
       serviceOrderId: order.id,
@@ -259,8 +267,9 @@ export async function syncServiceOrderStockMovements(
       continue;
     }
 
-    const stock = await incrementStock(tx, current.catalogItemId, current.quantity);
+    const stock = await incrementStock(tx, current.catalogItemId, current.quantity, tenantId);
     await createServiceOrderStockMovement(tx, {
+      tenantId,
       type: "ESTORNO",
       catalogItemId: current.catalogItemId,
       serviceOrderId: order.id,

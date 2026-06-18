@@ -220,37 +220,37 @@ export const saleRepository = {
     });
   },
 
-  async findClientById(clientId: string) {
-    return prisma.client.findUnique({
-      where: { id: clientId },
+  async findClientById(clientId: string, tenantId: string) {
+    return prisma.client.findFirst({
+      where: { id: clientId, tenantId },
       select: { id: true },
     });
   },
 
-  async findSectorById(sectorId: string) {
-    return prisma.sector.findUnique({
-      where: { id: sectorId },
+  async findSectorById(sectorId: string, tenantId: string) {
+    return prisma.sector.findFirst({
+      where: { id: sectorId, tenantId },
       select: { id: true, name: true, active: true },
     });
   },
 
-  async findCatalogItemsByIds(ids: string[]) {
+  async findCatalogItemsByIds(ids: string[], tenantId: string) {
     return prisma.catalogItem.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, name: true, type: true, stockCurrent: true },
     });
   },
 
-  async findServiceOrderById(id: string) {
-    return prisma.serviceOrder.findUnique({
-      where: { id },
+  async findServiceOrderById(id: string, tenantId: string) {
+    return prisma.serviceOrder.findFirst({
+      where: { id, tenantId },
       include: serviceOrderPdvInclude,
     });
   },
 
-  async findSaleForStock(id: string) {
-    return prisma.sale.findUnique({
-      where: { id },
+  async findSaleForStock(id: string, tenantId: string) {
+    return prisma.sale.findFirst({
+      where: { id, tenantId },
       include: saleStockInclude,
     });
   },
@@ -263,25 +263,27 @@ export const saleRepository = {
   },
 };
 
-export async function ensurePdvCategory(tx: Prisma.TransactionClient) {
+export async function ensurePdvCategory(tx: Prisma.TransactionClient, tenantId: string) {
   return tx.financialCategory.upsert({
     where: { name: "Vendas PDV" },
-    update: { type: "RECEITA", active: true },
-    create: { name: "Vendas PDV", type: "RECEITA" },
+    update: { tenantId, type: "RECEITA", active: true },
+    create: { tenantId, name: "Vendas PDV", type: "RECEITA" },
     select: { id: true },
   });
 }
 
-export async function ensureServiceOrderCategory(tx: Prisma.TransactionClient) {
+export async function ensureServiceOrderCategory(tx: Prisma.TransactionClient, tenantId: string) {
   return tx.financialCategory.upsert({
     where: {
       name: "Ordens de Serviço",
     },
     update: {
+      tenantId,
       type: "RECEITA",
       active: true,
     },
     create: {
+      tenantId,
       name: "Ordens de Serviço",
       type: "RECEITA",
     },
@@ -293,6 +295,7 @@ export async function ensureServiceOrderCategory(tx: Prisma.TransactionClient) {
 
 export async function createPaymentCashMovements(params: {
   tx: Prisma.TransactionClient;
+  tenantId: string;
   saleId: string;
   code: number | string;
   payments: ParsedPayment[];
@@ -315,6 +318,7 @@ export async function createPaymentCashMovements(params: {
     await tx.cashMovement.create({
       data: {
         type: "ENTRADA",
+        tenantId: params.tenantId,
         categoryId,
         saleId: params.saleId,
         description,

@@ -211,15 +211,51 @@ async function resetDatabase() {
     prisma.sector.deleteMany(),
     prisma.mechanic.deleteMany(),
     prisma.client.deleteMany(),
+    prisma.masterAdmin.deleteMany(),
+    prisma.tenantUser.deleteMany(),
     prisma.account.deleteMany(),
     prisma.session.deleteMany(),
     prisma.verificationToken.deleteMany(),
     prisma.user.deleteMany(),
+    prisma.tenant.deleteMany(),
+  ]);
+}
+
+async function backfillTenantData(tenantId) {
+  await prisma.$transaction([
+    prisma.client.updateMany({ data: { tenantId } }),
+    prisma.vehicle.updateMany({ data: { tenantId } }),
+    prisma.serviceOrder.updateMany({ data: { tenantId } }),
+    prisma.serviceOrderVehicleInspection.updateMany({ data: { tenantId } }),
+    prisma.serviceOrderItem.updateMany({ data: { tenantId } }),
+    prisma.estimate.updateMany({ data: { tenantId } }),
+    prisma.estimateItem.updateMany({ data: { tenantId } }),
+    prisma.catalogItem.updateMany({ data: { tenantId } }),
+    prisma.sector.updateMany({ data: { tenantId } }),
+    prisma.mechanic.updateMany({ data: { tenantId } }),
+    prisma.supplier.updateMany({ data: { tenantId } }),
+    prisma.supplierOrder.updateMany({ data: { tenantId } }),
+    prisma.sale.updateMany({ data: { tenantId } }),
+    prisma.saleItem.updateMany({ data: { tenantId } }),
+    prisma.salePayment.updateMany({ data: { tenantId } }),
+    prisma.stockMovement.updateMany({ data: { tenantId } }),
+    prisma.financialAccount.updateMany({ data: { tenantId } }),
+    prisma.financialCategory.updateMany({ data: { tenantId } }),
+    prisma.cashMovement.updateMany({ data: { tenantId } }),
+    prisma.companySettings.updateMany({ data: { tenantId } }),
   ]);
 }
 
 async function main() {
   await resetDatabase();
+
+  const defaultTenant = await prisma.tenant.create({
+    data: {
+      name: "Oficina Principal",
+      slug: "oficina-principal",
+      status: "ACTIVE",
+    },
+  });
 
   const users = await Promise.all(
     [
@@ -239,6 +275,15 @@ async function main() {
       provider: "credentials",
       providerAccountId: "admin",
     },
+  });
+
+  await prisma.tenantUser.createMany({
+    data: users.map((user, index) => ({
+      tenantId: defaultTenant.id,
+      userId: user.id,
+      role: index === 0 ? "OWNER" : "ADMIN",
+      isActive: true,
+    })),
   });
 
   const mechanics = await Promise.all(
@@ -737,6 +782,8 @@ async function main() {
       },
     });
   }
+
+  await backfillTenantData(defaultTenant.id);
 
   const stockMovementCount = await prisma.stockMovement.count();
   const inspectionCount = await prisma.serviceOrderVehicleInspection.count();

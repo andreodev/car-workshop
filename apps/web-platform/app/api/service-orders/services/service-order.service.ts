@@ -71,7 +71,7 @@ function buildServiceOrderWhere(params: {
   return { data: where };
 }
 
-async function validateCatalogItems(items: ParsedServiceOrderItems["items"]) {
+async function validateCatalogItems(items: ParsedServiceOrderItems["items"], tenantId: string) {
   const catalogItemIds = Array.from(
     new Set(items.map((item) => item.catalogItemId).filter((id): id is string => Boolean(id))),
   );
@@ -80,7 +80,7 @@ async function validateCatalogItems(items: ParsedServiceOrderItems["items"]) {
     return null;
   }
 
-  const catalogItems = await serviceOrderRepository.findCatalogItemsByIds(catalogItemIds);
+  const catalogItems = await serviceOrderRepository.findCatalogItemsByIds(catalogItemIds, tenantId);
   const catalogItemsById = new Map(catalogItems.map((item) => [item.id, item]));
 
   if (catalogItems.length !== catalogItemIds.length) {
@@ -110,7 +110,7 @@ async function validateCatalogItems(items: ParsedServiceOrderItems["items"]) {
   return null;
 }
 
-async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
+async function validateItemMechanics(items: ParsedServiceOrderItems["items"], tenantId: string) {
   const serviceItems = items.filter((item) => item.type === "SERVICE");
   const mechanicIds = Array.from(
     new Set(serviceItems.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
@@ -124,7 +124,7 @@ async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
     return "Mecânico do item é obrigatório.";
   }
 
-  const mechanics = await serviceOrderRepository.findMechanicsByIds(mechanicIds);
+  const mechanics = await serviceOrderRepository.findMechanicsByIds(mechanicIds, tenantId);
   const mechanicsById = new Map(mechanics.map((mechanic) => [mechanic.id, mechanic]));
 
   if (mechanics.length !== mechanicIds.length) {
@@ -142,7 +142,7 @@ async function validateItemMechanics(items: ParsedServiceOrderItems["items"]) {
   return null;
 }
 
-async function validateItemSectors(items: ParsedServiceOrderItems["items"]) {
+async function validateItemSectors(items: ParsedServiceOrderItems["items"], tenantId: string) {
   const serviceItems = items.filter((item) => item.type === "SERVICE");
   const sectorIds = Array.from(
     new Set(serviceItems.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
@@ -156,7 +156,7 @@ async function validateItemSectors(items: ParsedServiceOrderItems["items"]) {
     return "Setor do item é obrigatório.";
   }
 
-  const sectors = await serviceOrderRepository.findSectorsByIds(sectorIds);
+  const sectors = await serviceOrderRepository.findSectorsByIds(sectorIds, tenantId);
   const sectorsById = new Map(sectors.map((sector) => [sector.id, sector]));
 
   if (sectors.length !== sectorIds.length) {
@@ -178,6 +178,7 @@ async function buildServiceOrderData(
   payload: Record<string, unknown>,
   responsibleFallback: string | null | undefined,
   mode: "create" | "update",
+  tenantId: string,
 ) {
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
@@ -231,19 +232,19 @@ async function buildServiceOrderData(
     sectorId: item.type === "SERVICE" ? item.sectorId : null,
   }));
 
-  const catalogItemsError = await validateCatalogItems(itemsParsed.items);
+  const catalogItemsError = await validateCatalogItems(itemsParsed.items, tenantId);
 
   if (catalogItemsError) {
     return serviceError(catalogItemsError, 400);
   }
 
-  const itemMechanicsError = await validateItemMechanics(itemsParsed.items);
+  const itemMechanicsError = await validateItemMechanics(itemsParsed.items, tenantId);
 
   if (itemMechanicsError) {
     return serviceError(itemMechanicsError, 400);
   }
 
-  const itemSectorsError = await validateItemSectors(itemsParsed.items);
+  const itemSectorsError = await validateItemSectors(itemsParsed.items, tenantId);
 
   if (itemSectorsError) {
     return serviceError(itemSectorsError, 400);
@@ -255,13 +256,13 @@ async function buildServiceOrderData(
     return serviceError(status.error, 400);
   }
 
-  const client = await serviceOrderRepository.findClientById(clientId);
+  const client = await serviceOrderRepository.findClientById(clientId, tenantId);
 
   if (!client) {
     return serviceError("Cliente não encontrado.", 400);
   }
 
-  const vehicle = await serviceOrderRepository.findVehicleById(vehicleId);
+  const vehicle = await serviceOrderRepository.findVehicleById(vehicleId, tenantId);
 
   if (!vehicle) {
     return serviceError("Veículo não encontrado.", 400);
@@ -271,7 +272,7 @@ async function buildServiceOrderData(
     return serviceError("Veículo nao pertence ao cliente.", 400);
   }
 
-  const mechanic = await serviceOrderRepository.findMechanicById(mechanicId);
+  const mechanic = await serviceOrderRepository.findMechanicById(mechanicId, tenantId);
 
   if (!mechanic) {
     return serviceError("Mecânico não encontrado.", 400);
@@ -282,6 +283,7 @@ async function buildServiceOrderData(
   }
 
   const baseData = {
+    tenant: { connect: { id: tenantId } },
     client: { connect: { id: clientId } },
     vehicle: { connect: { id: vehicleId } },
     mechanic: { connect: { id: mechanicId } },
@@ -303,7 +305,10 @@ async function buildServiceOrderData(
       data: {
         ...baseData,
         items: {
-          create: itemsParsed.items,
+          create: itemsParsed.items.map((item) => ({
+            ...item,
+            tenant: { connect: { id: tenantId } },
+          })),
         },
       } satisfies Prisma.ServiceOrderCreateInput,
     };
@@ -314,7 +319,10 @@ async function buildServiceOrderData(
       ...baseData,
       items: {
         deleteMany: {},
-        create: itemsParsed.items,
+        create: itemsParsed.items.map((item) => ({
+          ...item,
+          tenant: { connect: { id: tenantId } },
+        })),
       },
     } satisfies Prisma.ServiceOrderUpdateInput,
   };
@@ -335,7 +343,7 @@ async function runStockSafe<T>(callback: () => Promise<T>) {
 }
 
 export const serviceOrderService = {
-  async list(request: NextRequest) {
+  async list(request: NextRequest, tenantId: string) {
     const { searchParams } = new URL(request.url);
     const page = coerceNumber(searchParams.get("page"), 1);
     const pageSize = Math.min(
@@ -352,7 +360,10 @@ export const serviceOrderService = {
     }
 
     const { total, items } = await serviceOrderRepository.findPaginated({
-      where: where.data,
+      where: {
+        ...where.data,
+        tenantId,
+      },
       page,
       pageSize,
     });
@@ -367,18 +378,24 @@ export const serviceOrderService = {
     };
   },
 
-  async create(payload: Record<string, unknown>, responsibleFallback: string | null | undefined) {
-    const parsed = await buildServiceOrderData(payload, responsibleFallback, "create");
+  async create(
+    payload: Record<string, unknown>,
+    responsibleFallback: string | null | undefined,
+    tenantId: string,
+  ) {
+    const parsed = await buildServiceOrderData(payload, responsibleFallback, "create", tenantId);
 
     if ("error" in parsed) {
       return parsed;
     }
 
-    return runStockSafe(async () => serializeData(await serviceOrderRepository.createWithSync(parsed.data)));
+    return runStockSafe(async () =>
+      serializeData(await serviceOrderRepository.createWithSync(parsed.data, tenantId))
+    );
   },
 
-  async findById(id: string) {
-    const order = await serviceOrderRepository.findById(id);
+  async findById(id: string, tenantId: string) {
+    const order = await serviceOrderRepository.findById(id, tenantId);
 
     if (!order) {
       return serviceError("Ordem de serviço não encontrada.", 404);
@@ -393,17 +410,26 @@ export const serviceOrderService = {
     id: string,
     payload: Record<string, unknown>,
     responsibleFallback: string | null | undefined,
+    tenantId: string,
   ) {
-    const parsed = await buildServiceOrderData(payload, responsibleFallback, "update");
+    const existingOrder = await serviceOrderRepository.exists(id, tenantId);
+
+    if (!existingOrder) {
+      return serviceError("Ordem de serviço não encontrada.", 404);
+    }
+
+    const parsed = await buildServiceOrderData(payload, responsibleFallback, "update", tenantId);
 
     if ("error" in parsed) {
       return parsed;
     }
 
-    return runStockSafe(async () => serializeData(await serviceOrderRepository.updateWithSync(id, parsed.data)));
+    return runStockSafe(async () =>
+      serializeData(await serviceOrderRepository.updateWithSync(id, parsed.data, tenantId))
+    );
   },
 
-  async updateStatus(id: string, payload: Record<string, unknown>) {
+  async updateStatus(id: string, payload: Record<string, unknown>, tenantId: string) {
     const status = parseServiceOrderStatus(payload.status);
 
     if (status.error) {
@@ -411,19 +437,19 @@ export const serviceOrderService = {
     }
 
     return runStockSafe(async () =>
-      serializeData(await serviceOrderRepository.updateStatusWithSync(id, status.value)),
+      serializeData(await serviceOrderRepository.updateStatusWithSync(id, status.value, tenantId)),
     );
   },
 
-  async remove(id: string) {
-    const existingOrder = await serviceOrderRepository.exists(id);
+  async remove(id: string, tenantId: string) {
+    const existingOrder = await serviceOrderRepository.exists(id, tenantId);
 
     if (!existingOrder) {
       return serviceError("Ordem de serviço não encontrada.", 404);
     }
 
     return runStockSafe(async () => {
-      await serviceOrderRepository.cancelWithSync(id);
+      await serviceOrderRepository.cancelWithSync(id, tenantId);
 
       return {
         ok: true,

@@ -434,6 +434,7 @@ function getSingleServiceOrderSector(
 
 async function createMechanicCommissionPayable(params: {
   tx: Prisma.TransactionClient;
+  tenantId: string;
   serviceOrder: {
     id: string;
     code: number;
@@ -460,7 +461,7 @@ async function createMechanicCommissionPayable(params: {
     }>;
   };
 }) {
-  const { tx, serviceOrder } = params;
+  const { tx, tenantId, serviceOrder } = params;
   const commissionByMechanic = new Map<
     string,
     {
@@ -512,6 +513,7 @@ async function createMechanicCommissionPayable(params: {
     const existingCommission = await tx.financialAccount.findFirst({
       where: {
         type: "PAGAR",
+        tenantId,
         documentNumber: `OS-${serviceOrder.code}`,
         category: "Comissão mecânico",
         counterparty: mechanic.name,
@@ -530,6 +532,7 @@ async function createMechanicCommissionPayable(params: {
 
     const account = await tx.financialAccount.create({
       data: {
+        tenantId,
         type: "PAGAR",
         status: "ABERTA",
         description: `Comissão do mecânico - OS #${serviceOrder.code}`,
@@ -583,6 +586,7 @@ function extractServiceOrderCodeFromSale(sale: {
 
 async function reverseSaleStockMovements(params: {
   tx: Prisma.TransactionClient;
+  tenantId: string;
   sale: {
     id: string;
     code: number;
@@ -596,15 +600,15 @@ async function reverseSaleStockMovements(params: {
     }>;
   };
 }) {
-  const { tx, sale } = params;
+  const { tx, tenantId, sale } = params;
 
   for (const movement of sale.stockMovements) {
     if (movement.type !== "SAIDA") {
       continue;
     }
 
-    const catalogItem = await tx.catalogItem.findUnique({
-      where: { id: movement.catalogItemId },
+    const catalogItem = await tx.catalogItem.findFirst({
+      where: { id: movement.catalogItemId, tenantId },
       select: { stockCurrent: true },
     });
 
@@ -623,13 +627,14 @@ async function reverseSaleStockMovements(params: {
       },
     });
 
-    const updatedItem = await tx.catalogItem.findUnique({
-      where: { id: movement.catalogItemId },
+    const updatedItem = await tx.catalogItem.findFirst({
+      where: { id: movement.catalogItemId, tenantId },
       select: { stockCurrent: true },
     });
 
     await tx.stockMovement.create({
       data: {
+        tenantId,
         type: "ESTORNO",
         catalogItemId: movement.catalogItemId,
         saleId: sale.id,
@@ -648,17 +653,18 @@ async function reverseSaleStockMovements(params: {
 
 async function findServiceOrderForSaleCancellation(params: {
   tx: Prisma.TransactionClient;
+  tenantId: string;
   sale: {
     serviceOrderId: string | null;
     notes: string | null;
     cashMovements: Array<{ documentNumber: string | null }>;
   };
 }) {
-  const { tx, sale } = params;
+  const { tx, tenantId, sale } = params;
 
   if (sale.serviceOrderId) {
-    return tx.serviceOrder.findUnique({
-      where: { id: sale.serviceOrderId },
+    return tx.serviceOrder.findFirst({
+      where: { id: sale.serviceOrderId, tenantId },
       include: {
         mechanic: { select: { name: true } },
         financialAccount: { select: { id: true } },
@@ -672,8 +678,8 @@ async function findServiceOrderForSaleCancellation(params: {
     return null;
   }
 
-  return tx.serviceOrder.findUnique({
-    where: { code: serviceOrderCode },
+  return tx.serviceOrder.findFirst({
+    where: { code: serviceOrderCode, tenantId },
     include: {
       mechanic: { select: { name: true } },
       financialAccount: { select: { id: true } },
@@ -683,6 +689,7 @@ async function findServiceOrderForSaleCancellation(params: {
 
 async function cancelServiceOrderPaymentArtifacts(params: {
   tx: Prisma.TransactionClient;
+  tenantId: string;
   serviceOrder: {
     id: string;
     code: number;
@@ -690,12 +697,13 @@ async function cancelServiceOrderPaymentArtifacts(params: {
     financialAccount: { id: string } | null;
   };
 }) {
-  const { tx, serviceOrder } = params;
+  const { tx, tenantId, serviceOrder } = params;
 
   if (serviceOrder.financialAccount) {
     await tx.cashMovement.deleteMany({
       where: {
         financialAccountId: serviceOrder.financialAccount.id,
+        tenantId,
       },
     });
   }
@@ -703,6 +711,7 @@ async function cancelServiceOrderPaymentArtifacts(params: {
   const commissionAccounts = await tx.financialAccount.findMany({
     where: {
       type: "PAGAR",
+      tenantId,
       documentNumber: `OS-${serviceOrder.code}`,
       category: "Comissão mecânico",
     },
@@ -713,6 +722,7 @@ async function cancelServiceOrderPaymentArtifacts(params: {
     await tx.cashMovement.deleteMany({
       where: {
         financialAccountId: account.id,
+        tenantId,
       },
     });
 
@@ -723,7 +733,7 @@ async function cancelServiceOrderPaymentArtifacts(params: {
 }
 
 export const saleService = {
-  async list(request: NextRequest) {
+  async list(request: NextRequest, tenantId: string) {
     try {
       console.log("[PDV_GET] INIT");
 
@@ -747,7 +757,10 @@ export const saleService = {
         to,
       });
 
-      const where = buildSaleWhere(search, status, from, to);
+      const where = {
+        ...buildSaleWhere(search, status, from, to),
+        tenantId,
+      };
 
       console.log("[PDV_GET] BEFORE SALE COUNT");
       console.log("[PDV_GET] BEFORE SALE FIND MANY");
@@ -758,7 +771,12 @@ export const saleService = {
         pageSize,
       });
       const serviceOrderWhere =
-        status === "CANCELADA" ? null : buildCompletedServiceOrderWhere(search, from, to);
+        status === "CANCELADA"
+          ? null
+          : {
+              ...buildCompletedServiceOrderWhere(search, from, to),
+              tenantId,
+            };
 
       console.log("[PDV_GET] SERVICE ORDER WHERE:", serviceOrderWhere);
       console.log("[PDV_GET] BEFORE SERVICE ORDER FIND MANY");
@@ -806,7 +824,7 @@ export const saleService = {
     }
   },
 
-  async create(payload: Record<string, unknown>, responsibleFallback: string) {
+  async create(payload: Record<string, unknown>, responsibleFallback: string, tenantId: string) {
     const parsedPayload = saleCreatePayloadSchema.safeParse(payload);
 
     if (!parsedPayload.success) {
@@ -825,14 +843,14 @@ export const saleService = {
     }
 
     if (clientId) {
-      const client = await saleRepository.findClientById(clientId);
+      const client = await saleRepository.findClientById(clientId, tenantId);
 
       if (!client) {
         return serviceError("Cliente nÃ£o encontrado.", 404);
       }
     }
 
-    const sector = sectorId ? await saleRepository.findSectorById(sectorId) : null;
+    const sector = sectorId ? await saleRepository.findSectorById(sectorId, tenantId) : null;
 
     if (sectorId && !sector) {
       return serviceError("Setor nÃ£o encontrado.", 404);
@@ -854,7 +872,7 @@ export const saleService = {
 
     const items = parsedItems.data;
     const uniqueCatalogItemIds = Array.from(new Set(items.map((item) => item.catalogItemId)));
-    const foundItems = await saleRepository.findCatalogItemsByIds(uniqueCatalogItemIds);
+    const foundItems = await saleRepository.findCatalogItemsByIds(uniqueCatalogItemIds, tenantId);
 
     if (foundItems.length !== uniqueCatalogItemIds.length) {
       return serviceError("Produto da venda nÃ£o encontrado.", 404);
@@ -915,6 +933,7 @@ export const saleService = {
       const sale = await saleRepository.runTransaction(async (tx) => {
         const createdSale = await tx.sale.create({
           data: {
+            tenantId,
             clientId,
             sectorId,
             responsible,
@@ -927,6 +946,7 @@ export const saleService = {
             total: totalPaid,
             items: {
               create: items.map((item) => ({
+                tenant: { connect: { id: tenantId } },
                 catalogItemId: item.catalogItemId,
                 description: item.description,
                 quantity: item.quantity,
@@ -937,6 +957,7 @@ export const saleService = {
             },
             payments: {
               create: payments.map((payment) => ({
+                tenant: { connect: { id: tenantId } },
                 paymentMethod: payment.paymentMethod,
                 amount: payment.amount,
                 feeAmount: payment.feeAmount,
@@ -953,8 +974,8 @@ export const saleService = {
             continue;
           }
 
-          const catalogItem = await tx.catalogItem.findUnique({
-            where: { id: item.catalogItemId },
+          const catalogItem = await tx.catalogItem.findFirst({
+            where: { id: item.catalogItemId, tenantId },
             select: { id: true, name: true, stockCurrent: true },
           });
 
@@ -974,6 +995,7 @@ export const saleService = {
           const updateResult = await tx.catalogItem.updateMany({
             where: {
               id: catalogItem.id,
+              tenantId,
               stockCurrent: { not: null, gte: quantity },
             },
             data: {
@@ -987,13 +1009,14 @@ export const saleService = {
             );
           }
 
-          const updatedItem = await tx.catalogItem.findUnique({
-            where: { id: catalogItem.id },
+          const updatedItem = await tx.catalogItem.findFirst({
+            where: { id: catalogItem.id, tenantId },
             select: { stockCurrent: true },
           });
 
           await tx.stockMovement.create({
             data: {
+              tenantId,
               type: "SAIDA",
               catalogItemId: catalogItem.id,
               saleId: createdSale.id,
@@ -1006,10 +1029,11 @@ export const saleService = {
           });
         }
 
-        const category = await ensurePdvCategory(tx);
+        const category = await ensurePdvCategory(tx, tenantId);
 
         await createPaymentCashMovements({
           tx,
+          tenantId,
           saleId: createdSale.id,
           code: createdSale.code,
           payments,
@@ -1038,8 +1062,8 @@ export const saleService = {
     }
   },
 
-  async findServiceOrderForPdv(id: string) {
-    const serviceOrder = await saleRepository.findServiceOrderById(id);
+  async findServiceOrderForPdv(id: string, tenantId: string) {
+    const serviceOrder = await saleRepository.findServiceOrderById(id, tenantId);
 
     if (!serviceOrder) {
       return serviceError("Ordem de serviço não encontrada.", 404);
@@ -1076,7 +1100,7 @@ export const saleService = {
     };
   },
 
-  async updateStatus(id: string, payload: Record<string, unknown>) {
+  async updateStatus(id: string, payload: Record<string, unknown>, tenantId: string) {
     const status = normalizeStatus(normalizeString(payload.status));
 
     if (!status) {
@@ -1089,8 +1113,8 @@ export const saleService = {
 
     try {
       const result = await saleRepository.runTransaction(async (tx) => {
-        const sale = await tx.sale.findUnique({
-          where: { id },
+        const sale = await tx.sale.findFirst({
+          where: { id, tenantId },
           include: {
             cashMovements: {
               select: {
@@ -1135,6 +1159,7 @@ export const saleService = {
         const cancelGuard = await tx.sale.updateMany({
           where: {
             id,
+            tenantId,
             status: {
               not: "CANCELADA",
             },
@@ -1163,6 +1188,7 @@ export const saleService = {
           sale.serviceOrder ??
           (await findServiceOrderForSaleCancellation({
             tx,
+            tenantId,
             sale,
           }));
         const updatedSale = await tx.sale.findUniqueOrThrow({
@@ -1172,24 +1198,28 @@ export const saleService = {
 
         await reverseSaleStockMovements({
           tx,
+          tenantId,
           sale,
         });
 
         await tx.cashMovement.deleteMany({
           where: {
             saleId: sale.id,
+            tenantId,
           },
         });
 
         await tx.salePayment.deleteMany({
           where: {
             saleId: sale.id,
+            tenantId,
           },
         });
 
         if (serviceOrder) {
           await cancelServiceOrderPaymentArtifacts({
             tx,
+            tenantId,
             serviceOrder,
           });
         }
@@ -1218,17 +1248,21 @@ export const saleService = {
     }
   },
 
-  async finalizePayment(id: string, payload: Record<string, unknown>) {
+  async finalizePayment(id: string, payload: Record<string, unknown>, tenantId: string) {
     const serviceOrderId = normalizeString(payload.serviceOrderId);
 
     if (serviceOrderId) {
-      return this.finalizeServiceOrderPayment(serviceOrderId, payload);
+      return this.finalizeServiceOrderPayment(serviceOrderId, payload, tenantId);
     }
 
-    return this.finalizeSalePayment(id, payload);
+    return this.finalizeSalePayment(id, payload, tenantId);
   },
 
-  async finalizeServiceOrderPayment(serviceOrderId: string, payload: Record<string, unknown>) {
+  async finalizeServiceOrderPayment(
+    serviceOrderId: string,
+    payload: Record<string, unknown>,
+    tenantId: string,
+  ) {
     const parsedPayload = serviceOrderPaymentPayloadSchema.safeParse({
       ...payload,
       serviceOrderId,
@@ -1239,7 +1273,7 @@ export const saleService = {
     }
 
     const paymentPayload = parsedPayload.data;
-    const serviceOrder = await saleRepository.findServiceOrderById(serviceOrderId);
+    const serviceOrder = await saleRepository.findServiceOrderById(serviceOrderId, tenantId);
 
     if (!serviceOrder) {
       return serviceError("Ordem de serviço não encontrada.", 404);
@@ -1284,6 +1318,7 @@ export const saleService = {
         const paymentGuard = await tx.serviceOrder.updateMany({
           where: {
             id: serviceOrder.id,
+            tenantId,
             status: "FINALIZADA",
           },
           data: {
@@ -1294,6 +1329,7 @@ export const saleService = {
         if (paymentGuard.count !== 1) {
           const existingSale = await tx.sale.findFirst({
             where: {
+              tenantId,
               serviceOrderId: serviceOrder.id,
               status: "CONCLUIDA",
             },
@@ -1304,9 +1340,10 @@ export const saleService = {
           });
 
           if (existingSale) {
-            const currentServiceOrder = await tx.serviceOrder.findUniqueOrThrow({
+            const currentServiceOrder = await tx.serviceOrder.findFirstOrThrow({
               where: {
                 id: serviceOrder.id,
+                tenantId,
               },
             });
 
@@ -1335,6 +1372,7 @@ export const saleService = {
           : "";
         const sale = await tx.sale.create({
           data: {
+            tenantId,
             clientId: serviceOrder.clientId,
             serviceOrderId: serviceOrder.id,
             sectorId: serviceOrderSector?.id ?? null,
@@ -1349,6 +1387,7 @@ export const saleService = {
             notes: `Pagamento da ordem de serviço #${serviceOrder.code}.${paymentDiscountNote}`,
             items: {
               create: saleItems.map((item) => ({
+                tenant: { connect: { id: tenantId } },
                 catalogItemId: item.catalogItemId,
                 description: item.description,
                 quantity: item.quantity,
@@ -1359,6 +1398,7 @@ export const saleService = {
             },
             payments: {
               create: payments.map((payment) => ({
+                tenant: { connect: { id: tenantId } },
                 paymentMethod: payment.paymentMethod,
                 amount: payment.amount,
                 feeAmount: payment.feeAmount,
@@ -1369,10 +1409,11 @@ export const saleService = {
           },
           include: salePaymentInclude,
         });
-        const category = await ensureServiceOrderCategory(tx);
+        const category = await ensureServiceOrderCategory(tx, tenantId);
 
         await createPaymentCashMovements({
           tx,
+          tenantId,
           saleId: sale.id,
           code: sale.code,
           payments,
@@ -1384,6 +1425,7 @@ export const saleService = {
 
         const updatedFinancialAccounts = await tx.financialAccount.updateMany({
           where: {
+            tenantId,
             type: "RECEBER",
             status: {
               in: ["ABERTA", "VENCIDA"],
@@ -1420,12 +1462,14 @@ export const saleService = {
 
         const mechanicCommissionPayable = await createMechanicCommissionPayable({
           tx,
+          tenantId,
           serviceOrder,
         });
 
-        const updatedServiceOrder = await tx.serviceOrder.findUniqueOrThrow({
+        const updatedServiceOrder = await tx.serviceOrder.findFirstOrThrow({
           where: {
             id: serviceOrder.id,
+            tenantId,
           },
         });
 
@@ -1460,7 +1504,7 @@ export const saleService = {
     }
   },
 
-  async finalizeSalePayment(id: string, payload: Record<string, unknown>) {
+  async finalizeSalePayment(id: string, payload: Record<string, unknown>, tenantId: string) {
     const parsedPayload = saleFinalizePayloadSchema.safeParse(payload);
 
     if (!parsedPayload.success) {
@@ -1468,7 +1512,7 @@ export const saleService = {
     }
 
     const paymentPayload = parsedPayload.data;
-    const currentSale = await saleRepository.findSaleForStock(id);
+    const currentSale = await saleRepository.findSaleForStock(id, tenantId);
 
     if (!currentSale) {
       return serviceError("Venda nÃ£o encontrada.", 404);
@@ -1499,9 +1543,10 @@ export const saleService = {
             continue;
           }
 
-          const catalogItem = await tx.catalogItem.findUnique({
+          const catalogItem = await tx.catalogItem.findFirst({
             where: {
               id: item.catalogItemId,
+              tenantId,
             },
             select: {
               id: true,
@@ -1528,6 +1573,7 @@ export const saleService = {
           const updateResult = await tx.catalogItem.updateMany({
             where: {
               id: catalogItem.id,
+              tenantId,
               stockCurrent: {
                 not: null,
                 gte: quantity,
@@ -1546,9 +1592,10 @@ export const saleService = {
             );
           }
 
-          const updatedItem = await tx.catalogItem.findUnique({
+          const updatedItem = await tx.catalogItem.findFirst({
             where: {
               id: catalogItem.id,
+              tenantId,
             },
             select: {
               stockCurrent: true,
@@ -1557,6 +1604,7 @@ export const saleService = {
 
           await tx.stockMovement.create({
             data: {
+              tenantId,
               type: "SAIDA",
               catalogItemId: catalogItem.id,
               saleId: currentSale.id,
@@ -1572,6 +1620,7 @@ export const saleService = {
         await tx.salePayment.deleteMany({
           where: {
             saleId: currentSale.id,
+            tenantId,
           },
         });
 
@@ -1586,6 +1635,7 @@ export const saleService = {
             total: totalPaid,
             payments: {
               create: payments.map((payment) => ({
+                tenant: { connect: { id: tenantId } },
                 paymentMethod: payment.paymentMethod,
                 amount: payment.amount,
                 feeAmount: payment.feeAmount,
@@ -1597,10 +1647,11 @@ export const saleService = {
           include: salePaymentInclude,
         });
 
-        const category = await ensurePdvCategory(tx);
+        const category = await ensurePdvCategory(tx, tenantId);
 
         await createPaymentCashMovements({
           tx,
+          tenantId,
           saleId: updatedSale.id,
           code: updatedSale.code,
           payments,

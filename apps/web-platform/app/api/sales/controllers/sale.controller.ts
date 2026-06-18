@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
+import { tenantErrorResponse } from "@/app/api/_utils/tenant-error";
 import { saleService } from "../services/sale.service";
 
 type RouteContext = {
@@ -25,53 +27,86 @@ function errorResponse(result: { error: string; status: number; details?: string
 
 export const saleController = {
   async list(request: NextRequest) {
-    const session = await getServerAuthSession();
+    try {
+      const session = await getServerAuthSession();
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+      if (!session?.user) {
+        return Response.json({ error: "Não autorizado." }, { status: 401 });
+      }
+
+      const tenant = await requireTenantMembership(request);
+      const result = await saleService.list(request, tenant.tenantId);
+
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    const result = await saleService.list(request);
-
-    if ("error" in result) {
-      return errorResponse(result);
-    }
-
-    return Response.json(result.data);
   },
 
   async create(request: NextRequest) {
-    const session = await getServerAuthSession();
+    try {
+      const session = await getServerAuthSession();
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+      if (!session?.user) {
+        return Response.json({ error: "Não autorizado." }, { status: 401 });
+      }
+
+      const tenant = await requireTenantMembership(request);
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await saleService.create(payload, defaultResponsible(session), tenant.tenantId);
+
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data, { status: 201 });
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await saleService.create(payload, defaultResponsible(session));
-
-    if ("error" in result) {
-      return errorResponse(result);
-    }
-
-    return Response.json(result.data, { status: 201 });
   },
 
-  async findServiceOrderForPdv(_request: NextRequest, { params }: RouteContext) {
-    const session = await getServerAuthSession();
+  async findServiceOrderForPdv(request: NextRequest, { params }: RouteContext) {
+    try {
+      const session = await getServerAuthSession();
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+      if (!session?.user) {
+        return Response.json({ error: "Não autorizado." }, { status: 401 });
+      }
+
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const result = await saleService.findServiceOrderForPdv(id, tenant.tenantId);
+
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    const { id } = await params;
-    const result = await saleService.findServiceOrderForPdv(id);
-
-    if ("error" in result) {
-      return errorResponse(result);
-    }
-
-    return Response.json(result.data);
   },
 
   async finalizePayment(request: NextRequest, { params }: RouteContext) {
@@ -81,15 +116,26 @@ export const saleController = {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await saleService.finalizePayment(id, payload);
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await saleService.finalizePayment(id, payload, tenant.tenantId);
 
-    if ("error" in result) {
-      return errorResponse(result);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    return Response.json(result.data);
   },
 
   async updateStatus(request: NextRequest, { params }: RouteContext) {
@@ -99,14 +145,25 @@ export const saleController = {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await saleService.updateStatus(id, payload);
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await saleService.updateStatus(id, payload, tenant.tenantId);
 
-    if ("error" in result) {
-      return errorResponse(result);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    return Response.json(result.data);
   },
 };
