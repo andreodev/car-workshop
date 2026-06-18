@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
+import { tenantErrorResponse } from "@/app/api/_utils/tenant-error";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
 import { estimateService } from "../services/estimate.service";
 
 type RouteContext = {
@@ -32,7 +34,8 @@ export const estimateController = {
         return Response.json({ error: "Não autorizado." }, { status: 401 });
       }
 
-      const result = await estimateService.list(request);
+      const tenant = await requireTenantMembership(request);
+      const result = await estimateService.list(request, tenant.tenantId);
 
       if ("error" in result) {
         return errorResponse(result);
@@ -40,6 +43,12 @@ export const estimateController = {
 
       return Response.json(result.data);
     } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
       console.error("Erro ao listar orçamentos", error);
 
       return Response.json(
@@ -52,37 +61,63 @@ export const estimateController = {
   },
 
   async create(request: NextRequest) {
-    const session = await getServerAuthSession();
+    try {
+      const session = await getServerAuthSession();
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+      if (!session?.user) {
+        return Response.json({ error: "Não autorizado." }, { status: 401 });
+      }
+
+      const tenant = await requireTenantMembership(request);
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await estimateService.create(
+        payload,
+        defaultResponsible(session),
+        tenant.tenantId
+      );
+
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data, { status: 201 });
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await estimateService.create(payload, defaultResponsible(session));
-
-    if ("error" in result) {
-      return errorResponse(result);
-    }
-
-    return Response.json(result.data, { status: 201 });
   },
 
-  async findById(_request: NextRequest, { params }: RouteContext) {
+  async findById(request: NextRequest, { params }: RouteContext) {
     const session = await getServerAuthSession();
 
     if (!session?.user) {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const result = await estimateService.findById(id);
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const result = await estimateService.findById(id, tenant.tenantId);
 
-    if ("error" in result) {
-      return errorResponse(result);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    return Response.json(result.data);
   },
 
   async update(request: NextRequest, { params }: RouteContext) {
@@ -92,15 +127,31 @@ export const estimateController = {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await estimateService.update(id, payload, defaultResponsible(session));
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await estimateService.update(
+        id,
+        payload,
+        defaultResponsible(session),
+        tenant.tenantId
+      );
 
-    if ("error" in result) {
-      return errorResponse(result);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    return Response.json(result.data);
   },
 
   async updateStatus(request: NextRequest, { params }: RouteContext) {
@@ -110,31 +161,57 @@ export const estimateController = {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const payload = (await request.json()) as Record<string, unknown>;
-    const result = await estimateService.updateStatus(id, payload);
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const payload = (await request.json()) as Record<string, unknown>;
+      const result = await estimateService.updateStatus(id, payload, tenant.tenantId);
 
-    if ("error" in result) {
-      return errorResponse(result);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
     }
-
-    return Response.json(result.data);
   },
 
-  async remove(_request: NextRequest, { params }: RouteContext) {
+  async remove(request: NextRequest, { params }: RouteContext) {
     const session = await getServerAuthSession();
 
     if (!session?.user) {
       return Response.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    const { id } = await params;
-    const result = await estimateService.remove(id);
+    try {
+      const tenant = await requireTenantMembership(request);
+      const { id } = await params;
+      const result = await estimateService.remove(id, tenant.tenantId);
 
-    return Response.json(result.data);
+      if ("error" in result) {
+        return errorResponse(result);
+      }
+
+      return Response.json(result.data);
+    } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
+      throw error;
+    }
   },
 
-  async convertToServiceOrder(_request: NextRequest, { params }: RouteContext) {
+  async convertToServiceOrder(request: NextRequest, { params }: RouteContext) {
     try {
       const session = await getServerAuthSession();
 
@@ -142,8 +219,9 @@ export const estimateController = {
         return Response.json({ error: "Não autorizado." }, { status: 401 });
       }
 
+      const tenant = await requireTenantMembership(request);
       const { id } = await params;
-      const result = await estimateService.convertToServiceOrder(id);
+      const result = await estimateService.convertToServiceOrder(id, tenant.tenantId);
 
       if ("error" in result) {
         return errorResponse(result);
@@ -151,6 +229,12 @@ export const estimateController = {
 
       return Response.json(result.data, { status: 201 });
     } catch (error) {
+      const tenantResponse = tenantErrorResponse(error);
+
+      if (tenantResponse) {
+        return tenantResponse;
+      }
+
       console.error("[ESTIMATE_TO_OS] Erro ao converter orçamento para OS:", error);
 
       return Response.json(

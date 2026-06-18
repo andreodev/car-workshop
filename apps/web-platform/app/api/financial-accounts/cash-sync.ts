@@ -2,16 +2,23 @@ import { Prisma, type FinancialAccountType } from "@prisma/client";
 
 async function ensureFinancialCategory(
   tx: Prisma.TransactionClient,
+  tenantId: string,
   name: string,
   type: FinancialAccountType
 ) {
   return tx.financialCategory.upsert({
-    where: { name },
+    where: {
+      tenantId_name: {
+        tenantId,
+        name,
+      },
+    },
     update: {
       type: type === "RECEBER" ? "RECEITA" : "DESPESA",
       active: true,
     },
     create: {
+      tenantId,
       name,
       type: type === "RECEBER" ? "RECEITA" : "DESPESA",
     },
@@ -21,12 +28,14 @@ async function ensureFinancialCategory(
 
 export async function syncFinancialAccountCashMovement(
   tx: Prisma.TransactionClient,
-  financialAccountId: string
+  financialAccountId: string,
+  tenantId: string
 ) {
-  const account = await tx.financialAccount.findUnique({
-    where: { id: financialAccountId },
+  const account = await tx.financialAccount.findFirst({
+    where: { id: financialAccountId, tenantId },
     select: {
       id: true,
+      tenantId: true,
       code: true,
       type: true,
       status: true,
@@ -48,7 +57,7 @@ export async function syncFinancialAccountCashMovement(
   }
 
   const movements = await tx.cashMovement.findMany({
-    where: { financialAccountId },
+    where: { financialAccountId, tenantId },
     select: {
       type: true,
       amount: true,
@@ -79,6 +88,7 @@ export async function syncFinancialAccountCashMovement(
 
   const category = await ensureFinancialCategory(
     tx,
+    tenantId,
     account.category ??
       (movementType === "ENTRADA"
         ? account.type === "PAGAR"
@@ -92,6 +102,7 @@ export async function syncFinancialAccountCashMovement(
 
   await tx.cashMovement.create({
     data: {
+      tenantId,
       type: movementType,
       categoryId: category.id,
       financialAccountId,

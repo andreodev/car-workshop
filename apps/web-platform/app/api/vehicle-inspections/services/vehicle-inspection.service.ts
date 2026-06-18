@@ -70,14 +70,14 @@ async function validatePhoto(file: File, index: number, photoTakenAt: FormDataEn
 }
 
 export const vehicleInspectionService = {
-  async findByToken(rawToken: string) {
+  async findByToken(rawToken: string, tenantId: string | null) {
     const token = normalizeInspectionToken(rawToken);
 
     if (!token) {
       return serviceError("Vistoria não encontrada.", 404);
     }
 
-    const inspection = await vehicleInspectionRepository.findByToken(token);
+    const inspection = await vehicleInspectionRepository.findByToken(token, tenantId);
 
     if (!inspection) {
       return serviceError("Vistoria não encontrada.", 404);
@@ -88,14 +88,14 @@ export const vehicleInspectionService = {
     };
   },
 
-  async complete(rawToken: string, formData: FormData) {
+  async complete(rawToken: string, formData: FormData, tenantId: string | null) {
     const token = normalizeInspectionToken(rawToken);
 
     if (!token) {
       return serviceError("Vistoria não encontrada.", 404);
     }
 
-    const inspection = await vehicleInspectionRepository.findByToken(token);
+    const inspection = await vehicleInspectionRepository.findByToken(token, tenantId);
 
     if (!inspection) {
       return serviceError("Vistoria não encontrada.", 404);
@@ -154,6 +154,7 @@ export const vehicleInspectionService = {
 
     const updatedInspection = await vehicleInspectionRepository.complete({
       id: inspection.id,
+      tenantId: inspection.tenantId,
       notes: notes.value,
       photos,
     });

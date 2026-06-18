@@ -533,9 +533,9 @@ type ReceiptPayment = {
   installments?: unknown;
 };
 
-export async function renderSaleReceiptPdf(id: string) {
-  const sale = await prisma.sale.findUnique({
-    where: { id },
+export async function renderSaleReceiptPdf(id: string, tenantId: string) {
+  const sale = await prisma.sale.findFirst({
+    where: { id, tenantId },
     include: {
       client: true,
       sector: true,
@@ -569,7 +569,12 @@ export async function renderSaleReceiptPdf(id: string) {
   }
 
   const companySettings = await prisma.companySettings.findUnique({
-    where: { singletonKey: COMPANY_SETTINGS_KEY },
+    where: {
+      tenantId_singletonKey: {
+        tenantId,
+        singletonKey: COMPANY_SETTINGS_KEY,
+      },
+    },
   });
 
   let logoSrc: string | null = companySettings?.logoUrl ?? null;

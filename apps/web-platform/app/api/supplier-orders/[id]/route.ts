@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma, SupplierOrderStatus } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import {
   supplierOrderFormSchema,
@@ -34,16 +34,16 @@ const supplierInclude = {
   },
 } satisfies Prisma.SupplierOrderInclude;
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
-  const order = await prisma.supplierOrder.findUnique({
-    where: { id },
+  const order = await prisma.supplierOrder.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     include: supplierInclude,
   });
 
@@ -55,10 +55,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -71,10 +71,28 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   try {
     const order = await prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.supplierOrder.update({
-        where: { id },
+      const existingOrder = await tx.supplierOrder.findFirst({
+        where: { id, tenantId: tenant.tenantId },
+        select: { id: true },
+      });
+
+      if (!existingOrder) {
+        throw new Error("Pedido não encontrado.");
+      }
+
+      const supplier = await tx.supplier.findFirst({
+        where: { id: parsed.data.supplierId, tenantId: tenant.tenantId },
+        select: { id: true },
+      });
+
+      if (!supplier) {
+        throw new Error("Fornecedor não encontrado.");
+      }
+
+      await tx.supplierOrder.updateMany({
+        where: { id, tenantId: tenant.tenantId },
         data: {
-          supplier: { connect: { id: parsed.data.supplierId } },
+          supplierId: parsed.data.supplierId,
           status: parsed.data.status as SupplierOrderStatus,
           employee: parsed.data.employee,
           forecastAt: toDateAtNoon(parsed.data.forecastAt),
@@ -83,10 +101,14 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
           observation: toNullableString(parsed.data.observation),
           internalDescription: toNullableString(parsed.data.internalDescription),
         },
+      });
+
+      const updatedOrder = await tx.supplierOrder.findFirstOrThrow({
+        where: { id, tenantId: tenant.tenantId },
         include: supplierInclude,
       });
 
-      await syncSupplierOrderPayable(tx, id);
+      await syncSupplierOrderPayable(tx, id, tenant.tenantId);
 
       return updatedOrder;
     });
@@ -103,30 +125,38 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    throw error;
-  }
-}
+    if (error instanceof Error && error.message === "Pedido não encontrado.") {
+      return Response.json({ error: error.message }, { status: 404 });
+    }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
-
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
-  }
-
-  const { id } = await params;
-
-  try {
-    await prisma.supplierOrder.delete({ where: { id } });
-    return Response.json({ ok: true });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return Response.json({ error: "Pedido não encontrado." }, { status: 404 });
+    if (error instanceof Error && error.message === "Fornecedor não encontrado.") {
+      return Response.json({ error: error.message }, { status: 404 });
     }
 
     throw error;
   }
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
+
+  if (response) {
+    return response;
+  }
+
+  const { id } = await params;
+
+  const order = await prisma.supplierOrder.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!order) {
+    return Response.json({ error: "Pedido não encontrado." }, { status: 404 });
+  }
+
+  await prisma.supplierOrder.deleteMany({
+    where: { id, tenantId: tenant.tenantId },
+  });
+  return Response.json({ ok: true });
 }

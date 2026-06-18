@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import React from "react";
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import type { Prisma } from "@prisma/client";
+import type { NextRequest } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { decimalToNumber, formatCurrency, formatDate } from "@/app/lib/reports";
 import {
@@ -488,11 +489,11 @@ function fileSafe(value: string | number) {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function GET(request: Request) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return new Response("Nao autorizado.", { status: 401 });
+  if (response) {
+    return response;
   }
 
   const url = new URL(request.url);
@@ -518,9 +519,15 @@ export async function GET(request: Request) {
     Boolean(movementId) || (!accountId && (statementKind === "TODOS" || statementKind === "CAIXA"));
   const shouldCategories = !accountId && !movementId && statementKind === "CATEGORIA";
 
-  const accountWhere: Prisma.FinancialAccountWhereInput = {};
-  const movementWhere: Prisma.CashMovementWhereInput = {};
-  const categoryWhere: Prisma.FinancialCategoryWhereInput = {};
+  const accountWhere: Prisma.FinancialAccountWhereInput = {
+    tenantId: tenant.tenantId,
+  };
+  const movementWhere: Prisma.CashMovementWhereInput = {
+    tenantId: tenant.tenantId,
+  };
+  const categoryWhere: Prisma.FinancialCategoryWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (accountType) {
     accountWhere.type = accountType;
@@ -648,7 +655,12 @@ export async function GET(request: Request) {
         })
       : Promise.resolve([]),
     prisma.companySettings.findUnique({
-      where: { singletonKey: COMPANY_SETTINGS_KEY },
+      where: {
+        tenantId_singletonKey: {
+          tenantId: tenant.tenantId,
+          singletonKey: COMPANY_SETTINGS_KEY,
+        },
+      },
     }),
   ]);
 

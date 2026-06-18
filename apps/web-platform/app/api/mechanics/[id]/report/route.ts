@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -75,16 +75,18 @@ function periodLabel(period: ReportPeriod) {
 }
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
   const period = parseReportPeriod(request.nextUrl.searchParams.get("period"));
   const periodRange = getPeriodRange(period);
-  const mechanic = await prisma.mechanic.findUnique({ where: { id } });
+  const mechanic = await prisma.mechanic.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   if (!mechanic) {
     return Response.json({ error: "Mecânico não encontrado." }, { status: 404 });
@@ -92,6 +94,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   const orders = await prisma.serviceOrder.findMany({
     where: {
+      tenantId: tenant.tenantId,
       ...(periodRange
         ? { entryAt: { gte: periodRange.start, lte: periodRange.end } }
         : {}),
@@ -107,6 +110,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       vehicle: { select: { id: true, plate: true, brand: true, model: true } },
       items: {
         where: {
+          tenantId: tenant.tenantId,
           mechanicId: id,
           type: "SERVICE",
         },
@@ -133,6 +137,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const commissionAccounts = orderDocumentNumbers.length
     ? await prisma.financialAccount.findMany({
         where: {
+          tenantId: tenant.tenantId,
           type: "PAGAR",
           category: "Comissão mecânico",
           counterparty: mechanic.name,

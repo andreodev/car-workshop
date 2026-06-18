@@ -9,6 +9,7 @@ import {
   getStockReportData,
   stockTypeLabels,
 } from "@/app/lib/reports";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -29,7 +30,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function StockReportPage() {
-  const data = await getStockReportData();
+  const tenant = await requireTenantMembership();
+  const data = await getStockReportData(tenant.tenantId);
   const totalMovements = Object.values(data.summary).reduce((sum, item) => sum + item.count, 0);
 
   return (

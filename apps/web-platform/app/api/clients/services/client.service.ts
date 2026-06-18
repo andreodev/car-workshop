@@ -62,7 +62,7 @@ function buildClientData(values: ClientFormSchemaOutput) {
 }
 
 export const clientService = {
-  async list(request: NextRequest) {
+  async list(request: NextRequest, tenantId: string) {
     const { searchParams } = new URL(request.url);
     const page = coerceNumber(searchParams.get("page"), 1);
     const pageSize = Math.min(
@@ -72,7 +72,9 @@ export const clientService = {
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
 
-    const where: Prisma.ClientWhereInput = {};
+    const where: Prisma.ClientWhereInput = {
+      tenantId,
+    };
 
     if (status && status !== "TODOS") {
       where.status = status as ClientStatus;
@@ -104,7 +106,7 @@ export const clientService = {
     };
   },
 
-  async create(payload: Record<string, unknown>) {
+  async create(payload: Record<string, unknown>, tenantId: string) {
     const parsed = clientFormSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -114,15 +116,18 @@ export const clientService = {
       } as const;
     }
 
-    const client = await clientRepository.create(buildClientData(parsed.data));
+    const client = await clientRepository.create({
+      ...buildClientData(parsed.data),
+      tenantId,
+    });
 
     return {
       data: client,
     };
   },
 
-  async findById(id: string) {
-    const client = await clientRepository.findById(id);
+  async findById(id: string, tenantId: string) {
+    const client = await clientRepository.findById(id, tenantId);
 
     if (!client) {
       return {
@@ -136,7 +141,7 @@ export const clientService = {
     };
   },
 
-  async update(id: string, payload: Record<string, unknown>) {
+  async update(id: string, payload: Record<string, unknown>, tenantId: string) {
     const parsed = clientFormSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -146,15 +151,28 @@ export const clientService = {
       } as const;
     }
 
-    const client = await clientRepository.update(id, buildClientData(parsed.data));
+    const client = await clientRepository.findById(id, tenantId);
+
+    if (!client) {
+      return {
+        error: "Cliente não encontrado.",
+        status: 404,
+      } as const;
+    }
+
+    const updatedClient = await clientRepository.update(
+      id,
+      tenantId,
+      buildClientData(parsed.data),
+    );
 
     return {
-      data: client,
+      data: updatedClient,
     };
   },
 
-  async remove(id: string) {
-    await clientRepository.remove(id);
+  async remove(id: string, tenantId: string) {
+    await clientRepository.remove(id, tenantId);
 
     return {
       data: {

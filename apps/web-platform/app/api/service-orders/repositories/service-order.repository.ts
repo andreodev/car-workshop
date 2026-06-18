@@ -163,6 +163,15 @@ export const serviceOrderRepository = {
   async updateWithSync(id: string, data: Prisma.ServiceOrderUpdateInput, tenantId: string) {
     return prisma.$transaction(
       async (tx) => {
+        const existing = await tx.serviceOrder.findFirst({
+          where: { id, tenantId },
+          select: { id: true },
+        });
+
+        if (!existing) {
+          throw new Error("Ordem de serviço não encontrada.");
+        }
+
         const updatedOrder = await tx.serviceOrder.update({
           where: { id },
           data,
@@ -187,23 +196,40 @@ export const serviceOrderRepository = {
     tenantId: string
   ) {
     return prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.serviceOrder.update({
-        where: { id },
+      const existing = await tx.serviceOrder.findFirst({
+        where: { id, tenantId },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        throw new Error("Ordem de serviço não encontrada.");
+      }
+
+      await tx.serviceOrder.updateMany({
+        where: { id, tenantId },
         data: { status },
-        include: serviceOrderInclude,
       });
 
       await syncServiceOrderReceivable(tx, id, tenantId);
       await syncServiceOrderStockMovements(tx, id, tenantId);
 
-      return findSyncedServiceOrder(tx, updatedOrder.id, tenantId);
+      return findSyncedServiceOrder(tx, id, tenantId);
     });
   },
 
   async cancelWithSync(id: string, tenantId: string) {
     return prisma.$transaction(async (tx) => {
-      await tx.serviceOrder.update({
-        where: { id },
+      const existing = await tx.serviceOrder.findFirst({
+        where: { id, tenantId },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        throw new Error("Ordem de serviço não encontrada.");
+      }
+
+      await tx.serviceOrder.updateMany({
+        where: { id, tenantId },
         data: { status: "CANCELADA" },
       });
 

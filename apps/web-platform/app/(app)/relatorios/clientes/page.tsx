@@ -8,6 +8,7 @@ import {
   formatInteger,
   getClientReportData,
 } from "@/app/lib/reports";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -20,7 +21,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ClientReportPage() {
-  const data = await getClientReportData();
+  const tenant = await requireTenantMembership();
+  const data = await getClientReportData(tenant.tenantId);
 
   return (
     <ReportPage

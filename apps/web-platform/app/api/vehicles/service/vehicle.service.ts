@@ -29,7 +29,7 @@ function parseVehicleYears(payload: Record<string, unknown>) {
 }
 
 export const vehicleService = {
-  async list(request: NextRequest) {
+  async list(request: NextRequest, tenantId: string) {
     const { searchParams } = new URL(request.url);
 
     const page = coerceNumber(searchParams.get("page"), 1);
@@ -41,7 +41,9 @@ export const vehicleService = {
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
 
-    const where: Prisma.VehicleWhereInput = {};
+    const where: Prisma.VehicleWhereInput = {
+      tenantId,
+    };
 
     if (status && status !== "TODOS") {
       where.status = status as VehicleStatus;
@@ -81,7 +83,7 @@ export const vehicleService = {
     };
   },
 
-  async create(payload: Record<string, unknown>) {
+  async create(payload: Record<string, unknown>, tenantId: string) {
     const plate = normalizeString(payload.plate);
     const clientId = normalizeString(payload.clientId);
 
@@ -99,7 +101,7 @@ export const vehicleService = {
       } as const;
     }
 
-    const client = await vehicleRepository.findClientById(clientId);
+    const client = await vehicleRepository.findClientById(clientId, tenantId);
 
     if (!client) {
       return {
@@ -128,6 +130,7 @@ export const vehicleService = {
     const status = normalizeString(payload.status);
 
     const data: Prisma.VehicleCreateInput = {
+      tenant: { connect: { id: tenantId } },
       client: { connect: { id: clientId } },
       plate,
       brand: normalizeString(payload.brand),
@@ -153,8 +156,8 @@ export const vehicleService = {
     };
   },
 
-  async findById(id: string) {
-    const vehicle = await vehicleRepository.findById(id);
+  async findById(id: string, tenantId: string) {
+    const vehicle = await vehicleRepository.findById(id, tenantId);
 
     if (!vehicle) {
       return {
@@ -168,7 +171,7 @@ export const vehicleService = {
     };
   },
 
-  async update(id: string, payload: Record<string, unknown>) {
+  async update(id: string, payload: Record<string, unknown>, tenantId: string) {
     const plate = normalizeString(payload.plate);
     const clientId = normalizeString(payload.clientId);
 
@@ -186,7 +189,16 @@ export const vehicleService = {
       } as const;
     }
 
-    const client = await vehicleRepository.findClientById(clientId);
+    const vehicle = await vehicleRepository.findById(id, tenantId);
+
+    if (!vehicle) {
+      return {
+        error: "Veículo não encontrado.",
+        status: 404,
+      } as const;
+    }
+
+    const client = await vehicleRepository.findClientById(clientId, tenantId);
 
     if (!client) {
       return {
@@ -233,15 +245,24 @@ export const vehicleService = {
       notes: normalizeString(payload.notes),
     };
 
-    const vehicle = await vehicleRepository.update(id, data);
+    const updatedVehicle = await vehicleRepository.update(id, tenantId, data);
 
     return {
-      data: vehicle,
+      data: updatedVehicle,
     };
   },
 
-  async remove(id: string) {
-    await vehicleRepository.remove(id);
+  async remove(id: string, tenantId: string) {
+    const vehicle = await vehicleRepository.findById(id, tenantId);
+
+    if (!vehicle) {
+      return {
+        error: "Veículo não encontrado.",
+        status: 404,
+      } as const;
+    }
+
+    await vehicleRepository.remove(id, tenantId);
 
     return {
       data: {

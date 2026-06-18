@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma, SupplierOrderStatus } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import {
   supplierOrderFormSchema,
@@ -35,10 +35,10 @@ function getZodErrorMessage(error: { issues: Array<{ message: string }> }) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -50,7 +50,9 @@ export async function GET(request: NextRequest) {
   const search = normalizeString(searchParams.get("search")) ?? "";
   const status = normalizeString(searchParams.get("status"));
 
-  const where: Prisma.SupplierOrderWhereInput = {};
+  const where: Prisma.SupplierOrderWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (status && status !== "TODOS") {
     where.status = status as SupplierOrderStatus;
@@ -90,10 +92,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = await request.json();
@@ -105,8 +107,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const order = await prisma.$transaction(async (tx) => {
+      const supplier = await tx.supplier.findFirst({
+        where: { id: parsed.data.supplierId, tenantId: tenant.tenantId },
+        select: { id: true },
+      });
+
+      if (!supplier) {
+        throw new Error("Fornecedor não encontrado.");
+      }
+
       const createdOrder = await tx.supplierOrder.create({
         data: {
+          tenant: { connect: { id: tenant.tenantId } },
           supplier: { connect: { id: parsed.data.supplierId } },
           status: parsed.data.status as SupplierOrderStatus,
           employee: parsed.data.employee,
@@ -123,7 +135,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await syncSupplierOrderPayable(tx, createdOrder.id);
+      await syncSupplierOrderPayable(tx, createdOrder.id, tenant.tenantId);
 
       return createdOrder;
     });
@@ -135,6 +147,10 @@ export async function POST(request: NextRequest) {
       error.code === "P2025"
     ) {
       return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
+    }
+
+    if (error instanceof Error && error.message === "Fornecedor não encontrado.") {
+      return Response.json({ error: error.message }, { status: 404 });
     }
 
     throw error;

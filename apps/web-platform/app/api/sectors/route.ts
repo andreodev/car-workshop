@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,10 @@ function normalizeString(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -39,7 +39,9 @@ export async function GET(request: NextRequest) {
   const search = normalizeString(searchParams.get("search")) ?? "";
   const includeInactive = searchParams.get("includeInactive") === "true";
 
-  const where: Prisma.SectorWhereInput = {};
+  const where: Prisma.SectorWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (!includeInactive) {
     where.active = true;
@@ -67,10 +69,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
   try {
     const sector = await prisma.sector.create({
       data: {
+        tenantId: tenant.tenantId,
         name,
         active: payload.active === false ? false : true,
         notes: normalizeString(payload.notes),

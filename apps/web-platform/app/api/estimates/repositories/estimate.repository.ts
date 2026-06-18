@@ -134,44 +134,44 @@ export const estimateRepository = {
     };
   },
 
-  async findCatalogItemsByIds(ids: string[]) {
+  async findCatalogItemsByIds(ids: string[], tenantId: string) {
     return prisma.catalogItem.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, type: true, active: true },
     });
   },
 
-  async findClientById(clientId: string) {
-    return prisma.client.findUnique({
-      where: { id: clientId },
+  async findClientById(clientId: string, tenantId: string) {
+    return prisma.client.findFirst({
+      where: { id: clientId, tenantId },
       select: { id: true },
     });
   },
 
-  async findVehicleById(vehicleId: string) {
-    return prisma.vehicle.findUnique({
-      where: { id: vehicleId },
+  async findVehicleById(vehicleId: string, tenantId: string) {
+    return prisma.vehicle.findFirst({
+      where: { id: vehicleId, tenantId },
       select: { id: true, clientId: true },
     });
   },
 
-  async findMechanicById(mechanicId: string) {
-    return prisma.mechanic.findUnique({
-      where: { id: mechanicId },
+  async findMechanicById(mechanicId: string, tenantId: string) {
+    return prisma.mechanic.findFirst({
+      where: { id: mechanicId, tenantId },
       select: { id: true, active: true },
     });
   },
 
-  async findMechanicsByIds(ids: string[]) {
+  async findMechanicsByIds(ids: string[], tenantId: string) {
     return prisma.mechanic.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, active: true },
     });
   },
 
-  async findSectorsByIds(ids: string[]) {
+  async findSectorsByIds(ids: string[], tenantId: string) {
     return prisma.sector.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, tenantId },
       select: { id: true, active: true },
     });
   },
@@ -183,14 +183,14 @@ export const estimateRepository = {
     });
   },
 
-  async findById(id: string) {
-    return prisma.estimate.findUnique({
-      where: { id },
+  async findById(id: string, tenantId: string) {
+    return prisma.estimate.findFirst({
+      where: { id, tenantId },
       include: estimateDetailInclude,
     });
   },
 
-  async update(id: string, data: Prisma.EstimateUpdateInput) {
+  async update(id: string, tenantId: string, data: Prisma.EstimateUpdateInput) {
     return prisma.estimate.update({
       where: { id },
       data,
@@ -198,37 +198,43 @@ export const estimateRepository = {
     });
   },
 
-  async updateStatus(id: string, data: Prisma.EstimateUpdateInput) {
-    return prisma.estimate.update({
-      where: { id },
+  async updateStatus(id: string, tenantId: string, data: Prisma.EstimateUpdateInput) {
+    await prisma.estimate.updateMany({
+      where: { id, tenantId },
       data,
+    });
+
+    return prisma.estimate.findFirst({
+      where: { id, tenantId },
       include: estimateDetailInclude,
     });
   },
 
-  async remove(id: string) {
-    return prisma.estimate.delete({
-      where: { id },
+  async remove(id: string, tenantId: string) {
+    return prisma.estimate.deleteMany({
+      where: { id, tenantId },
     });
   },
 
-  async findForConversion(id: string) {
-    return prisma.estimate.findUnique({
-      where: { id },
+  async findForConversion(id: string, tenantId: string) {
+    return prisma.estimate.findFirst({
+      where: { id, tenantId },
       include: estimateConversionInclude,
     });
   },
 
   async convertToServiceOrder(params: {
     estimate: EstimateForConversion;
+    tenantId: string;
     mechanicId: string;
     inspectionToken: string;
   }) {
-    const { estimate, mechanicId, inspectionToken } = params;
+    const { estimate, tenantId, mechanicId, inspectionToken } = params;
 
     return prisma.$transaction(async (tx) => {
       const order = await tx.serviceOrder.create({
         data: {
+          tenant: { connect: { id: tenantId } },
           client: { connect: { id: estimate.clientId } },
           vehicle: { connect: { id: estimate.vehicleId } },
           mechanic: { connect: { id: mechanicId } },
@@ -243,6 +249,7 @@ export const estimateRepository = {
           total: estimate.total,
           items: {
             create: estimate.items.map((item) => ({
+              tenantId,
               type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
               catalogItemId: item.catalogItemId,
               mechanicId: item.mechanicId ?? mechanicId,
@@ -257,6 +264,7 @@ export const estimateRepository = {
           },
           vehicleInspection: {
             create: {
+              tenantId,
               token: inspectionToken,
             },
           },
@@ -278,16 +286,21 @@ export const estimateRepository = {
     });
   },
 
-  async findPdfDataById(id: string) {
-    return prisma.estimate.findUnique({
-      where: { id },
+  async findPdfDataById(id: string, tenantId: string) {
+    return prisma.estimate.findFirst({
+      where: { id, tenantId },
       include: estimatePdfInclude,
     });
   },
 
-  async findCompanySettings(singletonKey: string) {
+  async findCompanySettings(tenantId: string, singletonKey: string) {
     return prisma.companySettings.findUnique({
-      where: { singletonKey },
+      where: {
+        tenantId_singletonKey: {
+          tenantId,
+          singletonKey,
+        },
+      },
     });
   },
 };

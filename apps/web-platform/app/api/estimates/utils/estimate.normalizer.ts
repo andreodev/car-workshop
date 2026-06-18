@@ -217,8 +217,12 @@ export function parseEstimateItems(payload: unknown) {
   return { items, subtotal, discountTotal, total };
 }
 
-export function toEstimateItemCreateInput(items: ParsedEstimateItems["items"]) {
+export function toEstimateItemCreateInput(
+  items: ParsedEstimateItems["items"],
+  tenantId: string
+) {
   return items.map((item) => ({
+    tenantId,
     catalogItemId: item.catalogItemId,
     mechanicId: item.mechanicId,
     sectorId: item.sectorId,

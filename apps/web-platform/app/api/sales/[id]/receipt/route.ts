@@ -1,4 +1,6 @@
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import type { NextRequest } from "next/server";
+
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 
 import { renderSaleReceiptPdf } from "./receipt-pdf";
 
@@ -11,18 +13,18 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(request: Request, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
   const { searchParams } = new URL(request.url);
   const contentDisposition =
     searchParams.get("download") === "1" ? "attachment" : "inline";
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const receipt = await renderSaleReceiptPdf(id);
+  const receipt = await renderSaleReceiptPdf(id, tenant.tenantId);
 
   if (!receipt) {
     return Response.json({ error: "Venda não encontrada." }, { status: 404 });

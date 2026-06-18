@@ -6,6 +6,7 @@ import {
   sendResendEmail,
   type ResendEmailPayload,
 } from "@/app/lib/resend";
+import { prisma } from "@/app/lib/prisma";
 import { formatCurrency } from "@/app/lib/reports";
 
 import {
@@ -49,6 +50,52 @@ function authorize(request: NextRequest) {
   }
 
   return { ok: true };
+}
+
+function getTenantLookup(request: NextRequest) {
+  const tenantId =
+    request.headers.get("x-tenant-id") ??
+    request.nextUrl.searchParams.get("tenantId") ??
+    null;
+  const tenantSlug =
+    request.headers.get("x-tenant-slug") ??
+    request.nextUrl.searchParams.get("tenantSlug") ??
+    request.nextUrl.searchParams.get("tenant") ??
+    null;
+
+  return {
+    tenantId: tenantId?.trim() || null,
+    tenantSlug: tenantSlug?.trim() || null,
+  };
+}
+
+async function resolveTenantForAutomation(request: NextRequest) {
+  const { tenantId, tenantSlug } = getTenantLookup(request);
+
+  if (!tenantId && !tenantSlug) {
+    return {
+      error:
+        "Informe tenantId ou tenantSlug para enviar relatório diário sem misturar empresas.",
+      status: 400,
+    } as const;
+  }
+
+  const tenant = await prisma.tenant.findFirst({
+    where: {
+      ...(tenantId ? { id: tenantId } : { slug: tenantSlug ?? "" }),
+      status: { in: ["TRIAL", "ACTIVE"] },
+    },
+    select: { id: true, name: true, slug: true },
+  });
+
+  if (!tenant) {
+    return {
+      error: "Empresa não encontrada ou indisponível para automação.",
+      status: 404,
+    } as const;
+  }
+
+  return { tenant } as const;
 }
 
 function buildEmailPayload(params: {
@@ -131,7 +178,19 @@ async function handleDailyReportEmail(request: NextRequest) {
 
   const dateKey = request.nextUrl.searchParams.get("date");
   const isTestSend = request.nextUrl.searchParams.get("test") === "1";
-  const report = await getDailyReportData({ dateKey });
+  const tenantResult = await resolveTenantForAutomation(request);
+
+  if ("error" in tenantResult) {
+    return Response.json(
+      { message: tenantResult.error },
+      { status: tenantResult.status }
+    );
+  }
+
+  const report = await getDailyReportData({
+    dateKey,
+    tenantId: tenantResult.tenant.id,
+  });
   const pdfBuffer = await renderDailyReportPdf(report);
   const performance = getDailyReportPerformance(report);
   const filename = `relatório-diário-${report.dateKey}.pdf`;
@@ -152,7 +211,7 @@ async function handleDailyReportEmail(request: NextRequest) {
   try {
     const idempotencyKey = isTestSend
       ? `daily-report-test-${report.dateKey}-${Date.now()}`
-      : `daily-report-${report.dateKey}-${recipients.join("-")}`;
+      : `daily-report-${tenantResult.tenant.slug}-${report.dateKey}-${recipients.join("-")}`;
 
     resendResult = await sendResendEmail(
       payload,
@@ -170,6 +229,11 @@ async function handleDailyReportEmail(request: NextRequest) {
 
   return Response.json({
     message: "Relatório diário enviado.",
+    tenant: {
+      id: tenantResult.tenant.id,
+      name: tenantResult.tenant.name,
+      slug: tenantResult.tenant.slug,
+    },
     date: report.dateKey,
     recipients,
     performance: performance.status,

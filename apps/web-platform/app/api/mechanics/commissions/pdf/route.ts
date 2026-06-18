@@ -12,7 +12,7 @@ import {
 } from "@react-pdf/renderer";
 import type { NextRequest } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { formatCurrency, formatDate } from "@/app/lib/reports";
 import { getMechanicCommissionReport } from "../shared";
@@ -386,20 +386,26 @@ function vehicleLabel(account: {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return new Response("Nao autorizado.", { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
   const report = await getMechanicCommissionReport({
+    tenantId: tenant.tenantId,
     period: searchParams.get("period"),
     mechanicName: searchParams.get("mechanicName"),
     status: searchParams.get("status"),
   });
   const companySettings = await prisma.companySettings.findUnique({
-    where: { singletonKey: COMPANY_SETTINGS_KEY },
+    where: {
+      tenantId_singletonKey: {
+        tenantId: tenant.tenantId,
+        singletonKey: COMPANY_SETTINGS_KEY,
+      },
+    },
   });
 
   let logoSrc: string | null = companySettings?.logoUrl ?? null;

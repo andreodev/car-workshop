@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma, type FinancialCategoryType } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +50,10 @@ function normalizeType(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -66,7 +66,9 @@ export async function GET(request: NextRequest) {
   const type = normalizeType(searchParams.get("type"));
   const active = normalizeBoolean(searchParams.get("active"));
 
-  const where: Prisma.FinancialCategoryWhereInput = {};
+  const where: Prisma.FinancialCategoryWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (type && type !== "AMBOS") {
     where.OR = [{ type }, { type: "AMBOS" }];
@@ -108,10 +110,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -128,6 +130,7 @@ export async function POST(request: NextRequest) {
 
   const category = await prisma.financialCategory.create({
     data: {
+      tenantId: tenant.tenantId,
       name,
       type,
       active: normalizeBoolean(payload.active) ?? true,

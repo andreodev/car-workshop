@@ -6,7 +6,7 @@ import {
   type SalePaymentMethod,
 } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { syncFinancialAccountCashMovement } from "./cash-sync";
 
@@ -239,10 +239,10 @@ async function normalizePaidSummary<
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -257,7 +257,9 @@ export async function GET(request: NextRequest) {
   const from = normalizeDateStart(searchParams.get("from"));
   const to = normalizeDateEnd(searchParams.get("to"));
 
-  const where: Prisma.FinancialAccountWhereInput = {};
+  const where: Prisma.FinancialAccountWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (type) {
     where.type = type;
@@ -322,10 +324,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -360,8 +362,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (clientId) {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, tenantId: tenant.tenantId },
       select: { id: true },
     });
 
@@ -373,6 +375,7 @@ export async function POST(request: NextRequest) {
   const account = await prisma.$transaction(async (tx) => {
     const createdAccount = await tx.financialAccount.create({
       data: {
+        tenantId: tenant.tenantId,
         type,
         status,
         description,
@@ -395,7 +398,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await syncFinancialAccountCashMovement(tx, createdAccount.id);
+    await syncFinancialAccountCashMovement(tx, createdAccount.id, tenant.tenantId);
 
     return createdAccount;
   });

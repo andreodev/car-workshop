@@ -10,8 +10,9 @@ import {
   Text,
   View,
 } from "@react-pdf/renderer";
+import type { NextRequest } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { estimateService } from "../../services/estimate.service";
 
 export const dynamic = "force-dynamic";
@@ -441,15 +442,15 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: Request, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const result = await estimateService.findPdfDataById(id);
+  const result = await estimateService.findPdfDataById(id, tenant.tenantId);
 
   if ("error" in result) {
     return Response.json(

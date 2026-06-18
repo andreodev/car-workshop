@@ -28,23 +28,28 @@ export type VehicleInspectionWithRelations = Prisma.ServiceOrderVehicleInspectio
 }>;
 
 export const vehicleInspectionRepository = {
-  async findByToken(token: string) {
-    return prisma.serviceOrderVehicleInspection.findUnique({
-      where: { token },
+  async findByToken(token: string, tenantId: string | null) {
+    return prisma.serviceOrderVehicleInspection.findFirst({
+      where: {
+        token,
+        ...(tenantId ? { tenantId } : {}),
+      },
       include: vehicleInspectionInclude,
     });
   },
 
   async complete(params: {
     id: string;
+    tenantId: string | null;
     notes: string | null;
     photos: Prisma.ServiceOrderVehicleInspectionPhotoCreateWithoutInspectionInput[];
   }) {
-    const { id, notes, photos } = params;
+    const { id, tenantId, notes, photos } = params;
 
     return prisma.serviceOrderVehicleInspection.update({
       where: { id },
       data: {
+        tenantId,
         notes,
         status: "CONCLUIDA",
         completedAt: new Date(),

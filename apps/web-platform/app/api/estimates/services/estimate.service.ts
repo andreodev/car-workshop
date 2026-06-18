@@ -68,11 +68,14 @@ function archivedEstimateWhere(): Prisma.EstimateWhereInput {
 }
 
 function buildEstimateWhere(
+  tenantId: string,
   search: string,
   status: string | null,
   visibility: EstimateVisibility,
 ) {
-  const where: Prisma.EstimateWhereInput = {};
+  const where: Prisma.EstimateWhereInput = {
+    tenantId,
+  };
 
   if (status && status !== "TODOS") {
     if (!estimateStatuses.includes(status as EstimateStatusValue)) {
@@ -111,7 +114,7 @@ function buildEstimateWhere(
   return { data: where };
 }
 
-async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
+async function validateCatalogItems(items: ParsedEstimateItems["items"], tenantId: string) {
   const catalogItemIds = Array.from(
     new Set(
       items
@@ -124,7 +127,7 @@ async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
     return null;
   }
 
-  const catalogItems = await estimateRepository.findCatalogItemsByIds(catalogItemIds);
+  const catalogItems = await estimateRepository.findCatalogItemsByIds(catalogItemIds, tenantId);
   const catalogItemsById = new Map(catalogItems.map((item) => [item.id, item]));
 
   if (catalogItems.length !== catalogItemIds.length) {
@@ -154,7 +157,7 @@ async function validateCatalogItems(items: ParsedEstimateItems["items"]) {
   return null;
 }
 
-async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
+async function validateItemMechanics(items: ParsedEstimateItems["items"], tenantId: string) {
   const serviceItems = items.filter((item) => item.type === "SERVICE");
   const mechanicIds = Array.from(
     new Set(serviceItems.map((item) => item.mechanicId).filter((id): id is string => Boolean(id))),
@@ -168,7 +171,7 @@ async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
     return "Mecânico do item é obrigatório.";
   }
 
-  const mechanics = await estimateRepository.findMechanicsByIds(mechanicIds);
+  const mechanics = await estimateRepository.findMechanicsByIds(mechanicIds, tenantId);
   const mechanicsById = new Map(mechanics.map((mechanic) => [mechanic.id, mechanic]));
 
   if (mechanics.length !== mechanicIds.length) {
@@ -186,7 +189,7 @@ async function validateItemMechanics(items: ParsedEstimateItems["items"]) {
   return null;
 }
 
-async function validateItemSectors(items: ParsedEstimateItems["items"]) {
+async function validateItemSectors(items: ParsedEstimateItems["items"], tenantId: string) {
   const serviceItems = items.filter((item) => item.type === "SERVICE");
   const sectorIds = Array.from(
     new Set(serviceItems.map((item) => item.sectorId).filter((id): id is string => Boolean(id))),
@@ -200,7 +203,7 @@ async function validateItemSectors(items: ParsedEstimateItems["items"]) {
     return "Setor do item é obrigatório.";
   }
 
-  const sectors = await estimateRepository.findSectorsByIds(sectorIds);
+  const sectors = await estimateRepository.findSectorsByIds(sectorIds, tenantId);
   const sectorsById = new Map(sectors.map((sector) => [sector.id, sector]));
 
   if (sectors.length !== sectorIds.length) {
@@ -222,6 +225,7 @@ async function buildEstimateData(
   payload: Record<string, unknown>,
   responsibleFallback: string | null | undefined,
   mode: "create" | "update",
+  tenantId: string
 ) {
   const clientId = normalizeString(payload.clientId);
   const vehicleId = normalizeString(payload.vehicleId);
@@ -263,31 +267,31 @@ async function buildEstimateData(
     sectorId: item.sectorId,
   }));
 
-  const catalogItemsError = await validateCatalogItems(itemsParsed.items);
+  const catalogItemsError = await validateCatalogItems(itemsParsed.items, tenantId);
 
   if (catalogItemsError) {
     return serviceError(catalogItemsError, 400);
   }
 
-  const itemMechanicsError = await validateItemMechanics(itemsParsed.items);
+  const itemMechanicsError = await validateItemMechanics(itemsParsed.items, tenantId);
 
   if (itemMechanicsError) {
     return serviceError(itemMechanicsError, 400);
   }
 
-  const itemSectorsError = await validateItemSectors(itemsParsed.items);
+  const itemSectorsError = await validateItemSectors(itemsParsed.items, tenantId);
 
   if (itemSectorsError) {
     return serviceError(itemSectorsError, 400);
   }
 
-  const client = await estimateRepository.findClientById(clientId);
+  const client = await estimateRepository.findClientById(clientId, tenantId);
 
   if (!client) {
     return serviceError("Cliente não encontrado.", 400);
   }
 
-  const vehicle = await estimateRepository.findVehicleById(vehicleId);
+  const vehicle = await estimateRepository.findVehicleById(vehicleId, tenantId);
 
   if (!vehicle) {
     return serviceError("Veículo não encontrado.", 400);
@@ -298,6 +302,7 @@ async function buildEstimateData(
   }
 
   const baseData = {
+    tenant: { connect: { id: tenantId } },
     client: { connect: { id: clientId } },
     vehicle: { connect: { id: vehicleId } },
     responsible,
@@ -316,7 +321,7 @@ async function buildEstimateData(
       data: {
         ...baseData,
         items: {
-          create: toEstimateItemCreateInput(itemsParsed.items),
+          create: toEstimateItemCreateInput(itemsParsed.items, tenantId),
         },
       } satisfies Prisma.EstimateCreateInput,
     };
@@ -328,7 +333,7 @@ async function buildEstimateData(
       mechanic: { disconnect: true },
       items: {
         deleteMany: {},
-        create: toEstimateItemCreateInput(itemsParsed.items),
+        create: toEstimateItemCreateInput(itemsParsed.items, tenantId),
       },
     } satisfies Prisma.EstimateUpdateInput,
   };
@@ -366,7 +371,7 @@ function validateEstimateForConversion(estimate: EstimateForConversion) {
 }
 
 export const estimateService = {
-  async list(request: NextRequest) {
+  async list(request: NextRequest, tenantId: string) {
     const { searchParams } = new URL(request.url);
     const page = coerceNumber(searchParams.get("page"), 1);
     const pageSize = Math.min(
@@ -376,7 +381,7 @@ export const estimateService = {
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
     const visibility = normalizeVisibility(normalizeString(searchParams.get("visibility")));
-    const where = buildEstimateWhere(search, status, visibility);
+    const where = buildEstimateWhere(tenantId, search, status, visibility);
 
     if ("error" in where) {
       return where;
@@ -398,8 +403,12 @@ export const estimateService = {
     };
   },
 
-  async create(payload: Record<string, unknown>, responsibleFallback: string | null | undefined) {
-    const parsed = await buildEstimateData(payload, responsibleFallback, "create");
+  async create(
+    payload: Record<string, unknown>,
+    responsibleFallback: string | null | undefined,
+    tenantId: string
+  ) {
+    const parsed = await buildEstimateData(payload, responsibleFallback, "create", tenantId);
 
     if ("error" in parsed) {
       return parsed;
@@ -412,8 +421,8 @@ export const estimateService = {
     };
   },
 
-  async findById(id: string) {
-    const estimate = await estimateRepository.findById(id);
+  async findById(id: string, tenantId: string) {
+    const estimate = await estimateRepository.findById(id, tenantId);
 
     if (!estimate) {
       return serviceError("Orçamento não encontrado.", 404);
@@ -428,38 +437,59 @@ export const estimateService = {
     id: string,
     payload: Record<string, unknown>,
     responsibleFallback: string | null | undefined,
+    tenantId: string
   ) {
-    const parsed = await buildEstimateData(payload, responsibleFallback, "update");
+    const existingEstimate = await estimateRepository.findById(id, tenantId);
+
+    if (!existingEstimate) {
+      return serviceError("Orçamento não encontrado.", 404);
+    }
+
+    const parsed = await buildEstimateData(payload, responsibleFallback, "update", tenantId);
 
     if ("error" in parsed) {
       return parsed;
     }
 
-    const estimate = await estimateRepository.update(id, parsed.data as Prisma.EstimateUpdateInput);
+    const estimate = await estimateRepository.update(
+      id,
+      tenantId,
+      parsed.data as Prisma.EstimateUpdateInput
+    );
 
     return {
       data: serializeData(estimate),
     };
   },
 
-  async updateStatus(id: string, payload: Record<string, unknown>) {
+  async updateStatus(id: string, payload: Record<string, unknown>, tenantId: string) {
     const status = parseEstimateStatus(payload.status);
 
     if (status.error) {
       return serviceError(status.error, 400);
     }
 
-    const estimate = await estimateRepository.updateStatus(id, {
+    const estimate = await estimateRepository.updateStatus(id, tenantId, {
       status: status.value,
     });
+
+    if (!estimate) {
+      return serviceError("Orçamento não encontrado.", 404);
+    }
 
     return {
       data: serializeData(estimate),
     };
   },
 
-  async remove(id: string) {
-    await estimateRepository.remove(id);
+  async remove(id: string, tenantId: string) {
+    const estimate = await estimateRepository.findById(id, tenantId);
+
+    if (!estimate) {
+      return serviceError("Orçamento não encontrado.", 404);
+    }
+
+    await estimateRepository.remove(id, tenantId);
 
     return {
       data: {
@@ -468,8 +498,8 @@ export const estimateService = {
     };
   },
 
-  async convertToServiceOrder(id: string) {
-    const estimate = await estimateRepository.findForConversion(id);
+  async convertToServiceOrder(id: string, tenantId: string) {
+    const estimate = await estimateRepository.findForConversion(id, tenantId);
 
     if (!estimate) {
       return serviceError("Orçamento não encontrado.", 404);
@@ -483,6 +513,7 @@ export const estimateService = {
 
     const result = await estimateRepository.convertToServiceOrder({
       estimate,
+      tenantId,
       mechanicId: conversion.data.mechanicId,
       inspectionToken: createInspectionToken(),
     });
@@ -492,14 +523,17 @@ export const estimateService = {
     };
   },
 
-  async findPdfDataById(id: string) {
-    const estimate = await estimateRepository.findPdfDataById(id);
+  async findPdfDataById(id: string, tenantId: string) {
+    const estimate = await estimateRepository.findPdfDataById(id, tenantId);
 
     if (!estimate) {
       return serviceError("Orçamento não encontrado.", 404);
     }
 
-    const companySettings = await estimateRepository.findCompanySettings(COMPANY_SETTINGS_KEY);
+    const companySettings = await estimateRepository.findCompanySettings(
+      tenantId,
+      COMPANY_SETTINGS_KEY
+    );
 
     return {
       data: {

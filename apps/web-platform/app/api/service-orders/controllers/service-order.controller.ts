@@ -95,7 +95,7 @@ export const serviceOrderController = {
     }
   },
 
-  async findById(_request: NextRequest, { params }: RouteContext) {
+  async findById(request: NextRequest, { params }: RouteContext) {
     try {
       const session = await getServerAuthSession();
 
@@ -103,7 +103,7 @@ export const serviceOrderController = {
         return Response.json({ error: "Não autorizado." }, { status: 401 });
       }
 
-      const tenant = await requireTenantMembership();
+      const tenant = await requireTenantMembership(request);
       const { id } = await params;
       const result = await serviceOrderService.findById(id, tenant.tenantId);
 
@@ -194,7 +194,7 @@ export const serviceOrderController = {
     }
   },
 
-  async remove(_request: NextRequest, { params }: RouteContext) {
+  async remove(request: NextRequest, { params }: RouteContext) {
     try {
       const session = await getServerAuthSession();
 
@@ -202,7 +202,7 @@ export const serviceOrderController = {
         return Response.json({ error: "Não autorizado." }, { status: 401 });
       }
 
-      const tenant = await requireTenantMembership();
+      const tenant = await requireTenantMembership(request);
       const { id } = await params;
       const result = await serviceOrderService.remove(id, tenant.tenantId);
 

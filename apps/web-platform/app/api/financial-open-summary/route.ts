@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
+import type { NextRequest } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -10,17 +11,18 @@ function decimalToNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function GET() {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const [accountGroups, activeServiceOrders] = await prisma.$transaction([
     prisma.financialAccount.groupBy({
       by: ["type", "status"],
       where: {
+        tenantId: tenant.tenantId,
         status: { in: ["ABERTA", "VENCIDA"] },
       },
       orderBy: [{ type: "asc" }, { status: "asc" }],
@@ -29,6 +31,7 @@ export async function GET() {
     }),
     prisma.serviceOrder.aggregate({
       where: {
+        tenantId: tenant.tenantId,
         status: { notIn: ["FINALIZADA", "CANCELADA", "PAGA"] },
         total: { gt: new Prisma.Decimal(0) },
       },

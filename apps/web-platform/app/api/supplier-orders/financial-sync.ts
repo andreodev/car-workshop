@@ -4,10 +4,11 @@ const SUPPLIER_ORDER_CATEGORY = "Compras de Fornecedores";
 
 export async function syncSupplierOrderPayable(
   tx: Prisma.TransactionClient,
-  supplierOrderId: string
+  supplierOrderId: string,
+  tenantId: string
 ) {
-  const order = await tx.supplierOrder.findUnique({
-    where: { id: supplierOrderId },
+  const order = await tx.supplierOrder.findFirst({
+    where: { id: supplierOrderId, tenantId },
     include: {
       supplier: { select: { id: true, name: true } },
       financialAccount: { select: { id: true, status: true } },
@@ -22,8 +23,8 @@ export async function syncSupplierOrderPayable(
 
   if (order.status !== "RECEBIDO" || total.lessThanOrEqualTo(0)) {
     if (order.financialAccount && order.financialAccount.status !== "PAGA") {
-      await tx.financialAccount.update({
-        where: { id: order.financialAccount.id },
+      await tx.financialAccount.updateMany({
+        where: { id: order.financialAccount.id, tenantId },
         data: {
           status: "CANCELADA",
           paymentDate: null,
@@ -52,6 +53,7 @@ export async function syncSupplierOrderPayable(
     await tx.financialAccount.create({
       data: {
         ...payableData,
+        tenantId,
         supplierOrderId: order.id,
       },
     });
@@ -62,8 +64,8 @@ export async function syncSupplierOrderPayable(
     return;
   }
 
-  await tx.financialAccount.update({
-    where: { id: order.financialAccount.id },
+  await tx.financialAccount.updateMany({
+    where: { id: order.financialAccount.id, tenantId },
     data: {
       ...payableData,
       paymentDate: null,

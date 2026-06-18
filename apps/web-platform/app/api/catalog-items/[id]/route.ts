@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import {
   buildCatalogItemData,
@@ -18,15 +18,17 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
-  const item = await prisma.catalogItem.findUnique({ where: { id } });
+  const item = await prisma.catalogItem.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   if (!item) {
     return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
@@ -36,10 +38,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -60,30 +62,52 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Valor unitário inválido." }, { status: 400 });
   }
 
-  try {
-    const item = await prisma.catalogItem.update({
-      where: { id },
-      data: buildCatalogItemData({ ...payload, type, name, unitPrice }),
+  const existingItem = await prisma.catalogItem.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existingItem) {
+    return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
+  }
+
+  const data = buildCatalogItemData({ ...payload, type, name, unitPrice });
+
+  if (data.sectorId) {
+    const sector = await prisma.sector.findFirst({
+      where: {
+        active: true,
+        id: data.sectorId,
+        tenantId: tenant.tenantId,
+      },
+      select: { id: true },
     });
 
-    return Response.json(item);
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
+    if (!sector) {
+      return Response.json(
+        { error: "Setor não encontrado." },
+        { status: 400 }
+      );
     }
-
-    throw error;
   }
+
+  await prisma.catalogItem.updateMany({
+    where: { id, tenantId: tenant.tenantId },
+    data,
+  });
+
+  const item = await prisma.catalogItem.findFirstOrThrow({
+    where: { id, tenantId: tenant.tenantId },
+  });
+
+  return Response.json(item);
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -102,8 +126,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   try {
     const item = await prisma.$transaction(async (tx) => {
-      const catalogItem = await tx.catalogItem.findUnique({
-        where: { id },
+      const catalogItem = await tx.catalogItem.findFirst({
+        where: { id, tenantId: tenant.tenantId },
         select: { id: true, type: true, stockCurrent: true },
       });
 
@@ -118,8 +142,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       const stockBefore = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
       const stockQuantity = new Prisma.Decimal(quantity);
 
-      const updatedItem = await tx.catalogItem.update({
-        where: { id },
+      await tx.catalogItem.updateMany({
+        where: { id, tenantId: tenant.tenantId },
         data: {
           stockCurrent:
             catalogItem.stockCurrent === null
@@ -128,8 +152,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         },
       });
 
+      const updatedItem = await tx.catalogItem.findFirstOrThrow({
+        where: { id, tenantId: tenant.tenantId },
+      });
+
       await tx.stockMovement.create({
         data: {
+          tenantId: tenant.tenantId,
           type: "ENTRADA",
           catalogItemId: id,
           quantity: stockQuantity,
@@ -164,26 +193,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
 
-  try {
-    await prisma.catalogItem.delete({ where: { id } });
-    return Response.json({ ok: true });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
-    }
+  const item = await prisma.catalogItem.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
 
-    throw error;
+  if (!item) {
+    return Response.json({ error: "Produto ou serviço não encontrado." }, { status: 404 });
   }
+
+  await prisma.catalogItem.deleteMany({
+    where: { id, tenantId: tenant.tenantId },
+  });
+  return Response.json({ ok: true });
 }

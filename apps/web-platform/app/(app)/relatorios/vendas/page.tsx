@@ -8,6 +8,7 @@ import {
   formatQuantity,
   getSalesReportData,
 } from "@/app/lib/reports";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
 import {
   Card,
   CardContent,
@@ -27,7 +28,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function SalesReportPage() {
-  const data = await getSalesReportData();
+  const tenant = await requireTenantMembership();
+  const data = await getSalesReportData(tenant.tenantId);
 
   return (
     <ReportPage

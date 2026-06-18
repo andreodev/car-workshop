@@ -265,7 +265,12 @@ export const saleRepository = {
 
 export async function ensurePdvCategory(tx: Prisma.TransactionClient, tenantId: string) {
   return tx.financialCategory.upsert({
-    where: { name: "Vendas PDV" },
+    where: {
+      tenantId_name: {
+        tenantId,
+        name: "Vendas PDV",
+      },
+    },
     update: { tenantId, type: "RECEITA", active: true },
     create: { tenantId, name: "Vendas PDV", type: "RECEITA" },
     select: { id: true },
@@ -275,7 +280,10 @@ export async function ensurePdvCategory(tx: Prisma.TransactionClient, tenantId: 
 export async function ensureServiceOrderCategory(tx: Prisma.TransactionClient, tenantId: string) {
   return tx.financialCategory.upsert({
     where: {
-      name: "Ordens de Serviço",
+      tenantId_name: {
+        tenantId,
+        name: "Ordens de Serviço",
+      },
     },
     update: {
       tenantId,

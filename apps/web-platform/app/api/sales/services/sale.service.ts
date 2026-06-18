@@ -150,9 +150,9 @@ function serviceError(error: string, status: number, details?: string) {
   } as const;
 }
 
-async function notifyPdvSaleMovedToFinancial(saleId: string) {
+async function notifyPdvSaleMovedToFinancial(saleId: string, tenantId: string) {
   try {
-    await sendPdvSaleFinancialEmail(saleId);
+    await sendPdvSaleFinancialEmail(saleId, tenantId);
   } catch (error) {
     console.error("[PDV_SALE_FINANCIAL_EMAIL] Falha ao enviar notificacao:", error);
   }
@@ -618,8 +618,8 @@ async function reverseSaleStockMovements(params: {
 
     const stockBefore = new Prisma.Decimal(catalogItem.stockCurrent);
 
-    await tx.catalogItem.update({
-      where: { id: movement.catalogItemId },
+    await tx.catalogItem.updateMany({
+      where: { id: movement.catalogItemId, tenantId },
       data: {
         stockCurrent: {
           increment: movement.quantity,
@@ -726,8 +726,8 @@ async function cancelServiceOrderPaymentArtifacts(params: {
       },
     });
 
-    await tx.financialAccount.delete({
-      where: { id: account.id },
+    await tx.financialAccount.deleteMany({
+      where: { id: account.id, tenantId },
     });
   }
 }
@@ -1048,7 +1048,7 @@ export const saleService = {
         return createdSale;
       });
 
-      await notifyPdvSaleMovedToFinancial(sale.id);
+      await notifyPdvSaleMovedToFinancial(sale.id, tenantId);
 
       return {
         data: sale,
@@ -1145,8 +1145,8 @@ export const saleService = {
         }
 
         if (sale.status === "CANCELADA") {
-          const currentSale = await tx.sale.findUniqueOrThrow({
-            where: { id },
+          const currentSale = await tx.sale.findFirstOrThrow({
+            where: { id, tenantId },
             include: saleListInclude,
           });
 
@@ -1173,8 +1173,8 @@ export const saleService = {
         });
 
         if (cancelGuard.count !== 1) {
-          const currentSale = await tx.sale.findUniqueOrThrow({
-            where: { id },
+          const currentSale = await tx.sale.findFirstOrThrow({
+            where: { id, tenantId },
             include: saleListInclude,
           });
 
@@ -1191,8 +1191,8 @@ export const saleService = {
             tenantId,
             sale,
           }));
-        const updatedSale = await tx.sale.findUniqueOrThrow({
-          where: { id },
+        const updatedSale = await tx.sale.findFirstOrThrow({
+          where: { id, tenantId },
           include: saleListInclude,
         });
 
@@ -1485,7 +1485,7 @@ export const saleService = {
       const { shouldSendFinancialEmail, ...responseData } = result;
 
       if (shouldSendFinancialEmail) {
-        await notifyPdvSaleMovedToFinancial(result.sale.id);
+        await notifyPdvSaleMovedToFinancial(result.sale.id, tenantId);
       }
 
       return {
@@ -1624,26 +1624,37 @@ export const saleService = {
           },
         });
 
-        const updatedSale = await tx.sale.update({
+        const updateResult = await tx.sale.updateMany({
           where: {
             id,
+            tenantId,
           },
           data: {
             status: "CONCLUIDA",
             paymentMethod: payments[0].paymentMethod,
             feeTotal,
             total: totalPaid,
-            payments: {
-              create: payments.map((payment) => ({
-                tenant: { connect: { id: tenantId } },
-                paymentMethod: payment.paymentMethod,
-                amount: payment.amount,
-                feeAmount: payment.feeAmount,
-                netAmount: payment.amount.minus(payment.feeAmount),
-                installments: payment.installments,
-              })),
-            },
           },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new Error("SALE_NOT_FOUND");
+        }
+
+        await tx.salePayment.createMany({
+          data: payments.map((payment) => ({
+            tenantId,
+            saleId: currentSale.id,
+            paymentMethod: payment.paymentMethod,
+            amount: payment.amount,
+            feeAmount: payment.feeAmount,
+            netAmount: payment.amount.minus(payment.feeAmount),
+            installments: payment.installments,
+          })),
+        });
+
+        const updatedSale = await tx.sale.findFirstOrThrow({
+          where: { id, tenantId },
           include: salePaymentInclude,
         });
 
@@ -1664,12 +1675,16 @@ export const saleService = {
         return updatedSale;
       });
 
-      await notifyPdvSaleMovedToFinancial(sale.id);
+      await notifyPdvSaleMovedToFinancial(sale.id, tenantId);
 
       return {
         data: sale,
       };
     } catch (error) {
+      if (error instanceof Error && error.message === "SALE_NOT_FOUND") {
+        return serviceError("Venda nÃ£o encontrada.", 404);
+      }
+
       return serviceError(
         "Erro ao finalizar venda.",
         500,

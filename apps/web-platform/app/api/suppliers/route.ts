@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma, SupplierPersonType } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { supplierFormSchema, toNullableString } from "@/app/(app)/fornecedores/supplier-form-schema";
 
@@ -57,10 +57,10 @@ function toSupplierData(
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
   );
   const search = normalizeString(searchParams.get("search")) ?? "";
 
-  const where: Prisma.SupplierWhereInput = {};
+  const where: Prisma.SupplierWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (search) {
     const code = Number(search);
@@ -99,10 +101,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = await request.json();
@@ -113,7 +115,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supplier = await prisma.supplier.create({
-    data: toSupplierData(parsed.data),
+    data: {
+      ...toSupplierData(parsed.data),
+      tenant: { connect: { id: tenant.tenantId } },
+    },
   });
 
   return Response.json(supplier, { status: 201 });

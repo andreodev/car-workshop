@@ -98,13 +98,13 @@ async function incrementStock(
   const currentStock = new Prisma.Decimal(catalogItem.stockCurrent ?? 0);
 
   if (catalogItem.stockCurrent === null) {
-    await tx.catalogItem.update({
-      where: { id: catalogItem.id },
+    await tx.catalogItem.updateMany({
+      where: { id: catalogItem.id, tenantId },
       data: { stockCurrent: quantity },
     });
   } else {
-    await tx.catalogItem.update({
-      where: { id: catalogItem.id },
+    await tx.catalogItem.updateMany({
+      where: { id: catalogItem.id, tenantId },
       data: { stockCurrent: { increment: quantity } },
     });
   }

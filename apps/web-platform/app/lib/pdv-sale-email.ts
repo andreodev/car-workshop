@@ -171,15 +171,15 @@ function getNotificationRecipients() {
   return { from, recipients };
 }
 
-export async function sendPdvSaleFinancialEmail(saleId: string) {
+export async function sendPdvSaleFinancialEmail(saleId: string, tenantId: string) {
   const notification = getNotificationRecipients();
 
   if (!notification) {
     return null;
   }
 
-  const sale = await prisma.sale.findUnique({
-    where: { id: saleId },
+  const sale = await prisma.sale.findFirst({
+    where: { id: saleId, tenantId },
     include: {
       client: { select: { name: true, mobile: true, phone1: true } },
       sector: { select: { name: true } },
@@ -206,7 +206,7 @@ export async function sendPdvSaleFinancialEmail(saleId: string) {
   }
 
   const { html, subject, text } = buildSaleEmailContent(sale, "CREATED");
-  const receipt = await renderSaleReceiptPdf(sale.id);
+  const receipt = await renderSaleReceiptPdf(sale.id, tenantId);
 
   return sendResendEmail(
     {

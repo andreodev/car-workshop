@@ -28,33 +28,40 @@ export const clientRepository = {
     };
   },
 
-  async create(data: Prisma.ClientCreateInput) {
+  async create(data: Prisma.ClientUncheckedCreateInput) {
     return prisma.client.create({
       data,
     });
   },
 
-  async findById(id: string) {
-    return prisma.client.findUnique({
+  async findById(id: string, tenantId: string) {
+    return prisma.client.findFirst({
       where: {
         id,
+        tenantId,
       },
     });
   },
 
-  async update(id: string, data: Prisma.ClientUpdateInput) {
-    return prisma.client.update({
+  async update(id: string, tenantId: string, data: Prisma.ClientUpdateInput) {
+    await prisma.client.updateMany({
       where: {
         id,
+        tenantId,
       },
       data,
     });
+
+    return prisma.client.findFirstOrThrow({
+      where: { id, tenantId },
+    });
   },
 
-  async remove(id: string) {
-    return prisma.client.delete({
+  async remove(id: string, tenantId: string) {
+    return prisma.client.deleteMany({
       where: {
         id,
+        tenantId,
       },
     });
   },

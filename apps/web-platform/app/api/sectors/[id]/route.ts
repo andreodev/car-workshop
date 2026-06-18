@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -21,15 +21,17 @@ function normalizeString(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
-  const sector = await prisma.sector.findUnique({ where: { id } });
+  const sector = await prisma.sector.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   if (!sector) {
     return Response.json({ error: "Setor não encontrado." }, { status: 404 });
@@ -39,10 +41,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -54,13 +56,26 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const sector = await prisma.sector.update({
-      where: { id },
+    const existing = await prisma.sector.findFirst({
+      where: { id, tenantId: tenant.tenantId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Setor não encontrado." }, { status: 404 });
+    }
+
+    await prisma.sector.updateMany({
+      where: { id, tenantId: tenant.tenantId },
       data: {
         name,
         active: payload.active === false ? false : true,
         notes: normalizeString(payload.notes),
       },
+    });
+
+    const sector = await prisma.sector.findFirstOrThrow({
+      where: { id, tenantId: tenant.tenantId },
     });
 
     return Response.json(sector);
@@ -83,17 +98,28 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
 
   try {
-    await prisma.sector.delete({ where: { id } });
+    const existing = await prisma.sector.findFirst({
+      where: { id, tenantId: tenant.tenantId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Setor não encontrado." }, { status: 404 });
+    }
+
+    await prisma.sector.deleteMany({
+      where: { id, tenantId: tenant.tenantId },
+    });
     return Response.json({ ok: true });
   } catch (error) {
     if (

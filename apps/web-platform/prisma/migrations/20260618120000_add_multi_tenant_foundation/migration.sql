@@ -99,6 +99,11 @@ UPDATE "CashMovement" SET "tenantId" = 'tenant_default';
 UPDATE "CompanySettings" SET "tenantId" = 'tenant_default';
 UPDATE "SalePayment" SET "tenantId" = 'tenant_default';
 
+DROP INDEX IF EXISTS "CompanySettings_singletonKey_key";
+DROP INDEX IF EXISTS "Sector_name_key";
+DROP INDEX IF EXISTS "Mechanic_name_key";
+DROP INDEX IF EXISTS "FinancialCategory_name_key";
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Tenant_slug_key" ON "Tenant"("slug");
 CREATE UNIQUE INDEX "Tenant_customDomain_key" ON "Tenant"("customDomain");
@@ -146,6 +151,7 @@ CREATE INDEX "CashMovement_tenantId_idx" ON "CashMovement"("tenantId");
 CREATE UNIQUE INDEX "CashMovement_tenantId_code_key" ON "CashMovement"("tenantId", "code");
 CREATE UNIQUE INDEX "CompanySettings_tenantId_key" ON "CompanySettings"("tenantId");
 CREATE INDEX "CompanySettings_tenantId_idx" ON "CompanySettings"("tenantId");
+CREATE UNIQUE INDEX "CompanySettings_tenantId_singletonKey_key" ON "CompanySettings"("tenantId", "singletonKey");
 CREATE INDEX "SalePayment_tenantId_idx" ON "SalePayment"("tenantId");
 
 -- AddForeignKey

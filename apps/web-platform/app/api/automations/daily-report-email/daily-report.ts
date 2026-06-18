@@ -345,7 +345,9 @@ export function getDailyReportPerformance(data: DailyReportData) {
   };
 }
 
-export async function getDailyReportData(params: { dateKey?: string | null; timeZone?: string } = {}) {
+export async function getDailyReportData(
+  params: { dateKey?: string | null; tenantId: string; timeZone?: string }
+) {
   const timeZone = params.timeZone || process.env.DAILY_REPORT_TIME_ZONE || DEFAULT_TIME_ZONE;
   const range = getDailyRange(timeZone, params.dateKey);
 
@@ -357,7 +359,7 @@ export async function getDailyReportData(params: { dateKey?: string | null; time
 
   const [movements, movementSummary, accounts] = await prisma.$transaction([
     prisma.cashMovement.findMany({
-      where: { movementDate: whereDate },
+      where: { movementDate: whereDate, tenantId: params.tenantId },
       include: {
         category: { select: { id: true, name: true } },
         sale: { select: { id: true, code: true } },
@@ -368,13 +370,13 @@ export async function getDailyReportData(params: { dateKey?: string | null; time
     }),
     prisma.cashMovement.groupBy({
       by: ["type"],
-      where: { movementDate: whereDate },
+      where: { movementDate: whereDate, tenantId: params.tenantId },
       orderBy: { type: "asc" },
       _sum: { amount: true },
       _count: { _all: true },
     }),
     prisma.financialAccount.findMany({
-      where: { dueDate: whereDate },
+      where: { dueDate: whereDate, tenantId: params.tenantId },
       include: {
         client: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },

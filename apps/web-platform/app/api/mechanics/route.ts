@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 
 import { mechanicFormSchema, toNullableString } from "@/app/(app)/mecanicos/mechanic-form-schema";
 import { apiErrorResponse } from "@/app/api/_utils/api-error";
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +45,10 @@ const mechanicSelect = {
 } satisfies Prisma.MechanicSelect;
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -60,7 +60,9 @@ export async function GET(request: NextRequest) {
   const search = normalizeString(searchParams.get("search")) ?? "";
   const includeInactive = searchParams.get("includeInactive") === "true";
 
-  const where: Prisma.MechanicWhereInput = {};
+  const where: Prisma.MechanicWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (!includeInactive) {
     where.active = true;
@@ -95,10 +97,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   let payload: unknown;
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
   try {
     const mechanic = await prisma.mechanic.create({
       data: {
+        tenantId: tenant.tenantId,
         name: parsed.data.name,
         active: parsed.data.active,
         commissionPercent: parsed.data.commissionPercent,

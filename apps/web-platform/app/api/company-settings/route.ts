@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import {
   companySettingsFormSchema,
@@ -12,25 +12,30 @@ export const dynamic = "force-dynamic";
 
 const COMPANY_SETTINGS_KEY = "company";
 
-export async function GET() {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const settings = await prisma.companySettings.findUnique({
-    where: { singletonKey: COMPANY_SETTINGS_KEY },
+    where: {
+      tenantId_singletonKey: {
+        tenantId: tenant.tenantId,
+        singletonKey: COMPANY_SETTINGS_KEY,
+      },
+    },
   });
 
   return Response.json(settings);
 }
 
 export async function PUT(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Nao autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -67,8 +72,14 @@ export async function PUT(request: NextRequest) {
   } satisfies Prisma.CompanySettingsUncheckedUpdateInput;
 
   const settings = await prisma.companySettings.upsert({
-    where: { singletonKey: COMPANY_SETTINGS_KEY },
+    where: {
+      tenantId_singletonKey: {
+        tenantId: tenant.tenantId,
+        singletonKey: COMPANY_SETTINGS_KEY,
+      },
+    },
     create: {
+      tenantId: tenant.tenantId,
       singletonKey: COMPANY_SETTINGS_KEY,
       ...data,
     },

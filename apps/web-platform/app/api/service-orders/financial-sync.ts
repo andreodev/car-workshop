@@ -34,8 +34,8 @@ export async function syncServiceOrderReceivable(
 
   if (order.status !== "FINALIZADA" || total.lessThanOrEqualTo(0)) {
     if (order.financialAccount && order.financialAccount.status !== "PAGA") {
-      await tx.financialAccount.update({
-        where: { id: order.financialAccount.id },
+      await tx.financialAccount.updateMany({
+        where: { id: order.financialAccount.id, tenantId },
         data: {
           status: "CANCELADA",
           paymentDate: null,
@@ -76,8 +76,8 @@ export async function syncServiceOrderReceivable(
     return;
   }
 
-  await tx.financialAccount.update({
-    where: { id: order.financialAccount.id },
+  await tx.financialAccount.updateMany({
+    where: { id: order.financialAccount.id, tenantId },
     data: {
       ...receivableData,
       paymentDate: null,

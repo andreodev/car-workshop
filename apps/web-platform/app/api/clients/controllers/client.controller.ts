@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { clientService } from "../services/client.service";
 
 type RouteContext = {
@@ -11,26 +11,26 @@ type RouteContext = {
 
 export const clientController = {
   async list(request: NextRequest) {
-    const session = await getServerAuthSession();
+    const { tenant, response } = await requireTenantOrJson(request);
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    if (response) {
+      return response;
     }
 
-    const result = await clientService.list(request);
+    const result = await clientService.list(request, tenant.tenantId);
 
     return Response.json(result);
   },
 
   async create(request: NextRequest) {
-    const session = await getServerAuthSession();
+    const { tenant, response } = await requireTenantOrJson(request);
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    if (response) {
+      return response;
     }
 
     const payload = (await request.json()) as Record<string, unknown>;
-    const result = await clientService.create(payload);
+    const result = await clientService.create(payload, tenant.tenantId);
 
     if ("error" in result) {
       return Response.json({ error: result.error }, { status: result.status });
@@ -39,15 +39,15 @@ export const clientController = {
     return Response.json(result.data, { status: 201 });
   },
 
-  async findById(_request: NextRequest, { params }: RouteContext) {
-    const session = await getServerAuthSession();
+  async findById(request: NextRequest, { params }: RouteContext) {
+    const { tenant, response } = await requireTenantOrJson(request);
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    if (response) {
+      return response;
     }
 
     const { id } = await params;
-    const result = await clientService.findById(id);
+    const result = await clientService.findById(id, tenant.tenantId);
 
     if ("error" in result) {
       return Response.json({ error: result.error }, { status: result.status });
@@ -57,15 +57,15 @@ export const clientController = {
   },
 
   async update(request: NextRequest, { params }: RouteContext) {
-    const session = await getServerAuthSession();
+    const { tenant, response } = await requireTenantOrJson(request);
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    if (response) {
+      return response;
     }
 
     const { id } = await params;
     const payload = (await request.json()) as Record<string, unknown>;
-    const result = await clientService.update(id, payload);
+    const result = await clientService.update(id, payload, tenant.tenantId);
 
     if ("error" in result) {
       return Response.json({ error: result.error }, { status: result.status });
@@ -74,15 +74,15 @@ export const clientController = {
     return Response.json(result.data);
   },
 
-  async remove(_request: NextRequest, { params }: RouteContext) {
-    const session = await getServerAuthSession();
+  async remove(request: NextRequest, { params }: RouteContext) {
+    const { tenant, response } = await requireTenantOrJson(request);
 
-    if (!session?.user) {
-      return Response.json({ error: "Não autorizado." }, { status: 401 });
+    if (response) {
+      return response;
     }
 
     const { id } = await params;
-    const result = await clientService.remove(id);
+    const result = await clientService.remove(id, tenant.tenantId);
 
     return Response.json(result.data);
   },

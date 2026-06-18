@@ -9,6 +9,7 @@ import {
   getFinanceReportData,
   groupCount,
 } from "@/app/lib/reports";
+import { requireTenantMembership } from "@/app/lib/tenant-context";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -21,7 +22,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function FinanceReportPage() {
-  const data = await getFinanceReportData();
+  const tenant = await requireTenantMembership();
+  const data = await getFinanceReportData(tenant.tenantId);
 
   return (
     <ReportPage

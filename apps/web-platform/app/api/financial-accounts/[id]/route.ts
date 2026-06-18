@@ -5,7 +5,7 @@ import {
   type SalePaymentMethod,
 } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { syncFinancialAccountCashMovement } from "../cash-sync";
 
@@ -116,16 +116,16 @@ function normalizePaymentMethod(value: unknown) {
   return normalized as SalePaymentMethod;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const account = await prisma.financialAccount.findUnique({
-    where: { id },
+  const account = await prisma.financialAccount.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     include: {
       client: { select: { id: true, name: true } },
       supplier: { select: { id: true, name: true } },
@@ -142,11 +142,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -181,8 +181,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   if (clientId) {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, tenantId: tenant.tenantId },
       select: { id: true },
     });
 
@@ -191,9 +191,18 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     }
   }
 
+  const existingAccount = await prisma.financialAccount.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existingAccount) {
+    return Response.json({ error: "Conta financeira não encontrada." }, { status: 404 });
+  }
+
   const account = await prisma.$transaction(async (tx) => {
-    const updatedAccount = await tx.financialAccount.update({
-      where: { id },
+    await tx.financialAccount.updateMany({
+      where: { id, tenantId: tenant.tenantId },
       data: {
         type,
         status,
@@ -209,6 +218,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
         paymentMethod,
         notes: normalizeString(payload.notes),
       },
+    });
+
+    const updatedAccount = await tx.financialAccount.findFirstOrThrow({
+      where: { id, tenantId: tenant.tenantId },
       include: {
         client: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
@@ -217,7 +230,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       },
     });
 
-    await syncFinancialAccountCashMovement(tx, id);
+    await syncFinancialAccountCashMovement(tx, id, tenant.tenantId);
 
     return updatedAccount;
   });
@@ -226,11 +239,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -240,8 +253,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Status inválido." }, { status: 400 });
   }
 
-  const existing = await prisma.financialAccount.findUnique({
-    where: { id },
+  const existing = await prisma.financialAccount.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     select: {
       id: true,
       code: true,
@@ -259,13 +272,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   const account = await prisma.$transaction(async (tx) => {
-    const updatedAccount = await tx.financialAccount.update({
-      where: { id },
+    await tx.financialAccount.updateMany({
+      where: { id, tenantId: tenant.tenantId },
       data: {
         status,
         paymentDate: status === "PAGA" ? new Date() : null,
         paidAmount: status === "PAGA" ? existing.amount : null,
       },
+    });
+
+    const updatedAccount = await tx.financialAccount.findFirstOrThrow({
+      where: { id, tenantId: tenant.tenantId },
       include: {
         client: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
@@ -274,7 +291,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       },
     });
 
-    await syncFinancialAccountCashMovement(tx, id);
+    await syncFinancialAccountCashMovement(tx, id, tenant.tenantId);
 
     return updatedAccount;
   });
@@ -282,16 +299,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   return Response.json(account);
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const existingAccount = await prisma.financialAccount.findUnique({
-    where: { id },
+  const existingAccount = await prisma.financialAccount.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     select: { id: true },
   });
 
@@ -300,8 +317,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.financialAccount.update({
-      where: { id },
+    await tx.financialAccount.updateMany({
+      where: { id, tenantId: tenant.tenantId },
       data: {
         status: "CANCELADA",
         paymentDate: null,
@@ -309,7 +326,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
       },
     });
 
-    await syncFinancialAccountCashMovement(tx, id);
+    await syncFinancialAccountCashMovement(tx, id, tenant.tenantId);
   });
 
   return Response.json({ ok: true });

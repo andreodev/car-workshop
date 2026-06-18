@@ -5,7 +5,7 @@ import {
   type SalePaymentMethod,
 } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -130,10 +130,10 @@ function normalizePaymentMethod(value: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -148,7 +148,9 @@ export async function GET(request: NextRequest) {
   const from = normalizeDateStart(searchParams.get("from"));
   const to = normalizeDateEnd(searchParams.get("to"));
 
-  const where: Prisma.CashMovementWhereInput = {};
+  const where: Prisma.CashMovementWhereInput = {
+    tenantId: tenant.tenantId,
+  };
 
   if (type) {
     where.type = type;
@@ -204,10 +206,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -239,8 +241,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (categoryId) {
-    const category = await prisma.financialCategory.findUnique({
-      where: { id: categoryId },
+    const category = await prisma.financialCategory.findFirst({
+      where: { id: categoryId, tenantId: tenant.tenantId },
       select: { id: true },
     });
 
@@ -251,6 +253,7 @@ export async function POST(request: NextRequest) {
 
   const movement = await prisma.cashMovement.create({
     data: {
+      tenantId: tenant.tenantId,
       type,
       categoryId,
       description,

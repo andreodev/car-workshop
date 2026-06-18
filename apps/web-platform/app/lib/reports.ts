@@ -170,13 +170,14 @@ function expenseBucketLabel(event: CashEvent) {
   return "Outras";
 }
 
-export async function getSalesReportData() {
+export async function getSalesReportData(tenantId: string) {
   const { monthStart, nextMonthStart } = getDateRanges();
 
   const [serviceOrders, saleItems, sales, recentSales, recentServiceOrders] =
     await prisma.$transaction([
       prisma.serviceOrder.aggregate({
         where: {
+          tenantId,
           status: "FINALIZADA",
           entryAt: { gte: monthStart, lt: nextMonthStart },
         },
@@ -186,6 +187,7 @@ export async function getSalesReportData() {
       prisma.saleItem.findMany({
         where: {
           sale: {
+            tenantId,
             status: "CONCLUIDA",
             createdAt: { gte: monthStart, lt: nextMonthStart },
           },
@@ -198,6 +200,7 @@ export async function getSalesReportData() {
       }),
       prisma.sale.aggregate({
         where: {
+          tenantId,
           status: "CONCLUIDA",
           createdAt: { gte: monthStart, lt: nextMonthStart },
         },
@@ -205,7 +208,7 @@ export async function getSalesReportData() {
         _count: { _all: true },
       }),
       prisma.sale.findMany({
-        where: { status: "CONCLUIDA" },
+        where: { status: "CONCLUIDA", tenantId },
         select: {
           id: true,
           code: true,
@@ -217,7 +220,7 @@ export async function getSalesReportData() {
         take: 12,
       }),
       prisma.serviceOrder.findMany({
-        where: { status: "FINALIZADA" },
+        where: { status: "FINALIZADA", tenantId },
         select: {
           id: true,
           code: true,
@@ -271,7 +274,7 @@ export async function getSalesReportData() {
   };
 }
 
-export async function getFinanceReportData() {
+export async function getFinanceReportData(tenantId: string) {
   const ranges = getDateRanges();
   const { monthStart, nextMonthStart } = ranges;
 
@@ -279,13 +282,13 @@ export async function getFinanceReportData() {
     await prisma.$transaction([
       prisma.financialAccount.groupBy({
         by: ["type", "status"],
-        where: { status: { not: "CANCELADA" } },
+        where: { status: { not: "CANCELADA" }, tenantId },
         orderBy: [{ type: "asc" }, { status: "asc" }],
         _sum: { amount: true },
         _count: { _all: true },
       }),
       prisma.cashMovement.findMany({
-        where: { movementDate: { lt: nextMonthStart } },
+        where: { movementDate: { lt: nextMonthStart }, tenantId },
         select: {
           type: true,
           amount: true,
@@ -296,6 +299,7 @@ export async function getFinanceReportData() {
       }),
       prisma.sale.findMany({
         where: {
+          tenantId,
           status: "CONCLUIDA",
           createdAt: { lt: nextMonthStart },
           cashMovements: { none: {} },
@@ -304,6 +308,7 @@ export async function getFinanceReportData() {
       }),
       prisma.financialAccount.findMany({
         where: {
+          tenantId,
           status: "PAGA",
           cashMovements: { none: {} },
           OR: [
@@ -386,12 +391,13 @@ export async function getFinanceReportData() {
   };
 }
 
-export async function getStockReportData() {
+export async function getStockReportData(tenantId: string) {
   const { monthStart, nextMonthStart } = getDateRanges();
 
   const [stockCandidates, movements] = await prisma.$transaction([
     prisma.catalogItem.findMany({
       where: {
+        tenantId,
         active: true,
         type: "PRODUTO",
         stockCurrent: { not: null },
@@ -409,7 +415,7 @@ export async function getStockReportData() {
       take: 300,
     }),
     prisma.stockMovement.findMany({
-      where: { createdAt: { gte: monthStart, lt: nextMonthStart } },
+      where: { createdAt: { gte: monthStart, lt: nextMonthStart }, tenantId },
       select: {
         id: true,
         type: true,
@@ -452,39 +458,43 @@ export async function getStockReportData() {
   };
 }
 
-export async function getClientReportData() {
+export async function getClientReportData(tenantId: string) {
   const { inactiveSince } = getDateRanges();
 
   const [saleClientGroups, orderClientGroups, clientLookupRows, clientsForInactivity] =
     await prisma.$transaction([
       prisma.sale.groupBy({
         by: ["clientId"],
-        where: { status: "CONCLUIDA", clientId: { not: null } },
+        where: { status: "CONCLUIDA", clientId: { not: null }, tenantId },
         orderBy: { clientId: "asc" },
         _sum: { total: true },
         _count: { _all: true },
       }),
       prisma.serviceOrder.groupBy({
         by: ["clientId"],
-        where: { status: "FINALIZADA" },
+        where: { status: "FINALIZADA", tenantId },
         orderBy: { clientId: "asc" },
         _sum: { total: true },
         _count: { _all: true },
       }),
-      prisma.client.findMany({ select: { id: true, name: true } }),
       prisma.client.findMany({
+        where: { tenantId },
+        select: { id: true, name: true },
+      }),
+      prisma.client.findMany({
+        where: { tenantId },
         select: {
           id: true,
           name: true,
           status: true,
           sales: {
-            where: { status: "CONCLUIDA" },
+            where: { status: "CONCLUIDA", tenantId },
             orderBy: { createdAt: "desc" },
             take: 1,
             select: { createdAt: true },
           },
           serviceOrders: {
-            where: { status: "FINALIZADA" },
+            where: { status: "FINALIZADA", tenantId },
             orderBy: { entryAt: "desc" },
             take: 1,
             select: { entryAt: true },
@@ -549,4 +559,3 @@ export async function getClientReportData() {
     inactiveClients,
   };
 }
-

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { type FinancialCategoryType } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -47,15 +47,17 @@ function normalizeType(value: unknown) {
   return normalized as FinancialCategoryType;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const category = await prisma.financialCategory.findUnique({ where: { id } });
+  const category = await prisma.financialCategory.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   if (!category) {
     return Response.json({ error: "Categoria financeira não encontrada." }, { status: 404 });
@@ -65,11 +67,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -84,8 +86,17 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Tipo de categoria inválido." }, { status: 400 });
   }
 
-  const category = await prisma.financialCategory.update({
-    where: { id },
+  const existing = await prisma.financialCategory.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    return Response.json({ error: "Categoria financeira não encontrada." }, { status: 404 });
+  }
+
+  await prisma.financialCategory.updateMany({
+    where: { id, tenantId: tenant.tenantId },
     data: {
       name,
       type,
@@ -94,15 +105,19 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     },
   });
 
+  const category = await prisma.financialCategory.findFirstOrThrow({
+    where: { id, tenantId: tenant.tenantId },
+  });
+
   return Response.json(category);
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -112,23 +127,47 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: "Situação inválida." }, { status: 400 });
   }
 
-  const category = await prisma.financialCategory.update({
-    where: { id },
+  const existing = await prisma.financialCategory.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    return Response.json({ error: "Categoria financeira não encontrada." }, { status: 404 });
+  }
+
+  await prisma.financialCategory.updateMany({
+    where: { id, tenantId: tenant.tenantId },
     data: { active },
+  });
+
+  const category = await prisma.financialCategory.findFirstOrThrow({
+    where: { id, tenantId: tenant.tenantId },
   });
 
   return Response.json(category);
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  await prisma.financialCategory.delete({ where: { id } });
+  const existing = await prisma.financialCategory.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    return Response.json({ error: "Categoria financeira não encontrada." }, { status: 404 });
+  }
+
+  await prisma.financialCategory.deleteMany({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   return Response.json({ ok: true });
 }

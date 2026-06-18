@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 
 import { mechanicFormSchema, toNullableString } from "@/app/(app)/mecanicos/mechanic-form-schema";
 import { apiErrorResponse } from "@/app/api/_utils/api-error";
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -33,19 +33,19 @@ const mechanicSelect = {
   updatedAt: true,
 } satisfies Prisma.MechanicSelect;
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
   let mechanic;
 
   try {
-    mechanic = await prisma.mechanic.findUnique({
-      where: { id },
+    mechanic = await prisma.mechanic.findFirst({
+      where: { id, tenantId: tenant.tenantId },
       select: mechanicSelect,
     });
   } catch (error) {
@@ -62,10 +62,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -84,8 +84,17 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const mechanic = await prisma.mechanic.update({
-      where: { id },
+    const existing = await prisma.mechanic.findFirst({
+      where: { id, tenantId: tenant.tenantId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Mecânico não encontrado." }, { status: 404 });
+    }
+
+    await prisma.mechanic.updateMany({
+      where: { id, tenantId: tenant.tenantId },
       data: {
         name: parsed.data.name,
         active: parsed.data.active,
@@ -98,6 +107,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       },
     });
 
+    const mechanic = await prisma.mechanic.findFirstOrThrow({
+      where: { id, tenantId: tenant.tenantId },
+      select: mechanicSelect,
+    });
+
     return Response.json(mechanic);
   } catch (error) {
     return apiErrorResponse(error, {
@@ -108,17 +122,28 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
 
   try {
-    await prisma.mechanic.delete({ where: { id } });
+    const existing = await prisma.mechanic.findFirst({
+      where: { id, tenantId: tenant.tenantId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Mecânico não encontrado." }, { status: 404 });
+    }
+
+    await prisma.mechanic.deleteMany({
+      where: { id, tenantId: tenant.tenantId },
+    });
     return Response.json({ ok: true });
   } catch (error) {
     return apiErrorResponse(error, {

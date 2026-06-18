@@ -4,7 +4,7 @@ import {
   type SalePaymentMethod,
 } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -102,16 +102,16 @@ function normalizePaymentMethod(value: unknown) {
   return normalized as SalePaymentMethod;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const movement = await prisma.cashMovement.findUnique({
-    where: { id },
+  const movement = await prisma.cashMovement.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     include: {
       category: { select: { id: true, name: true, type: true } },
       sale: { select: { id: true, code: true, status: true } },
@@ -127,11 +127,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const payload = (await request.json()) as Record<string, unknown>;
@@ -163,8 +163,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 
   if (categoryId) {
-    const category = await prisma.financialCategory.findUnique({
-      where: { id: categoryId },
+    const category = await prisma.financialCategory.findFirst({
+      where: { id: categoryId, tenantId: tenant.tenantId },
       select: { id: true },
     });
 
@@ -173,8 +173,17 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const movement = await prisma.cashMovement.update({
-    where: { id },
+  const existingMovement = await prisma.cashMovement.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!existingMovement) {
+    return Response.json({ error: "Movimento de caixa não encontrado." }, { status: 404 });
+  }
+
+  await prisma.cashMovement.updateMany({
+    where: { id, tenantId: tenant.tenantId },
     data: {
       type,
       categoryId,
@@ -185,6 +194,10 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       documentNumber: normalizeString(payload.documentNumber),
       notes: normalizeString(payload.notes),
     },
+  });
+
+  const movement = await prisma.cashMovement.findFirstOrThrow({
+    where: { id, tenantId: tenant.tenantId },
     include: {
       category: { select: { id: true, name: true, type: true } },
       sale: { select: { id: true, code: true, status: true } },
@@ -195,16 +208,16 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   return Response.json(movement);
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
   const { id } = await params;
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
-  const existingMovement = await prisma.cashMovement.findUnique({
-    where: { id },
+  const existingMovement = await prisma.cashMovement.findFirst({
+    where: { id, tenantId: tenant.tenantId },
     select: {
       id: true,
       code: true,
@@ -240,6 +253,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   const reversal = await prisma.cashMovement.create({
     data: {
+      tenantId: tenant.tenantId,
       type: existingMovement.type === "ENTRADA" ? "SAIDA" : "ENTRADA",
       categoryId: existingMovement.categoryId,
       description: `Estorno movimento #${existingMovement.code}`,

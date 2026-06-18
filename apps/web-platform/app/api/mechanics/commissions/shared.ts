@@ -63,6 +63,7 @@ export type MechanicCommissionGroup = {
 };
 
 type CommissionReportParams = {
+  tenantId: string;
   period?: string | null;
   mechanicName?: string | null;
   status?: string | null;
@@ -288,7 +289,7 @@ function mechanicPaymentInfo(
   return Object.values(payment).some(Boolean) ? payment : null;
 }
 
-export async function getMechanicCommissionReport(params: CommissionReportParams = {}) {
+export async function getMechanicCommissionReport(params: CommissionReportParams) {
   const period = normalizePeriod(params.period);
   const status = normalizeStatusFilter(params.status);
   const periodRange = buildPeriodRange(period);
@@ -297,6 +298,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
 
   const accounts = await prisma.financialAccount.findMany({
     where: {
+      tenantId: params.tenantId,
       type: "PAGAR",
       status: { in: [...commissionStatuses] },
       createdAt: {
@@ -333,7 +335,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
   const [orders, mechanics] = await Promise.all([
     serviceOrderCodes.length
       ? prisma.serviceOrder.findMany({
-          where: { code: { in: serviceOrderCodes } },
+          where: { tenantId: params.tenantId, code: { in: serviceOrderCodes } },
           include: {
             client: { select: { id: true, name: true } },
             vehicle: { select: { id: true, plate: true, brand: true, model: true } },
@@ -370,7 +372,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       : Promise.resolve([]),
     mechanicNames.length
       ? prisma.mechanic.findMany({
-          where: { name: { in: mechanicNames } },
+          where: { tenantId: params.tenantId, name: { in: mechanicNames } },
           select: {
             id: true,
             name: true,

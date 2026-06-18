@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import {
   accountStatusLabels,
   formatDate,
@@ -43,8 +43,8 @@ function csvResponse(type: keyof typeof reportNames, body: string) {
   });
 }
 
-async function salesCsv() {
-  const data = await getSalesReportData();
+async function salesCsv(tenantId: string) {
+  const data = await getSalesReportData(tenantId);
 
   return csv(
     ["origem", "codigo", "cliente", "detalhe", "data", "total"],
@@ -59,8 +59,8 @@ async function salesCsv() {
   );
 }
 
-async function financeCsv() {
-  const data = await getFinanceReportData();
+async function financeCsv(tenantId: string) {
+  const data = await getFinanceReportData(tenantId);
 
   return csv(
     ["tipo", "descricao", "categoria", "data", "valor"],
@@ -74,8 +74,8 @@ async function financeCsv() {
   );
 }
 
-async function stockCsv() {
-  const data = await getStockReportData();
+async function stockCsv(tenantId: string) {
+  const data = await getStockReportData(tenantId);
 
   const lowStockRows: CsvRow[] = data.lowStockItems.map((item) => [
     "baixo_estoque",
@@ -105,8 +105,8 @@ async function stockCsv() {
   );
 }
 
-async function clientsCsv() {
-  const data = await getClientReportData();
+async function clientsCsv(tenantId: string) {
+  const data = await getClientReportData(tenantId);
 
   const topRows: CsvRow[] = data.topClients.map((client) => [
     "ranking",
@@ -134,8 +134,8 @@ async function clientsCsv() {
   );
 }
 
-async function accountsCsv() {
-  const data = await getFinanceReportData();
+async function accountsCsv(tenantId: string) {
+  const data = await getFinanceReportData(tenantId);
 
   return csv(
     ["tipo", "status", "quantidade", "valor"],
@@ -149,33 +149,33 @@ async function accountsCsv() {
 }
 
 export async function GET(request: Request) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson();
 
-  if (!session?.user) {
-    return NextResponse.json({ message: "Nao autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const url = new URL(request.url);
   const type = url.searchParams.get("type");
 
   if (type === "sales") {
-    return csvResponse(type, await salesCsv());
+    return csvResponse(type, await salesCsv(tenant.tenantId));
   }
 
   if (type === "finance") {
-    return csvResponse(type, await financeCsv());
+    return csvResponse(type, await financeCsv(tenant.tenantId));
   }
 
   if (type === "stock") {
-    return csvResponse(type, await stockCsv());
+    return csvResponse(type, await stockCsv(tenant.tenantId));
   }
 
   if (type === "clients") {
-    return csvResponse(type, await clientsCsv());
+    return csvResponse(type, await clientsCsv(tenant.tenantId));
   }
 
   if (type === "accounts") {
-    return csvResponse("finance", await accountsCsv());
+    return csvResponse("finance", await accountsCsv(tenant.tenantId));
   }
 
   return NextResponse.json(

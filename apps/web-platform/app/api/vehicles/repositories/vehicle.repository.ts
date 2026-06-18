@@ -36,10 +36,11 @@ export const vehicleRepository = {
     };
   },
 
-  async findClientById(clientId: string) {
-    return prisma.client.findUnique({
+  async findClientById(clientId: string, tenantId: string) {
+    return prisma.client.findFirst({
       where: {
         id: clientId,
+        tenantId,
       },
       select: {
         id: true,
@@ -61,38 +62,42 @@ export const vehicleRepository = {
     });
   },
 
-  async findById(id: string) {
-  return prisma.vehicle.findUnique({
-    where: { id },
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
+  async findById(id: string, tenantId: string) {
+    return prisma.vehicle.findFirst({
+      where: { id, tenantId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-    },
-  });
-},
+    });
+  },
 
-async update(id: string, data: Prisma.VehicleUpdateInput) {
-  return prisma.vehicle.update({
-    where: { id },
-    data,
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
+  async update(id: string, tenantId: string, data: Prisma.VehicleUpdateInput) {
+    await prisma.vehicle.updateMany({
+      where: { id, tenantId },
+      data,
+    });
+
+    return prisma.vehicle.findFirstOrThrow({
+      where: { id, tenantId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-    },
-  });
-},
+    });
+  },
 
-async remove(id: string) {
-  return prisma.vehicle.delete({
-    where: { id },
-  });
-},
+  async remove(id: string, tenantId: string) {
+    return prisma.vehicle.deleteMany({
+      where: { id, tenantId },
+    });
+  },
 };

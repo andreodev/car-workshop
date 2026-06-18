@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { Prisma, SupplierPersonType } from "@prisma/client";
 
-import { getServerAuthSession } from "@/app/lib/auth-server";
+import { requireTenantOrJson } from "@/app/api/_utils/tenant-auth";
 import { prisma } from "@/app/lib/prisma";
 import { supplierFormSchema, toNullableString } from "@/app/(app)/fornecedores/supplier-form-schema";
 
@@ -45,15 +45,17 @@ function toSupplierData(
   };
 }
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
-  const supplier = await prisma.supplier.findUnique({ where: { id } });
+  const supplier = await prisma.supplier.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+  });
 
   if (!supplier) {
     return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
@@ -63,10 +65,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
@@ -77,45 +79,51 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return Response.json({ error: getZodErrorMessage(parsed.error) }, { status: 400 });
   }
 
-  try {
-    const supplier = await prisma.supplier.update({
-      where: { id },
-      data: toSupplierData(parsed.data),
-    });
+  const existingSupplier = await prisma.supplier.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
 
-    return Response.json(supplier);
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
-    }
-
-    throw error;
+  if (!existingSupplier) {
+    return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
   }
+
+  await prisma.supplier.updateMany({
+    where: { id, tenantId: tenant.tenantId },
+    data: toSupplierData(parsed.data),
+  });
+
+  const supplier = await prisma.supplier.findFirstOrThrow({
+    where: { id, tenantId: tenant.tenantId },
+  });
+
+  return Response.json(supplier);
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
-  const session = await getServerAuthSession();
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { tenant, response } = await requireTenantOrJson(request);
 
-  if (!session?.user) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  if (response) {
+    return response;
   }
 
   const { id } = await params;
 
+  const supplier = await prisma.supplier.findFirst({
+    where: { id, tenantId: tenant.tenantId },
+    select: { id: true },
+  });
+
+  if (!supplier) {
+    return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
+  }
+
   try {
-    await prisma.supplier.delete({ where: { id } });
+    await prisma.supplier.deleteMany({
+      where: { id, tenantId: tenant.tenantId },
+    });
     return Response.json({ ok: true });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      return Response.json({ error: "Fornecedor não encontrado." }, { status: 404 });
-    }
-
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2003"

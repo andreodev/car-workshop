@@ -643,7 +643,7 @@ model Sector {
   tenantId          String?
   tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code              Int                @unique @default(dbgenerated("public.generate_public_code('Sector', 'code')"))
-  name              String             @unique
+  name              String
   active            Boolean            @default(true)
   notes             String?            @db.Text
   sales             Sale[]
@@ -666,7 +666,7 @@ model Mechanic {
   tenantId          String?
   tenant            Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code              Int                @unique @default(dbgenerated("public.generate_public_code('Mechanic', 'code')"))
-  name              String             @unique
+  name              String
   active            Boolean            @default(true)
   commissionPercent Decimal            @default(0) @db.Decimal(5, 2)
   notes             String?            @db.Text
@@ -897,7 +897,7 @@ model FinancialCategory {
   tenantId      String?
   tenant        Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code          Int                   @unique @default(dbgenerated("public.generate_public_code('FinancialCategory', 'code')"))
-  name          String                @unique
+  name          String
   type          FinancialCategoryType @default(AMBOS)
   active        Boolean               @default(true)
   notes         String?               @db.Text
@@ -950,7 +950,7 @@ model CompanySettings {
   id                    String   @id @default(cuid())
   tenantId              String?  @unique
   tenant                Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  singletonKey          String   @unique @default("company")
+  singletonKey          String   @default("company")
   legalName             String
   tradeName             String?
   document              String?
@@ -974,6 +974,7 @@ model CompanySettings {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  @@unique([tenantId, singletonKey])
   @@index([legalName])
   @@index([tradeName])
   @@index([document])
