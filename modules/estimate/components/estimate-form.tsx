@@ -5,13 +5,8 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Car,
-  Calculator,
   CheckCircle2,
-  ChevronDown,
   Circle,
-  ClipboardList,
-  Plus,
-  Trash2,
   UserCog,
   UserRound,
 } from "lucide-react";
@@ -30,13 +25,13 @@ import type { CatalogItem, CatalogItemListResponse } from "@/modules/pdv/types/p
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { createEstimate, updateEstimate } from "../api/estimate.service";
 import { estimateStatusOptions } from "../utils/estimate-status";
-import { CatalogItemCombobox } from "@/app/(app)/_components/catalog-item-combobox";
 import type {
   Estimate,
   EstimateFormValues,
   EstimateItemFormValues,
   EstimatePayload,
 } from "../types/estimate.types";
+import { EstimateItemsStep } from "./estimate-items-step";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormLoadingState } from "@/components/ui/form-loading-state";
@@ -65,223 +60,18 @@ import {
   formatAmountInput,
   maskEstimateItemField,
 } from "../utils/estimate-input-masks";
-
-function createEmptyItem(): EstimateItemFormValues {
-  return {
-    id:
-      globalThis.crypto?.randomUUID?.() ??
-      `item-${Date.now()}-${Math.random()}`,
-    type: "SERVICE",
-    catalogItemId: "",
-    mechanicId: "",
-    sectorId: "",
-    description: "",
-    quantity: "1",
-    unitPrice: "",
-    discount: "0",
-    commissionBase: "",
-  };
-}
-
-const emptyForm: EstimateFormValues = {
-  clientId: "",
-  vehicleId: "",
-  responsible: "",
-  validUntil: "",
-  status: "RASCUNHO",
-  type: "SIMPLES",
-  notesInternal: "",
-  notesClient: "",
-  items: [createEmptyItem()],
-};
-
-function toInputDate(value: string | null) {
-  if (!value) {
-    return "";
-  }
-  const isoDate = value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
-  if (isoDate) return isoDate;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleDateString("en-CA");
-}
-
-function dateInputToUtcEndOfDay(value: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-
-  if (!match) {
-    return new Date(value).toISOString();
-  }
-
-  const [, year, month, day] = match;
-  return new Date(
-    Date.UTC(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999)
-  ).toISOString();
-}
-
-function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
-  const items = estimate.items ?? [];
-
-  return {
-    clientId: estimate.clientId,
-    vehicleId: estimate.vehicleId,
-    responsible: estimate.responsible ?? "",
-    validUntil: toInputDate(estimate.validUntil),
-    status: estimate.status,
-    type: estimate.type ?? "SIMPLES",
-    notesInternal: estimate.notesInternal ?? "",
-    notesClient: estimate.notesClient ?? "",
-    items:
-      items.length > 0
-        ? items.map((item) => ({
-            id: item.id,
-            type: item.catalogItem?.type === "PRODUTO" ? "PRODUCT" : "SERVICE",
-            catalogItemId: item.catalogItemId ?? "",
-            mechanicId: item.mechanicId ?? "",
-            sectorId: item.sectorId ?? "",
-            description: item.description,
-            quantity: String(item.quantity),
-            unitPrice: formatAmountInput(item.unitPrice),
-            discount: formatAmountInput(
-              calculateDiscountPercent(
-                Number(item.quantity),
-                Number(item.unitPrice ?? 0),
-                item.discount ?? "0",
-              ),
-            ),
-            commissionBase:
-              item.commissionBase === null
-                ? ""
-                : formatAmountInput(item.commissionBase),
-          }))
-        : [createEmptyItem()],
-  };
-}
-
-function normalizeAmount(value: string) {
-  const normalized = value.includes(",")
-    ? value.replace(/\./g, "").replace(",", ".")
-    : value;
-  const parsed = Number(normalized.replace(/[^\d.-]/g, ""));
-
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function roundCurrency(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-function calculateDiscountValue(
-  quantity: number,
-  unitPrice: number,
-  discountPercent: number,
-) {
-  const subtotal = quantity * unitPrice;
-  return roundCurrency(subtotal * (discountPercent / 100));
-}
-
-function calculateDiscountPercent(
-  quantity: number,
-  unitPrice: number,
-  discountValue: string | number,
-) {
-  const subtotal = quantity * unitPrice;
-  const parsedDiscount =
-    typeof discountValue === "number"
-      ? discountValue
-      : normalizeAmount(String(discountValue));
-
-  if (subtotal <= 0 || parsedDiscount <= 0) {
-    return "0";
-  }
-
-  return String(roundCurrency((parsedDiscount / subtotal) * 100));
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
-
-function getCommissionBaseValue(item: EstimateItemFormValues, lineTotal: number) {
-  const rawCommissionBase = item.commissionBase.trim();
-
-  if (rawCommissionBase) {
-    return normalizeAmount(rawCommissionBase);
-  }
-
-  return item.type === "SERVICE" ? lineTotal : 0;
-}
-
-function getEstimateItemValidationError(
-  item: EstimateItemFormValues,
-  index: number,
-) {
-  const itemLabel = `Item ${index + 1}`;
-  const quantity = normalizeAmount(item.quantity);
-  const unitPrice = normalizeAmount(item.unitPrice);
-  const discountPercent = normalizeAmount(item.discount);
-  const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
-  const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-  const commissionBase = getCommissionBaseValue(item, lineTotal);
-  const isService = item.type === "SERVICE";
-
-  if (!item.description.trim()) {
-    return `${itemLabel}: informe a descrição.`;
-  }
-
-  if (isService && !item.mechanicId) {
-    return `${itemLabel}: selecione o mecânico.`;
-  }
-
-  if (isService && !item.sectorId) {
-    return `${itemLabel}: selecione o setor.`;
-  }
-
-  if (quantity <= 0) {
-    return `${itemLabel}: informe uma quantidade maior que zero.`;
-  }
-
-  if (unitPrice <= 0) {
-    return `${itemLabel}: informe um valor unitário maior que zero.`;
-  }
-
-  if (discountPercent < 0 || discountPercent > 100) {
-    return `${itemLabel}: desconto deve ficar entre 0% e 100%.`;
-  }
-
-  if (isService && commissionBase < 0) {
-    return `${itemLabel}: base de comissão não pode ser negativa.`;
-  }
-
-  if (isService && commissionBase > lineTotal) {
-    return `${itemLabel}: base de comissão não pode ser maior que o total do item.`;
-  }
-
-  return null;
-}
-
-function getVehicleLabel(
-  vehicle?: {
-    plate: string;
-    brand?: string | null;
-    model: string | null;
-  } | null,
-) {
-  if (!vehicle) {
-    return "Veículo não selecionado";
-  }
-
-  return [vehicle.plate, vehicle.brand, vehicle.model]
-    .filter(Boolean)
-    .join(" - ");
-}
+import {
+  calculateDiscountValue,
+  createEmptyEstimateItem,
+  dateInputToUtcEndOfDay,
+  emptyEstimateForm,
+  formatCurrency,
+  getCommissionBaseValue,
+  getEstimateItemValidationError,
+  getVehicleLabel,
+  mapEstimateToForm,
+  normalizeAmount,
+} from "../utils/estimate-form-utils";
 
 type EstimateFormProps = {
   mode: "create" | "edit";
@@ -318,9 +108,11 @@ type EstimateFormStep = "client" | "items" | "review";
 export function EstimateForm({ mode, initialData }: EstimateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<EstimateFormValues>(() =>
-    initialData ? mapEstimateToForm(initialData) : emptyForm,
+  const initialForm = useMemo(
+    () => (initialData ? mapEstimateToForm(initialData) : emptyEstimateForm),
+    [initialData],
   );
+  const [form, setForm] = useState<EstimateFormValues>(initialForm);
   const [localError, setLocalError] = useState<string | null>(null);
   const [quickCatalogDialog, setQuickCatalogDialog] =
     useState<QuickCatalogDialogState>(null);
@@ -328,7 +120,7 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
     useState<QuickCatalogFormValues>(emptyQuickCatalogForm);
   const [activeStep, setActiveStep] = useState<EstimateFormStep>("client");
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set(initialForm.items[0]?.id ? [initialForm.items[0].id] : []),
   );
   const sessionQuery = useAuthSession();
   const sessionName =
@@ -708,15 +500,13 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   }
 
   function addItem() {
+    const nextItem = createEmptyEstimateItem();
+
     setForm((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        {
-          ...createEmptyItem(),
-        },
-      ],
+      items: [...prev.items, nextItem],
     }));
+    setExpandedItemIds((prev) => new Set([...prev, nextItem.id]));
   }
 
   function toggleItemExpanded(itemId: string) {
@@ -765,19 +555,22 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
   }
 
   function removeItem(itemId: string) {
+    const remainingItems = form.items.filter((item) => item.id !== itemId);
+    const fallbackItem =
+      remainingItems.length > 0 ? undefined : createEmptyEstimateItem();
+    const nextItems = fallbackItem ? [fallbackItem] : remainingItems;
+
     setExpandedItemIds((prev) => {
       const next = new Set(prev);
       next.delete(itemId);
+
+      if (fallbackItem) {
+        next.add(fallbackItem.id);
+      }
+
       return next;
     });
-    setForm((prev) => {
-      const nextItems = prev.items.filter((item) => item.id !== itemId);
-
-      return {
-        ...prev,
-        items: nextItems.length > 0 ? nextItems : [createEmptyItem()],
-      };
-    });
+    setForm((prev) => ({ ...prev, items: nextItems }));
   }
 
   function submitEstimate() {
@@ -1131,393 +924,25 @@ const [shouldSubmitAfterObservation, setShouldSubmitAfterObservation] = useState
         ) : null}
 	
         {activeStep === "items" ? (
-	  <div className="min-w-0 space-y-5">
-	    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="size-4 text-primary" />
-
-            <h2 className="text-sm font-semibold text-foreground">
-              Itens do orçamento
-            </h2>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          className="h-10 gap-2"
-          onClick={addItem}
-        >
-          <Plus className="size-4" />
-          Adicionar item
-        </Button>
-      </div>
-
-      <div className="space-y-4 p-5">
-        {form.items.map((item, index) => {
-          const quantity = normalizeAmount(item.quantity);
-          const unitPrice = normalizeAmount(item.unitPrice);
-          const discountPercent = normalizeAmount(item.discount);
-          const discount = calculateDiscountValue(
-            quantity,
-            unitPrice,
-            discountPercent,
-          );
-
-          const lineTotal = Math.max(
-            quantity * unitPrice - discount,
-            0,
-          );
-          const commissionBase = getCommissionBaseValue(item, lineTotal);
-          const selectedCatalogItem = catalogItems.find(
-            (catalogItem) => catalogItem.id === item.catalogItemId,
-          );
-          const selectedStock = normalizeAmount(
-            selectedCatalogItem?.stockCurrent ?? "0",
-          );
-	          const hasInsufficientStock =
-	            item.type === "PRODUCT" &&
-	            Boolean(selectedCatalogItem) &&
-	            quantity > selectedStock;
-	          const isExpanded = expandedItemIds.has(item.id);
-	
-	          return (
-	            <div
-	              key={item.id}
-	              className="group overflow-hidden rounded-2xl border border-border bg-background"
-	            >
-	              <div className="flex items-center gap-2 px-5 py-4 transition hover:bg-muted/40">
-	                <button
-	                  type="button"
-	                  className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-4 text-left"
-	                  onClick={() => toggleItemExpanded(item.id)}
-	                >
-	                  <div className="min-w-0">
-	                    <div className="flex items-center gap-3">
-	                      <span className="text-sm font-semibold text-foreground">
-	                        Item {index + 1}
-	                      </span>
-
-	                      <Badge variant="outline">
-	                        {item.type === "PRODUCT" ? "Produto" : "Serviço"}
-	                      </Badge>
-	                      {hasInsufficientStock ? (
-	                        <Badge variant="destructive">Estoque baixo</Badge>
-	                      ) : null}
-	                    </div>
-
-	                    <p className="mt-1 truncate text-xs text-muted-foreground">
-	                      {item.description.toLocaleUpperCase() || "Nenhuma descrição"}
-	                    </p>
-	                  </div>
-
-	                  <div className="flex items-center gap-4">
-	                    <span className="font-mono text-sm font-semibold">
-	                      {formatCurrency(lineTotal)}
-	                    </span>
-	                    <ChevronDown
-	                      className={[
-	                        "size-4 text-muted-foreground transition-transform",
-	                        isExpanded ? "rotate-180" : "",
-	                      ].join(" ")}
-	                    />
-	                  </div>
-	                </button>
-
-	                <Button
-	                  type="button"
-	                  variant="ghost"
-	                  size="icon"
-	                  className="size-8 shrink-0"
-	                  onClick={() => removeItem(item.id)}
-	                >
-	                  <Trash2 className="size-4" />
-	                </Button>
-	              </div>
-	
-	              {isExpanded ? (
-	              <div className="border-t border-border p-6">
-	                <div className="space-y-7">
-	                  <div className="space-y-4">
-	                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-	                      Identificação
-	                    </p>
-	                <div className="grid gap-5 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label>Tipo</Label>
-
-                    <Select
-                      value={item.type}
-                      onValueChange={(value) =>
-                        updateItemType(
-                          item.id,
-                          value as EstimateItemFormValues["type"],
-                        )
-                      }
-                    >
-                      <SelectTrigger className="h-11 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        <SelectItem value="SERVICE">
-                          Serviço
-                        </SelectItem>
-
-                        <SelectItem value="PRODUCT">
-                          Produto
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Catálogo opcional</Label>
-
-                    <CatalogItemCombobox
-                      items={catalogItems}
-                      value={item.catalogItemId}
-                      type={item.type}
-                      loading={catalogItemsQuery.isLoading}
-                      placeholder="Selecione"
-                      manualLabel="Sem vínculo com catálogo"
-                      onChange={(value) => updateItemCatalog(item.id, value)}
-                    />
-                    <div className="flex flex-col gap-2 pt-1">
-                      {item.type === "PRODUCT" && selectedCatalogItem ? (
-                        <span
-                          className={
-                            hasInsufficientStock
-                              ? "text-xs font-medium text-destructive"
-                              : "text-xs text-muted-foreground"
-                          }
-                        >
-                          Estoque: {selectedStock}. Solicitado: {quantity || 0}.
-                        </span>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => openQuickCatalogCreate(item.id)}
-                        >
-                          {item.type === "PRODUCT"
-                            ? "Cadastrar produto"
-                            : "Cadastrar serviço"}
-                        </Button>
-                        {item.type === "PRODUCT" ? (
-                          <Button
-                            type="button"
-                            variant={hasInsufficientStock ? "secondary" : "outline"}
-                            className="h-8"
-                            onClick={() =>
-                              openQuickStockAdd(item.id, selectedCatalogItem)
-                            }
-                          >
-                            Adicionar estoque
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-	                </div>
-	                  </div>
-
-	                  {item.type === "SERVICE" ? (
-	                    <div className="space-y-4">
-	                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-	                        Responsáveis
-	                      </p>
-	                      <div className="grid gap-5 md:grid-cols-2">
-	                      <div className="grid gap-2">
-	                        <Label>Mecânico do item</Label>
-
-                        <Select
-                          value={item.mechanicId}
-                          onValueChange={(value) =>
-                            updateItem(item.id, "mechanicId", value)
-                          }
-                        >
-                          <SelectTrigger className="h-11 w-full">
-                            <SelectValue
-                              placeholder={
-                                mechanicsQuery.isLoading
-                                  ? "Carregando..."
-                                  : "Selecione"
-                              }
-                            />
-                          </SelectTrigger>
-
-                          <SelectContent>
-                            {mechanics.map((mechanic) => (
-                              <SelectItem key={mechanic.id} value={mechanic.id}>
-                                {mechanic.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label>Setor do item</Label>
-
-                        <Select
-                          value={item.sectorId}
-                          onValueChange={(value) =>
-                            updateItem(item.id, "sectorId", value)
-                          }
-                        >
-                          <SelectTrigger className="h-11 w-full">
-                            <SelectValue
-                              placeholder={
-                                sectorsQuery.isLoading
-                                  ? "Carregando..."
-                                  : "Selecione"
-                              }
-                            />
-                          </SelectTrigger>
-
-                          <SelectContent>
-                            {sectors.map((sector) => (
-                              <SelectItem key={sector.id} value={sector.id}>
-                                {sector.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-	                        </Select>
-	                      </div>
-	                      </div>
-	                    </div>
-	                  ) : null}
-	
-	                  <div className="space-y-4">
-	                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-	                      Precificação
-	                    </p>
-	                    <div className="grid gap-5 md:grid-cols-2">
-	                  <div className="grid gap-2 md:col-span-2">
-                    <Label>{item.type === "SERVICE" ? "Nome do serviço" : "Nome do produto"}</Label>
-
-                    <Input
-                      className="h-11"
-                      value={item.description}
-                      onChange={(event) =>
-                        updateItem(
-                          item.id,
-                          "description",
-                          event.target.value.toLocaleUpperCase(),
-                        )
-                      }
-                      placeholder={`Item ${index + 1}`}
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Quantidade</Label>
-
-                    <Input
-                      className="h-11"
-                      inputMode="numeric"
-                      value={item.quantity}
-                      onChange={(event) =>
-                        updateMaskedItem(
-                          item.id,
-                          "quantity",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Valor unitário</Label>
-
-                    <Input
-                      className="h-11"
-                      inputMode="decimal"
-                      value={item.unitPrice}
-                      onChange={(event) =>
-                        updateMaskedItem(
-                          item.id,
-                          "unitPrice",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>Desconto (%)</Label>
-
-                    <Input
-                      className="h-11"
-                      inputMode="decimal"
-                      value={item.discount}
-                      onChange={(event) =>
-                        updateMaskedItem(
-                          item.id,
-                          "discount",
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </div>
-
-	                  {item.type === "SERVICE" ? (
-	                    <>
-	                      <div className="rounded-xl bg-muted/40 p-4">
-	                        <div className="flex items-start justify-between gap-4">
-	                          <div>
-	                            <Label>Base comissão</Label>
-	                            <p className="mt-1 text-xs text-muted-foreground">
-	                              Valor usado para cálculo da comissão.
-	                            </p>
-	                          </div>
-	                          <Calculator className="size-4 text-muted-foreground" />
-	                        </div>
-	
-	                        <Input
-	                          className="mt-3 h-10 bg-background"
-	                          inputMode="decimal"
-	                          value={item.commissionBase}
-                          onChange={(event) =>
-                            updateMaskedItem(
-                              item.id,
-                              "commissionBase",
-                              event.target.value,
-                            )
-                          }
-	                          placeholder={formatCurrency(lineTotal)}
-	                        />
-	                      </div>
-	
-	                      <div className="rounded-xl bg-muted/40 p-4 text-sm md:col-span-2">
-	                        <div className="flex items-center justify-between gap-3">
-	                          <span className="flex items-center gap-2 text-muted-foreground">
-	                            <Calculator className="size-4" />
-	                            Base comissionável
-	                          </span>
-	                          <span className="font-mono font-semibold">
-	                            {formatCurrency(commissionBase)}
-                          </span>
-                        </div>
-                      </div>
-	                    </>
-	                  ) : null}
-	                    </div>
-	                  </div>
-	                </div>
-	              </div>
-	              ) : null}
-	            </div>
-	          );
-        })}
-      </div>
-	    </section>
-	  </div>
+          <EstimateItemsStep
+            items={form.items}
+            catalogItems={catalogItems}
+            mechanics={mechanics}
+            sectors={sectors}
+            expandedItemIds={expandedItemIds}
+            isCatalogLoading={catalogItemsQuery.isLoading}
+            isMechanicsLoading={mechanicsQuery.isLoading}
+            isSectorsLoading={sectorsQuery.isLoading}
+            onAddItem={addItem}
+            onRemoveItem={removeItem}
+            onToggleItem={toggleItemExpanded}
+            onUpdateItem={updateItem}
+            onUpdateMaskedItem={updateMaskedItem}
+            onUpdateItemType={updateItemType}
+            onUpdateItemCatalog={updateItemCatalog}
+            onQuickCatalogCreate={openQuickCatalogCreate}
+            onQuickStockAdd={openQuickStockAdd}
+          />
         ) : null}
 
         {activeStep === "review" ? (
