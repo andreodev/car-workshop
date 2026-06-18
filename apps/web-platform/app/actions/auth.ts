@@ -92,12 +92,6 @@ export async function signup(
         name: companyName,
         slug,
         status: "TRIAL",
-        companySettings: {
-          create: {
-            legalName: companyName,
-            tradeName: companyName,
-          },
-        },
       },
       select: { id: true },
     });
