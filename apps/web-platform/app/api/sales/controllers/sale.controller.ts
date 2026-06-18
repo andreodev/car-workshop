@@ -1,7 +1,7 @@
+import { requireTenantMembership } from '@/app/lib/tenant-context';
 import type { NextRequest } from "next/server";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
-import { requireTenantMembership } from "@/app/lib/tenant-context";
 import { tenantErrorResponse } from "@/app/api/_utils/tenant-error";
 import { saleService } from "../services/sale.service";
 

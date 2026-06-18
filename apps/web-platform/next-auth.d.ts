@@ -5,6 +5,7 @@ declare module "next-auth" {
   interface Session {
     user?: DefaultSession["user"] & {
       id?: string;
+      selectedTenantId?: string | null;
     };
     selectedTenantId?: string | null;
     tenantRole?: TenantRole | null;

@@ -10,7 +10,11 @@ import {
   TENANT_SLUG_HEADER,
 } from "@/app/lib/tenant-headers";
 
-type TenantHostKind = "platform-root" | "tenant-subdomain" | "custom-domain" | "unknown";
+type TenantHostKind =
+  | "platform-root"
+  | "tenant-subdomain"
+  | "custom-domain"
+  | "unknown";
 
 type ResolvedTenantSignal = {
   host: string | null;
@@ -44,15 +48,15 @@ function normalizeHost(value: string | null) {
 }
 
 function platformRootDomains() {
+  const domains = [
+    process.env.PLATFORM_ROOT_DOMAIN,
+    process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN,
+    "localhost",
+    "127.0.0.1",
+  ];
+
   return new Set(
-    [
-      process.env.PLATFORM_ROOT_DOMAIN,
-      process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN,
-      "localhost",
-      "127.0.0.1",
-    ]
-      .filter(Boolean)
-      .map((domain) => domain?.toLowerCase())
+    domains.filter(Boolean).map((domain) => domain?.toLowerCase())
   );
 }
 
@@ -77,19 +81,35 @@ function classifyHost(host: string | null): ResolvedTenantSignal {
     }
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    const isLocalNetworkIp = /^192\.168\.\d+\.\d+$/.test(host);
+    const isPrivateIp =
+      /^10\.\d+\.\d+\.\d+$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host);
+
+    if (isLocalNetworkIp || isPrivateIp) {
+      return { host, kind: "platform-root", slug: null };
+    }
+  }
+
   return { host, kind: "custom-domain", slug: null };
 }
 
-async function readTenantSignal(request?: NextRequest): Promise<ResolvedTenantSignal> {
+async function readTenantSignal(
+  request?: NextRequest
+): Promise<ResolvedTenantSignal> {
   if (request) {
     const host = normalizeHost(
       request.headers.get(TENANT_HOST_HEADER) ?? request.headers.get("host")
     );
+    const classified = classifyHost(host);
 
     return {
       host,
-      kind: (request.headers.get(TENANT_HOST_KIND_HEADER) as TenantHostKind | null) ?? classifyHost(host).kind,
-      slug: request.headers.get(TENANT_SLUG_HEADER) ?? classifyHost(host).slug,
+      kind:
+        (request.headers.get(TENANT_HOST_KIND_HEADER) as TenantHostKind | null) ??
+        classified.kind,
+      slug: request.headers.get(TENANT_SLUG_HEADER) ?? classified.slug,
     };
   }
 
@@ -97,15 +117,64 @@ async function readTenantSignal(request?: NextRequest): Promise<ResolvedTenantSi
   const host = normalizeHost(
     headerStore.get(TENANT_HOST_HEADER) ?? headerStore.get("host")
   );
+  const classified = classifyHost(host);
 
   return {
     host,
-    kind: (headerStore.get(TENANT_HOST_KIND_HEADER) as TenantHostKind | null) ?? classifyHost(host).kind,
-    slug: headerStore.get(TENANT_SLUG_HEADER) ?? classifyHost(host).slug,
+    kind:
+      (headerStore.get(TENANT_HOST_KIND_HEADER) as TenantHostKind | null) ??
+      classified.kind,
+    slug: headerStore.get(TENANT_SLUG_HEADER) ?? classified.slug,
   };
 }
 
-async function resolveTenantFromSignal(signal: ResolvedTenantSignal, request?: NextRequest) {
+async function getSelectedTenantId(request?: NextRequest) {
+  const session = await getServerAuthSession();
+
+  const sessionSelectedTenantId =
+    session?.selectedTenantId ??
+    (session?.user as { selectedTenantId?: string | null } | undefined)
+      ?.selectedTenantId ??
+    null;
+
+  if (sessionSelectedTenantId) {
+    return sessionSelectedTenantId;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return (
+      request?.headers.get("x-tenant-id") ??
+      request?.nextUrl.searchParams.get("tenant") ??
+      request?.nextUrl.searchParams.get("tenantId") ??
+      null
+    );
+  }
+
+  return null;
+}
+
+async function resolveTenantFromSignal(
+  signal: ResolvedTenantSignal,
+  request?: NextRequest
+) {
+  if (signal.kind === "platform-root") {
+    const selectedTenantId = await getSelectedTenantId(request);
+
+    if (selectedTenantId) {
+      return prisma.tenant.findUnique({
+        where: { id: selectedTenantId },
+      });
+    }
+
+    return null;
+  }
+
+  if (signal.kind === "tenant-subdomain" && signal.slug) {
+    return prisma.tenant.findUnique({
+      where: { slug: signal.slug },
+    });
+  }
+
   if (signal.kind === "custom-domain" && signal.host) {
     return prisma.tenant.findFirst({
       where: {
@@ -113,30 +182,6 @@ async function resolveTenantFromSignal(signal: ResolvedTenantSignal, request?: N
         customDomainVerifiedAt: { not: null },
       },
     });
-  }
-
-  if (signal.kind === "tenant-subdomain" && signal.slug) {
-    return prisma.tenant.findUnique({ where: { slug: signal.slug } });
-  }
-
-  if (signal.kind === "platform-root") {
-    const session = await getServerAuthSession();
-    const selectedTenantId = session?.selectedTenantId ?? null;
-
-    if (selectedTenantId) {
-      return prisma.tenant.findUnique({ where: { id: selectedTenantId } });
-    }
-
-    if (process.env.NODE_ENV !== "production") {
-      const devTenantId =
-        request?.headers.get("x-tenant-id") ??
-        request?.nextUrl.searchParams.get("tenant") ??
-        null;
-
-      if (devTenantId) {
-        return prisma.tenant.findUnique({ where: { id: devTenantId } });
-      }
-    }
   }
 
   return null;
@@ -158,10 +203,13 @@ function assertTenantIsUsable(tenant: Tenant | null): Tenant {
   return tenant;
 }
 
-export async function getTenantContext(request?: NextRequest): Promise<TenantContext | null> {
+export async function getTenantContext(
+  request?: NextRequest
+): Promise<TenantContext> {
   const signal = await readTenantSignal(request);
-  const tenant = assertTenantIsUsable(await resolveTenantFromSignal(signal, request));
   const session = await getServerAuthSession();
+  const resolvedTenant = await resolveTenantFromSignal(signal, request);
+  const tenant = assertTenantIsUsable(resolvedTenant);
 
   return {
     tenantId: tenant.id,
@@ -174,10 +222,6 @@ export async function requireTenantMembership(
   request?: NextRequest
 ): Promise<TenantMembershipContext> {
   const context = await getTenantContext(request);
-
-  if (!context) {
-    throw new TenantAccessError(404, "Tenant not found");
-  }
 
   if (!context.userId) {
     throw new TenantAccessError(401, "Authentication required");

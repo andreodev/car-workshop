@@ -47,6 +47,7 @@ export const authOptions: NextAuthOptions = {
 
         token.selectedTenantId = membership?.tenantId ?? null;
         token.tenantRole = membership?.role ?? null;
+        console.log("Selected tenant ID for user", token.userId, "is", token.selectedTenantId);
       }
 
       return token;

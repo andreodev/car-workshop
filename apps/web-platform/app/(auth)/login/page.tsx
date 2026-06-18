@@ -99,8 +99,6 @@ export default function LoginPage() {
             fill
             priority
             className="object-cover opacity-70"
-            width={1200}
-            height={800}
           />
 
           <div className="absolute inset-0 bg-linear-to-r from-[#07080D] via-[#07080D]/85 to-[#07080D]/20" />
