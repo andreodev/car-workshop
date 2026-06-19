@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const alertVariants = cva("rounded-lg border p-4 text-sm", {
-  variants: {
+   variants: {
     variant: {
       default: "border-border bg-card text-card-foreground",
       destructive: "border-destructive/30 bg-destructive/10 text-destructive",
