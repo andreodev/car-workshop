@@ -226,8 +226,8 @@ export const vehicleService = {
     const fuel = normalizeString(payload.fuel);
     const status = normalizeString(payload.status);
 
-    const data: Prisma.VehicleUpdateInput = {
-      client: { connect: { id: clientId } },
+    const data: Prisma.VehicleUncheckedUpdateInput = {
+      clientId,
       plate,
       brand: normalizeString(payload.brand),
       model: normalizeString(payload.model),

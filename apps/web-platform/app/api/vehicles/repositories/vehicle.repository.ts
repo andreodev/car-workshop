@@ -76,7 +76,7 @@ export const vehicleRepository = {
     });
   },
 
-  async update(id: string, tenantId: string, data: Prisma.VehicleUpdateInput) {
+  async update(id: string, tenantId: string, data: Prisma.VehicleUncheckedUpdateInput) {
     await prisma.vehicle.updateMany({
       where: { id, tenantId },
       data,
