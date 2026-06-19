@@ -28,48 +28,58 @@ func (s TenantStatus) IsValid() bool {
 }
 
 type Workshop struct {
-	ID                            string             `json:"id"`
-	Name                          string             `json:"name"`
-	Slug                          string             `json:"slug"`
-	Status                        TenantStatus       `json:"status"`
-	CustomDomain                  *string            `json:"customDomain,omitempty"`
-	CustomDomainVerifiedAt        *time.Time         `json:"customDomainVerifiedAt,omitempty"`
-	CustomDomainVerificationToken *string            `json:"customDomainVerificationToken,omitempty"`
-	CustomDomainLastError         *string            `json:"customDomainLastError,omitempty"`
-	CustomDomainStatus            CustomDomainStatus `json:"customDomainStatus"`
-	LegalName                     string             `json:"legalName"`
-	TradeName                     *string            `json:"tradeName,omitempty"`
-	Document                      *string            `json:"document,omitempty"`
-	Email                         *string            `json:"email,omitempty"`
-	Phone                         *string            `json:"phone,omitempty"`
-	LogoURL                       *string            `json:"logoUrl,omitempty"`
-	CreatedAt                     time.Time          `json:"createdAt"`
-	UpdatedAt                     time.Time          `json:"updatedAt"`
+	ID                            string                `json:"id"`
+	Name                          string                `json:"name"`
+	Slug                          string                `json:"slug"`
+	Status                        TenantStatus          `json:"status"`
+	CustomDomain                  *string               `json:"customDomain,omitempty"`
+	CustomDomainVerifiedAt        *time.Time            `json:"customDomainVerifiedAt,omitempty"`
+	CustomDomainVerificationToken *string               `json:"customDomainVerificationToken,omitempty"`
+	CustomDomainLastError         *string               `json:"customDomainLastError,omitempty"`
+	CustomDomainStatus            CustomDomainStatus    `json:"customDomainStatus"`
+	LegalName                     string                `json:"legalName"`
+	TradeName                     *string               `json:"tradeName,omitempty"`
+	Document                      *string               `json:"document,omitempty"`
+	Email                         *string               `json:"email,omitempty"`
+	Phone                         *string               `json:"phone,omitempty"`
+	LogoURL                       *string               `json:"logoUrl,omitempty"`
+	Customization                 WorkshopCustomization `json:"customization"`
+	CreatedAt                     time.Time             `json:"createdAt"`
+	UpdatedAt                     time.Time             `json:"updatedAt"`
 }
 
 type WorkshopSummary struct {
-	ID                            string             `json:"id"`
-	Name                          string             `json:"name"`
-	Slug                          string             `json:"slug"`
-	Status                        TenantStatus       `json:"status"`
-	CustomDomain                  *string            `json:"customDomain,omitempty"`
-	CustomDomainVerifiedAt        *time.Time         `json:"customDomainVerifiedAt,omitempty"`
-	CustomDomainVerificationToken *string            `json:"customDomainVerificationToken,omitempty"`
-	CustomDomainLastError         *string            `json:"customDomainLastError,omitempty"`
-	CustomDomainStatus            CustomDomainStatus `json:"customDomainStatus"`
-	LegalName                     string             `json:"legalName"`
-	TradeName                     *string            `json:"tradeName,omitempty"`
-	LogoURL                       *string            `json:"logoUrl,omitempty"`
-	UsersCount                    int                `json:"usersCount"`
-	ClientsCount                  int                `json:"clientsCount"`
-	ServiceOrdersCount            int                `json:"serviceOrdersCount"`
-	SalesCount                    int                `json:"salesCount"`
-	CreatedAt                     time.Time          `json:"createdAt"`
-	UpdatedAt                     time.Time          `json:"updatedAt"`
+	ID                            string                `json:"id"`
+	Name                          string                `json:"name"`
+	Slug                          string                `json:"slug"`
+	Status                        TenantStatus          `json:"status"`
+	CustomDomain                  *string               `json:"customDomain,omitempty"`
+	CustomDomainVerifiedAt        *time.Time            `json:"customDomainVerifiedAt,omitempty"`
+	CustomDomainVerificationToken *string               `json:"customDomainVerificationToken,omitempty"`
+	CustomDomainLastError         *string               `json:"customDomainLastError,omitempty"`
+	CustomDomainStatus            CustomDomainStatus    `json:"customDomainStatus"`
+	LegalName                     string                `json:"legalName"`
+	TradeName                     *string               `json:"tradeName,omitempty"`
+	LogoURL                       *string               `json:"logoUrl,omitempty"`
+	Customization                 WorkshopCustomization `json:"customization"`
+	UsersCount                    int                   `json:"usersCount"`
+	ClientsCount                  int                   `json:"clientsCount"`
+	ServiceOrdersCount            int                   `json:"serviceOrdersCount"`
+	SalesCount                    int                   `json:"salesCount"`
+	CreatedAt                     time.Time             `json:"createdAt"`
+	UpdatedAt                     time.Time             `json:"updatedAt"`
 }
 
 type WorkshopBranding struct {
 	LogoURL *string `json:"logoUrl,omitempty"`
+}
+
+type WorkshopCustomization struct {
+	PrimaryColor   *string `json:"primaryColor,omitempty"`
+	SecondaryColor *string `json:"secondaryColor,omitempty"`
+	ImageURL       *string `json:"imageUrl,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	Slug           *string `json:"slug,omitempty"`
 }
 
 type CustomDomainInstructions struct {
@@ -89,15 +99,28 @@ type CustomDomainResult struct {
 }
 
 type CreateWorkshopInput struct {
-	Name         string
-	Slug         string
-	CustomDomain *string
-	LegalName    string
-	TradeName    *string
-	Document     *string
-	Email        *string
-	Phone        *string
-	Branding     WorkshopBranding
+	Name          string
+	Slug          string
+	CustomDomain  *string
+	LegalName     string
+	TradeName     *string
+	Document      *string
+	Email         *string
+	Phone         *string
+	Branding      WorkshopBranding
+	Customization WorkshopCustomization
+}
+
+type UpdateWorkshopInput struct {
+	Name          string
+	Slug          string
+	LegalName     string
+	TradeName     *string
+	Document      *string
+	Email         *string
+	Phone         *string
+	Branding      WorkshopBranding
+	Customization WorkshopCustomization
 }
 
 type CreateWorkshopRepositoryInput struct {

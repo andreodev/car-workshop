@@ -67,6 +67,7 @@ model Tenant {
   financialCategories           FinancialCategory[]
   cashMovements                 CashMovement[]
   companySettings               CompanySettings?
+  customization                 Customization?
   createdAt                     DateTime                        @default(now())
   updatedAt                     DateTime                        @updatedAt
 
@@ -74,6 +75,17 @@ model Tenant {
   @@index([customDomain])
   @@index([customDomainStatus])
   @@index([status])
+}
+
+model Customization {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 enum CustomDomainStatus {

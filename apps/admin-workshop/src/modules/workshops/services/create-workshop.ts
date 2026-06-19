@@ -24,6 +24,13 @@ export function toCreateWorkshopPayload(values: WorkshopFormValues): CreateWorks
     branding: {
       logoUrl: optionalString(values.logoUrl),
     },
+    customization: {
+      primaryColor: optionalString(values.primaryColor),
+      secondaryColor: optionalString(values.secondaryColor),
+      imageUrl: optionalString(values.imageUrl) ?? optionalString(values.logoUrl),
+      name: optionalString(values.customizationName) ?? values.name.trim(),
+      slug: optionalString(values.customizationSlug) ?? values.slug.trim().toLowerCase(),
+    },
   };
 }
 

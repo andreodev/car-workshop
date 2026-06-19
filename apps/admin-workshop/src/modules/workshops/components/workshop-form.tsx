@@ -15,22 +15,36 @@ import {
 type WorkshopFormProps = {
   onSubmit: (values: WorkshopFormValues) => void;
   isSubmitting?: boolean;
+  defaultValues?: Partial<WorkshopFormValues>;
+  submitLabel?: string;
 };
 
-export function WorkshopForm({ onSubmit, isSubmitting }: WorkshopFormProps) {
+const emptyValues: WorkshopFormValues = {
+  name: "",
+  slug: "",
+  legalName: "",
+  tradeName: "",
+  document: "",
+  email: "",
+  phone: "",
+  customDomain: "",
+  logoUrl: "",
+  primaryColor: "#2563eb",
+  secondaryColor: "#16a34a",
+  imageUrl: "",
+  customizationName: "",
+  customizationSlug: "",
+};
+
+export function WorkshopForm({
+  onSubmit,
+  isSubmitting,
+  defaultValues,
+  submitLabel = "Criar oficina",
+}: WorkshopFormProps) {
   const form = useForm<WorkshopFormValues>({
     resolver: zodResolver(workshopFormSchema),
-    defaultValues: {
-      name: "",
-      slug: "",
-      legalName: "",
-      tradeName: "",
-      document: "",
-      email: "",
-      phone: "",
-      customDomain: "",
-      logoUrl: "",
-    },
+    defaultValues: { ...emptyValues, ...defaultValues },
   });
 
   return (
@@ -46,7 +60,7 @@ export function WorkshopForm({ onSubmit, isSubmitting }: WorkshopFormProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Razao social" error={form.formState.errors.legalName?.message}>
+        <Field label="Razão social" error={form.formState.errors.legalName?.message}>
           <Input {...form.register("legalName")} placeholder="Rikinho Auto Center LTDA" />
         </Field>
 
@@ -70,7 +84,7 @@ export function WorkshopForm({ onSubmit, isSubmitting }: WorkshopFormProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Dominio personalizado" error={form.formState.errors.customDomain?.message}>
+        <Field label="Domínio personalizado" error={form.formState.errors.customDomain?.message}>
           <Input {...form.register("customDomain")} placeholder="app.oficina.com.br" />
         </Field>
 
@@ -79,10 +93,43 @@ export function WorkshopForm({ onSubmit, isSubmitting }: WorkshopFormProps) {
         </Field>
       </div>
 
+      <section className="grid gap-4 border-t border-border pt-5">
+        <div>
+          <h2 className="font-heading text-lg font-semibold">Customização</h2>
+          <p className="text-sm text-muted-foreground">
+            JSON de identidade visual entregue para a oficina.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Cor primária" error={form.formState.errors.primaryColor?.message}>
+            <Input type="color" {...form.register("primaryColor")} className="h-10 p-1" />
+          </Field>
+
+          <Field label="Cor secundária" error={form.formState.errors.secondaryColor?.message}>
+            <Input type="color" {...form.register("secondaryColor")} className="h-10 p-1" />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Imagem URL" error={form.formState.errors.imageUrl?.message}>
+            <Input {...form.register("imageUrl")} placeholder="https://cdn.exemplo.com/banner.png" />
+          </Field>
+
+          <Field label="Nome público" error={form.formState.errors.customizationName?.message}>
+            <Input {...form.register("customizationName")} placeholder="Rikinho Auto Center" />
+          </Field>
+
+          <Field label="Slug público" error={form.formState.errors.customizationSlug?.message}>
+            <Input {...form.register("customizationSlug")} placeholder="rikinho-auto-center" />
+          </Field>
+        </div>
+      </section>
+
       <div className="flex justify-end border-t border-border pt-4">
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? <Loader2 className="animate-spin" /> : <Save />}
-          Criar oficina
+          {submitLabel}
         </Button>
       </div>
     </form>

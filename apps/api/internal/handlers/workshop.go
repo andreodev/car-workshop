@@ -16,7 +16,9 @@ type WorkshopUsecase interface {
 	Create(ctx context.Context, input domain.CreateWorkshopInput) (domain.Workshop, error)
 	List(ctx context.Context, filter domain.ListWorkshopsFilter) ([]domain.WorkshopSummary, int, error)
 	FindByID(ctx context.Context, id string) (domain.Workshop, error)
+	Update(ctx context.Context, id string, input domain.UpdateWorkshopInput) (domain.Workshop, error)
 	UpdateStatus(ctx context.Context, id string, status domain.TenantStatus) (domain.Workshop, error)
+	Delete(ctx context.Context, id string) error
 	UpdateBranding(ctx context.Context, id string, branding domain.WorkshopBranding) (domain.Workshop, error)
 	UpdateCustomDomain(ctx context.Context, id string, customDomain *string) (domain.CustomDomainResult, error)
 	VerifyCustomDomain(ctx context.Context, id string) (domain.CustomDomainResult, error)
@@ -28,15 +30,28 @@ type WorkshopHandler struct {
 }
 
 type createWorkshopRequest struct {
-	Name         string                  `json:"name"`
-	Slug         string                  `json:"slug"`
-	CustomDomain *string                 `json:"customDomain"`
-	LegalName    string                  `json:"legalName"`
-	TradeName    *string                 `json:"tradeName"`
-	Document     *string                 `json:"document"`
-	Email        *string                 `json:"email"`
-	Phone        *string                 `json:"phone"`
-	Branding     domain.WorkshopBranding `json:"branding"`
+	Name          string                       `json:"name"`
+	Slug          string                       `json:"slug"`
+	CustomDomain  *string                      `json:"customDomain"`
+	LegalName     string                       `json:"legalName"`
+	TradeName     *string                      `json:"tradeName"`
+	Document      *string                      `json:"document"`
+	Email         *string                      `json:"email"`
+	Phone         *string                      `json:"phone"`
+	Branding      domain.WorkshopBranding      `json:"branding"`
+	Customization domain.WorkshopCustomization `json:"customization"`
+}
+
+type updateWorkshopRequest struct {
+	Name          string                       `json:"name"`
+	Slug          string                       `json:"slug"`
+	LegalName     string                       `json:"legalName"`
+	TradeName     *string                      `json:"tradeName"`
+	Document      *string                      `json:"document"`
+	Email         *string                      `json:"email"`
+	Phone         *string                      `json:"phone"`
+	Branding      domain.WorkshopBranding      `json:"branding"`
+	Customization domain.WorkshopCustomization `json:"customization"`
 }
 
 type updateStatusRequest struct {
@@ -66,15 +81,16 @@ func (h *WorkshopHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workshop, err := h.usecase.Create(r.Context(), domain.CreateWorkshopInput{
-		Name:         body.Name,
-		Slug:         body.Slug,
-		CustomDomain: body.CustomDomain,
-		LegalName:    body.LegalName,
-		TradeName:    body.TradeName,
-		Document:     body.Document,
-		Email:        body.Email,
-		Phone:        body.Phone,
-		Branding:     body.Branding,
+		Name:          body.Name,
+		Slug:          body.Slug,
+		CustomDomain:  body.CustomDomain,
+		LegalName:     body.LegalName,
+		TradeName:     body.TradeName,
+		Document:      body.Document,
+		Email:         body.Email,
+		Phone:         body.Phone,
+		Branding:      body.Branding,
+		Customization: body.Customization,
 	})
 	if err != nil {
 		writeDomainError(w, err)
@@ -124,6 +140,32 @@ func (h *WorkshopHandler) FindByID(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, workshop)
 }
 
+func (h *WorkshopHandler) Update(w http.ResponseWriter, r *http.Request) {
+	var body updateWorkshopRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid_json", "Payload JSON inválido.")
+		return
+	}
+
+	workshop, err := h.usecase.Update(r.Context(), chi.URLParam(r, "id"), domain.UpdateWorkshopInput{
+		Name:          body.Name,
+		Slug:          body.Slug,
+		LegalName:     body.LegalName,
+		TradeName:     body.TradeName,
+		Document:      body.Document,
+		Email:         body.Email,
+		Phone:         body.Phone,
+		Branding:      body.Branding,
+		Customization: body.Customization,
+	})
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, workshop)
+}
+
 func (h *WorkshopHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	var body updateStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -138,6 +180,15 @@ func (h *WorkshopHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, workshop)
+}
+
+func (h *WorkshopHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.usecase.Delete(r.Context(), chi.URLParam(r, "id")); err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *WorkshopHandler) UpdateBranding(w http.ResponseWriter, r *http.Request) {

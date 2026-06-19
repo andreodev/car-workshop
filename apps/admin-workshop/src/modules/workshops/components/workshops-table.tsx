@@ -1,21 +1,11 @@
 "use client";
 
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from "@tanstack/react-table";
+import Link from "next/link";
+import { CalendarDays, Globe2, Pencil, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import type { WorkshopSummary } from "../types/workshop.types";
 import { formatDocument, formatTenantStatus } from "../utils/workshop-formatters";
@@ -27,112 +17,97 @@ const rootDomain =
 
 function formatCustomDomainStatus(status: WorkshopSummary["customDomainStatus"]) {
   if (status === "VERIFIED") {
-    return "Verificado";
+    return { label: "Verificado", variant: "default" as const };
   }
   if (status === "ERROR") {
-    return "Erro";
+    return { label: "Erro DNS", variant: "destructive" as const };
   }
-  return "Pendente";
+  return { label: "DNS pendente", variant: "outline" as const };
 }
 
-const columns: ColumnDef<WorkshopSummary>[] = [
-  {
-    accessorKey: "name",
-    header: "Oficina",
-    cell: ({ row }) => (
-      <div>
-        <div className="font-medium">{row.original.name}</div>
-        <div className="text-xs text-muted-foreground">{row.original.slug}</div>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "legalName",
-    header: "Razao social",
-  },
-  {
-    accessorKey: "customDomain",
-    header: "Dominio",
-    cell: ({ row }) => (
-      <div className="space-y-1">
-        <div className="font-medium">
-          {row.original.customDomain ?? `${row.original.slug}.${rootDomain}`}
-        </div>
-        <Badge
-          variant={
-            row.original.customDomainStatus === "VERIFIED"
-              ? "default"
-              : row.original.customDomainStatus === "ERROR"
-                ? "destructive"
-                : "outline"
-          }
-        >
-          {formatCustomDomainStatus(row.original.customDomainStatus)}
-        </Badge>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "document",
-    header: "Documento",
-    cell: ({ row }) => formatDocument(row.original.document),
-  },
-  {
-    accessorKey: "usersCount",
-    header: "Usuarios",
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <Badge variant={row.original.status === "ACTIVE" ? "default" : "outline"}>
-        {formatTenantStatus(row.original.status)}
-      </Badge>
-    ),
-  },
-];
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
 
 type WorkshopsTableProps = {
   workshops: WorkshopSummary[];
 };
 
 export function WorkshopsTable({ workshops }: WorkshopsTableProps) {
-  // TanStack Table exposes function references that React Compiler cannot memoize safely.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    data: workshops,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="bg-muted/60 hover:bg-muted/60">
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {workshops.map((workshop) => {
+        const domainStatus = formatCustomDomainStatus(workshop.customDomainStatus);
+        const domain = workshop.customDomain ?? `${workshop.slug}.${rootDomain}`;
+
+        return (
+          <Card key={workshop.id} className="flex min-h-72 flex-col">
+            <CardHeader className="gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="truncate text-lg">{workshop.name}</CardTitle>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">{workshop.slug}</p>
+                </div>
+                <Badge
+                  variant={
+                    workshop.status === "SUSPENDED"
+                      ? "destructive"
+                      : workshop.status === "ACTIVE"
+                        ? "default"
+                        : "outline"
+                  }
+                >
+                  {formatTenantStatus(workshop.status)}
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="grid flex-1 gap-4">
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Razão social</span>
+                <span className="truncate text-sm font-medium">{workshop.legalName}</span>
+                <span className="text-sm text-muted-foreground">
+                  {formatDocument(workshop.document)}
+                </span>
+              </div>
+
+              <div className="grid gap-2 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Globe2 className="size-4 text-muted-foreground" />
+                  <span className="min-w-0 truncate">{domain}</span>
+                </div>
+                <Badge variant={domainStatus.variant} className="w-fit">
+                  {domainStatus.label}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
+                  <Users className="size-4 text-muted-foreground" />
+                  <span>{workshop.usersCount} usuários</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
+                  <CalendarDays className="size-4 text-muted-foreground" />
+                  <span>{formatDate(workshop.createdAt)}</span>
+                </div>
+              </div>
+            </CardContent>
+
+            <div className="border-t border-border p-4 pt-4">
+              <Button asChild className="w-full">
+                <Link href={`/oficinas/${workshop.id}`}>
+                  <Pencil />
+                  Editar oficina
+                </Link>
+              </Button>
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }

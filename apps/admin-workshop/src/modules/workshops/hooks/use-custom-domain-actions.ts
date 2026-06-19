@@ -20,10 +20,10 @@ export function useCustomDomainActions(workshopId: string) {
     mutationFn: (customDomain: string) => updateCustomDomain(workshopId, customDomain),
     onSuccess: () => {
       invalidate();
-      toast.success("Dominio enviado para verificacao.");
+      toast.success("Domínio enviado para verificação.");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar dominio.");
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar domínio.");
     },
   });
 
@@ -32,13 +32,13 @@ export function useCustomDomainActions(workshopId: string) {
     onSuccess: (result) => {
       invalidate();
       if (result.workshop.customDomainStatus === "VERIFIED") {
-        toast.success("Dominio verificado com sucesso.");
+        toast.success("Domínio verificado com sucesso.");
         return;
       }
-      toast.warning(result.workshop.customDomainLastError ?? "DNS ainda nao verificado.");
+      toast.warning(result.workshop.customDomainLastError ?? "DNS ainda não verificado.");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao verificar dominio.");
+      toast.error(error instanceof Error ? error.message : "Erro ao verificar domínio.");
     },
   });
 
@@ -46,10 +46,10 @@ export function useCustomDomainActions(workshopId: string) {
     mutationFn: () => removeCustomDomain(workshopId),
     onSuccess: () => {
       invalidate();
-      toast.success("Dominio personalizado removido.");
+      toast.success("Domínio personalizado removido.");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao remover dominio.");
+      toast.error(error instanceof Error ? error.message : "Erro ao remover domínio.");
     },
   });
 

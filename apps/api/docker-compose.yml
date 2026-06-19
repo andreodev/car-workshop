@@ -7,7 +7,7 @@ services:
       PORT: "8080"
       DATABASE_URL: "postgres://postgres:postgres@db:5432/car_workshop"
       ADMIN_JWT_SECRET: "dev-admin-secret"
-      ADMIN_CORS_ORIGINS: "http://localhost:3002,http://127.0.0.1:3002"
+      ADMIN_CORS_ORIGINS: "http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003"
       CUSTOM_DOMAIN_CNAME_TARGET: "cname.vercel-dns.com"
       VERCEL_TOKEN: "${VERCEL_TOKEN:-}"
       VERCEL_PROJECT_ID: "${VERCEL_PROJECT_ID:-}"

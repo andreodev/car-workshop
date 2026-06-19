@@ -4,7 +4,7 @@ export function formatTenantStatus(status: TenantStatus) {
   const labels: Record<TenantStatus, string> = {
     TRIAL: "Trial",
     ACTIVE: "Ativa",
-    SUSPENDED: "Suspensa",
+    SUSPENDED: "Bloqueada",
     CANCELED: "Cancelada",
   };
 

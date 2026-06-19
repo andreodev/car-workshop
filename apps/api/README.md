@@ -20,6 +20,24 @@ docker compose up --build
 
 A API sobe em `http://localhost:8080`.
 
+## Desenvolvimento com hot reload
+
+Para evitar chamar uma versão antiga da API depois de alterar rotas ou handlers, rode a API em modo dev. O `air` observa os arquivos `.go`, recompila e reinicia o servidor automaticamente.
+
+Rodando fora do Docker:
+
+```bash
+make dev
+```
+
+Rodando dentro do Docker, na mesma network do `web-platform`:
+
+```bash
+make docker-dev
+```
+
+Se uma rota nova continuar retornando `405`, pare o processo antigo que estiver usando a porta `8080` e suba novamente com um dos comandos acima.
+
 ## Banco
 
 O serviço usa o mesmo schema PostgreSQL da plataforma whitelabel. O `docker-compose.yml` desta API não sobe outro banco: ele entra na network externa `car-workshop_default`, criada pelo compose do `web-platform`, e usa o serviço `db`.
@@ -32,7 +50,7 @@ Para rodar a API fora do Docker, use `localhost`:
 
 ```env
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/car_workshop
-ADMIN_CORS_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
+ADMIN_CORS_ORIGINS=http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003
 CUSTOM_DOMAIN_CNAME_TARGET=cname.vercel-dns.com
 VERCEL_TOKEN=
 VERCEL_PROJECT_ID=
@@ -54,6 +72,8 @@ Rotas `/admin/*` exigem:
 - `GET /admin/workshops`
 - `POST /admin/workshops`
 - `GET /admin/workshops/{id}`
+- `PATCH /admin/workshops/{id}`
+- `DELETE /admin/workshops/{id}`
 - `PATCH /admin/workshops/{id}/status`
 - `PUT /admin/workshops/{id}/branding`
 - `PATCH /admin/workshops/{id}/custom-domain`

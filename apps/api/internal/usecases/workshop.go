@@ -19,7 +19,9 @@ type WorkshopRepository interface {
 	Create(ctx context.Context, input domain.CreateWorkshopRepositoryInput) (domain.Workshop, error)
 	List(ctx context.Context, filter domain.ListWorkshopsFilter) ([]domain.WorkshopSummary, int, error)
 	FindByID(ctx context.Context, id string) (domain.Workshop, error)
+	Update(ctx context.Context, id string, input domain.UpdateWorkshopInput) (domain.Workshop, error)
 	UpdateStatus(ctx context.Context, id string, status domain.TenantStatus) (domain.Workshop, error)
+	Delete(ctx context.Context, id string) error
 	UpdateBranding(ctx context.Context, id string, branding domain.WorkshopBranding) (domain.Workshop, error)
 	UpdateCustomDomain(ctx context.Context, id string, customDomain *string, verificationToken string) (domain.Workshop, error)
 	MarkCustomDomainVerified(ctx context.Context, id string) (domain.Workshop, error)
@@ -39,6 +41,7 @@ type WorkshopUsecase struct {
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 var domainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+var hexColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func NewWorkshopUsecase(repository WorkshopRepository, cnameTarget string, domainRegistrar ProjectDomainRegistrar) *WorkshopUsecase {
 	return &WorkshopUsecase{
@@ -82,6 +85,19 @@ func (u *WorkshopUsecase) FindByID(ctx context.Context, id string) (domain.Works
 	return u.repository.FindByID(ctx, id)
 }
 
+func (u *WorkshopUsecase) Update(ctx context.Context, id string, input domain.UpdateWorkshopInput) (domain.Workshop, error) {
+	if strings.TrimSpace(id) == "" {
+		return domain.Workshop{}, fmt.Errorf("%w: id is required", domain.ErrInvalidInput)
+	}
+
+	normalized, err := normalizeUpdateInput(input)
+	if err != nil {
+		return domain.Workshop{}, err
+	}
+
+	return u.repository.Update(ctx, id, normalized)
+}
+
 func (u *WorkshopUsecase) UpdateStatus(ctx context.Context, id string, status domain.TenantStatus) (domain.Workshop, error) {
 	if strings.TrimSpace(id) == "" {
 		return domain.Workshop{}, fmt.Errorf("%w: id is required", domain.ErrInvalidInput)
@@ -90,6 +106,14 @@ func (u *WorkshopUsecase) UpdateStatus(ctx context.Context, id string, status do
 		return domain.Workshop{}, fmt.Errorf("%w: invalid status", domain.ErrInvalidInput)
 	}
 	return u.repository.UpdateStatus(ctx, id, status)
+}
+
+func (u *WorkshopUsecase) Delete(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("%w: id is required", domain.ErrInvalidInput)
+	}
+
+	return u.repository.Delete(ctx, id)
 }
 
 func (u *WorkshopUsecase) UpdateBranding(ctx context.Context, id string, branding domain.WorkshopBranding) (domain.Workshop, error) {
@@ -201,6 +225,7 @@ func normalizeCreateInput(input domain.CreateWorkshopInput) (domain.CreateWorksh
 	input.Email = trimOptional(input.Email)
 	input.Phone = trimOptional(input.Phone)
 	input.Branding.LogoURL = trimOptional(input.Branding.LogoURL)
+	input.Customization = normalizeCustomization(input.Customization, input.Name, input.Slug, input.Branding.LogoURL)
 
 	if input.Name == "" {
 		return input, fmt.Errorf("%w: name is required", domain.ErrInvalidInput)
@@ -220,6 +245,44 @@ func normalizeCreateInput(input domain.CreateWorkshopInput) (domain.CreateWorksh
 		}
 	}
 	if err := validateBranding(input.Branding); err != nil {
+		return input, err
+	}
+	if err := validateCustomization(input.Customization); err != nil {
+		return input, err
+	}
+
+	return input, nil
+}
+
+func normalizeUpdateInput(input domain.UpdateWorkshopInput) (domain.UpdateWorkshopInput, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.Slug = strings.ToLower(strings.TrimSpace(input.Slug))
+	input.LegalName = strings.TrimSpace(input.LegalName)
+	input.TradeName = trimOptional(input.TradeName)
+	input.Document = trimOptional(input.Document)
+	input.Email = trimOptional(input.Email)
+	input.Phone = trimOptional(input.Phone)
+	input.Branding.LogoURL = trimOptional(input.Branding.LogoURL)
+	input.Customization = normalizeCustomization(input.Customization, input.Name, input.Slug, input.Branding.LogoURL)
+
+	if input.Name == "" {
+		return input, fmt.Errorf("%w: name is required", domain.ErrInvalidInput)
+	}
+	if input.Slug == "" || !slugPattern.MatchString(input.Slug) {
+		return input, fmt.Errorf("%w: slug must be lowercase kebab-case", domain.ErrInvalidInput)
+	}
+	if input.LegalName == "" {
+		return input, fmt.Errorf("%w: legalName is required", domain.ErrInvalidInput)
+	}
+	if input.Email != nil {
+		if _, err := mail.ParseAddress(*input.Email); err != nil {
+			return input, fmt.Errorf("%w: invalid email", domain.ErrInvalidInput)
+		}
+	}
+	if err := validateBranding(input.Branding); err != nil {
+		return input, err
+	}
+	if err := validateCustomization(input.Customization); err != nil {
 		return input, err
 	}
 
@@ -312,6 +375,41 @@ func dnsResolver(address string) *net.Resolver {
 
 func validateBranding(branding domain.WorkshopBranding) error {
 	branding.LogoURL = trimOptional(branding.LogoURL)
+	return nil
+}
+
+func normalizeCustomization(customization domain.WorkshopCustomization, fallbackName string, fallbackSlug string, fallbackImageURL *string) domain.WorkshopCustomization {
+	customization.PrimaryColor = trimOptional(customization.PrimaryColor)
+	customization.SecondaryColor = trimOptional(customization.SecondaryColor)
+	customization.ImageURL = trimOptional(customization.ImageURL)
+	customization.Name = trimOptional(customization.Name)
+	customization.Slug = trimOptional(customization.Slug)
+
+	if customization.Name == nil && strings.TrimSpace(fallbackName) != "" {
+		value := strings.TrimSpace(fallbackName)
+		customization.Name = &value
+	}
+	if customization.Slug == nil && strings.TrimSpace(fallbackSlug) != "" {
+		value := strings.ToLower(strings.TrimSpace(fallbackSlug))
+		customization.Slug = &value
+	}
+	if customization.ImageURL == nil && fallbackImageURL != nil {
+		customization.ImageURL = fallbackImageURL
+	}
+
+	return customization
+}
+
+func validateCustomization(customization domain.WorkshopCustomization) error {
+	if customization.PrimaryColor != nil && !hexColorPattern.MatchString(*customization.PrimaryColor) {
+		return fmt.Errorf("%w: primaryColor must be a hex color", domain.ErrInvalidInput)
+	}
+	if customization.SecondaryColor != nil && !hexColorPattern.MatchString(*customization.SecondaryColor) {
+		return fmt.Errorf("%w: secondaryColor must be a hex color", domain.ErrInvalidInput)
+	}
+	if customization.Slug != nil && !slugPattern.MatchString(*customization.Slug) {
+		return fmt.Errorf("%w: customization slug must be lowercase kebab-case", domain.ErrInvalidInput)
+	}
 	return nil
 }
 

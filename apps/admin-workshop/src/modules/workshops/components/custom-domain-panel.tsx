@@ -10,10 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 import { useCustomDomainActions } from "../hooks/use-custom-domain-actions";
-import type { CustomDomainRecord, WorkshopSummary } from "../types/workshop.types";
+import type { CustomDomainRecord, Workshop } from "../types/workshop.types";
 
 type CustomDomainPanelProps = {
-  workshop: WorkshopSummary;
+  workshop: Workshop;
 };
 
 const rootDomain =
@@ -23,7 +23,7 @@ const rootDomain =
 
 const cnameTarget = process.env.NEXT_PUBLIC_CUSTOM_DOMAIN_CNAME_TARGET ?? "cname.vercel-dns.com";
 
-function formatStatus(status: WorkshopSummary["customDomainStatus"]) {
+function formatStatus(status: Workshop["customDomainStatus"]) {
   if (status === "VERIFIED") {
     return { label: "Verificado", variant: "default" as const, icon: CheckCircle2 };
   }
@@ -92,7 +92,7 @@ export function CustomDomainPanel({ workshop }: CustomDomainPanelProps) {
             {workshop.name}
           </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            Subdominio padrao: {workshop.slug}.{rootDomain}
+            Subdomínio padrão: {workshop.slug}.{rootDomain}
           </p>
         </div>
         <Badge variant={status.variant} className="gap-1">
@@ -109,7 +109,7 @@ export function CustomDomainPanel({ workshop }: CustomDomainPanelProps) {
             disabled={actions.isPending}
           />
           <Button type="button" onClick={submit} disabled={actions.isPending || !customDomain.trim()}>
-            Salvar dominio
+            Salvar domínio
           </Button>
           <Button
             type="button"
@@ -145,7 +145,7 @@ export function CustomDomainPanel({ workshop }: CustomDomainPanelProps) {
               disabled={actions.isPending}
             >
               <Trash2 />
-              Remover dominio personalizado
+              Remover domínio personalizado
             </Button>
           </div>
         ) : null}

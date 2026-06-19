@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -54,6 +55,19 @@ func (r *WorkshopRepository) Create(ctx context.Context, input domain.CreateWork
 		return domain.Workshop{}, mapPgError(err)
 	}
 
+	customizationID := uuid.NewString()
+	customizationJSON, err := marshalCustomization(input.Customization)
+	if err != nil {
+		return domain.Workshop{}, err
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO "Customization" ("id", "tenantId", "data", "createdAt", "updatedAt")
+		VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+	`, customizationID, tenantID, customizationJSON)
+	if err != nil {
+		return domain.Workshop{}, mapPgError(err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return domain.Workshop{}, err
 	}
@@ -90,7 +104,7 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 			t."id", t."name", t."slug", t."status", t."customDomain", t."customDomainVerifiedAt",
 			t."customDomainVerificationToken", t."customDomainLastError", t."customDomainStatus",
 			COALESCE(cs."legalName", t."name"), cs."tradeName",
-			cs."logoUrl",
+			cs."logoUrl", COALESCE(cu."data", '{}'::jsonb)::text,
 			(SELECT COUNT(*) FROM "TenantUser" tu WHERE tu."tenantId" = t."id" AND tu."isActive" = TRUE),
 			(SELECT COUNT(*) FROM "Client" c WHERE c."tenantId" = t."id"),
 			(SELECT COUNT(*) FROM "ServiceOrder" so WHERE so."tenantId" = t."id"),
@@ -98,6 +112,7 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 			t."createdAt", t."updatedAt"
 		FROM "Tenant" t
 		LEFT JOIN "CompanySettings" cs ON cs."tenantId" = t."id"
+		LEFT JOIN "Customization" cu ON cu."tenantId" = t."id"
 		WHERE ` + where + `
 		ORDER BY t."createdAt" DESC
 		LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
@@ -111,6 +126,7 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 	workshops := make([]domain.WorkshopSummary, 0)
 	for rows.Next() {
 		var workshop domain.WorkshopSummary
+		var customizationJSON string
 		if err := rows.Scan(
 			&workshop.ID,
 			&workshop.Name,
@@ -124,6 +140,7 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 			&workshop.LegalName,
 			&workshop.TradeName,
 			&workshop.LogoURL,
+			&customizationJSON,
 			&workshop.UsersCount,
 			&workshop.ClientsCount,
 			&workshop.ServiceOrdersCount,
@@ -133,6 +150,7 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 		); err != nil {
 			return nil, 0, err
 		}
+		workshop.Customization = unmarshalCustomization(customizationJSON)
 		workshops = append(workshops, workshop)
 	}
 
@@ -141,13 +159,15 @@ func (r *WorkshopRepository) List(ctx context.Context, filter domain.ListWorksho
 
 func (r *WorkshopRepository) FindByID(ctx context.Context, id string) (domain.Workshop, error) {
 	var workshop domain.Workshop
-	err := r.db.QueryRow(ctx, workshopSelectQuery()+` WHERE t."id" = $1`, id).Scan(workshopScanDest(&workshop)...)
+	var customizationJSON string
+	err := r.db.QueryRow(ctx, workshopSelectQuery()+` WHERE t."id" = $1`, id).Scan(workshopScanDest(&workshop, &customizationJSON)...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Workshop{}, domain.ErrNotFound
 		}
 		return domain.Workshop{}, err
 	}
+	workshop.Customization = unmarshalCustomization(customizationJSON)
 	return workshop, nil
 }
 
@@ -163,6 +183,78 @@ func (r *WorkshopRepository) UpdateStatus(ctx context.Context, id string, status
 	if commandTag.RowsAffected() == 0 {
 		return domain.Workshop{}, domain.ErrNotFound
 	}
+	return r.FindByID(ctx, id)
+}
+
+func (r *WorkshopRepository) Delete(ctx context.Context, id string) error {
+	commandTag, err := r.db.Exec(ctx, `DELETE FROM "Tenant" WHERE "id" = $1`, id)
+	if err != nil {
+		return mapTenantDeleteError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+
+	return nil
+}
+
+func (r *WorkshopRepository) Update(ctx context.Context, id string, input domain.UpdateWorkshopInput) (domain.Workshop, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return domain.Workshop{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	commandTag, err := tx.Exec(ctx, `
+		UPDATE "Tenant"
+		SET "name" = $2, "slug" = $3, "updatedAt" = NOW()
+		WHERE "id" = $1
+	`, id, input.Name, input.Slug)
+	if err != nil {
+		return domain.Workshop{}, mapPgError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return domain.Workshop{}, domain.ErrNotFound
+	}
+
+	commandTag, err = tx.Exec(ctx, `
+		UPDATE "CompanySettings"
+		SET
+			"legalName" = $2,
+			"tradeName" = $3,
+			"document" = $4,
+			"email" = $5,
+			"phone" = $6,
+			"logoUrl" = $7,
+			"updatedAt" = NOW()
+		WHERE "tenantId" = $1
+	`, id, input.LegalName, input.TradeName, input.Document, input.Email, input.Phone, input.Branding.LogoURL)
+	if err != nil {
+		return domain.Workshop{}, mapPgError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return domain.Workshop{}, domain.ErrNotFound
+	}
+
+	customizationJSON, err := marshalCustomization(input.Customization)
+	if err != nil {
+		return domain.Workshop{}, err
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO "Customization" ("id", "tenantId", "data", "createdAt", "updatedAt")
+		VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+		ON CONFLICT ("tenantId") DO UPDATE SET
+			"data" = EXCLUDED."data",
+			"updatedAt" = NOW()
+	`, uuid.NewString(), id, customizationJSON)
+	if err != nil {
+		return domain.Workshop{}, mapPgError(err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Workshop{}, err
+	}
+
 	return r.FindByID(ctx, id)
 }
 
@@ -272,14 +364,15 @@ func workshopSelectQuery() string {
 			t."id", t."name", t."slug", t."status", t."customDomain", t."customDomainVerifiedAt",
 			t."customDomainVerificationToken", t."customDomainLastError", t."customDomainStatus",
 			COALESCE(cs."legalName", t."name"), cs."tradeName", cs."document", cs."email", cs."phone",
-			cs."logoUrl",
+			cs."logoUrl", COALESCE(cu."data", '{}'::jsonb)::text,
 			t."createdAt", t."updatedAt"
 		FROM "Tenant" t
 		LEFT JOIN "CompanySettings" cs ON cs."tenantId" = t."id"
+		LEFT JOIN "Customization" cu ON cu."tenantId" = t."id"
 	`
 }
 
-func workshopScanDest(workshop *domain.Workshop) []any {
+func workshopScanDest(workshop *domain.Workshop, customizationJSON *string) []any {
 	return []any{
 		&workshop.ID,
 		&workshop.Name,
@@ -296,9 +389,29 @@ func workshopScanDest(workshop *domain.Workshop) []any {
 		&workshop.Email,
 		&workshop.Phone,
 		&workshop.LogoURL,
+		customizationJSON,
 		&workshop.CreatedAt,
 		&workshop.UpdatedAt,
 	}
+}
+
+func marshalCustomization(customization domain.WorkshopCustomization) (string, error) {
+	bytes, err := json.Marshal(customization)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func unmarshalCustomization(raw string) domain.WorkshopCustomization {
+	var customization domain.WorkshopCustomization
+	if raw == "" {
+		return customization
+	}
+	if err := json.Unmarshal([]byte(raw), &customization); err != nil {
+		return domain.WorkshopCustomization{}
+	}
+	return customization
 }
 
 func mapPgError(err error) error {
@@ -315,4 +428,20 @@ func mapPgError(err error) error {
 	default:
 		return err
 	}
+}
+
+func mapTenantDeleteError(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return err
+	}
+
+	if pgErr.Code == "23503" {
+		return fmt.Errorf(
+			"%w: não é possível apagar uma oficina com dados vinculados; bloqueie a oficina para impedir acesso",
+			domain.ErrConflict,
+		)
+	}
+
+	return mapPgError(err)
 }

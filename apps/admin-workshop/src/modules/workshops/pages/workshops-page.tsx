@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogoutButton } from "@/modules/auth/components/logout-button";
 
-import { CustomDomainPanel } from "../components/custom-domain-panel";
 import { WorkshopsTable } from "../components/workshops-table";
 import { useWorkshops } from "../hooks/use-workshops";
 
@@ -82,25 +81,7 @@ export function WorkshopsPage() {
           </Card>
         ) : null}
 
-        {data && data.data.length > 0 ? (
-          <>
-            <WorkshopsTable workshops={data.data} />
-
-            <section className="grid gap-3">
-              <div>
-                <h2 className="font-heading text-xl font-semibold">Dominios e DNS</h2>
-                <p className="text-sm text-muted-foreground">
-                  Configure o dominio proprio de cada oficina e valide o apontamento.
-                </p>
-              </div>
-              <div className="grid gap-4">
-                {data.data.map((workshop) => (
-                  <CustomDomainPanel key={workshop.id} workshop={workshop} />
-                ))}
-              </div>
-            </section>
-          </>
-        ) : null}
+        {data && data.data.length > 0 ? <WorkshopsTable workshops={data.data} /> : null}
       </div>
     </main>
   );

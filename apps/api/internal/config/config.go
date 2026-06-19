@@ -20,7 +20,7 @@ func Load() (Config, error) {
 		Port:                    getEnv("PORT", "8080"),
 		DatabaseURL:             os.Getenv("DATABASE_URL"),
 		AdminJWTSecret:          os.Getenv("ADMIN_JWT_SECRET"),
-		CORSOrigins:             getEnv("ADMIN_CORS_ORIGINS", "http://localhost:3002,http://127.0.0.1:3002"),
+		CORSOrigins:             getEnv("ADMIN_CORS_ORIGINS", "http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003"),
 		CustomDomainCNAMETarget: getEnv("CUSTOM_DOMAIN_CNAME_TARGET", "cname.vercel-dns.com"),
 		VercelToken:             os.Getenv("VERCEL_TOKEN"),
 		VercelProjectID:         os.Getenv("VERCEL_PROJECT_ID"),
