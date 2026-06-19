@@ -19,36 +19,14 @@ export async function updateWorkshop({
   try {
     const { data } = await api.post<Workshop>(`/admin/workshops/${id}/update`, payload);
     return data;
-  } catch (postError) {
-    if (!isRouteUnavailable(postError)) {
-      throw postError;
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      throw new ApiRequestError(
+        "A API de produção ainda não foi atualizada. Publique a API Go antes de salvar a oficina.",
+        { status: 404, code: "workshop_update_route_missing" }
+      );
     }
+
+    throw error;
   }
-
-  try {
-    const { data } = await api.put<Workshop>(`/admin/workshops/${id}`, payload);
-    return data;
-  } catch (putError) {
-    if (!isRouteUnavailable(putError)) {
-      throw putError;
-    }
-  }
-
-  try {
-    const { data } = await api.patch<Workshop>(`/admin/workshops/${id}`, payload);
-    return data;
-  } catch (patchError) {
-    if (!isRouteUnavailable(patchError)) {
-      throw patchError;
-    }
-  }
-
-  throw new ApiRequestError(
-    "A API de produção ainda não foi atualizada com a rota de edição de oficinas. Publique a API Go antes de salvar as cores.",
-    { status: 404, code: "workshop_update_route_missing" }
-  );
-}
-
-function isRouteUnavailable(error: unknown) {
-  return error instanceof ApiRequestError && (error.status === 404 || error.status === 405);
 }

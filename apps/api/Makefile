@@ -1,4 +1,4 @@
-.PHONY: run dev test fmt tidy docker-up docker-dev
+.PHONY: run dev test fmt tidy docker-up docker-dev deploy-refresh
 
 run:
 	go run ./cmd/api
@@ -20,3 +20,6 @@ docker-up:
 
 docker-dev:
 	docker compose -f docker-compose.dev.yml up --build
+
+deploy-refresh:
+	docker compose up -d --build --force-recreate

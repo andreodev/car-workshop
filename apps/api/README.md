@@ -20,6 +20,21 @@ docker compose up --build
 
 A API sobe em `http://localhost:8080`.
 
+## Atualizando em produção
+
+No servidor, force o checkout a ficar igual ao `main` remoto e recrie o container da API. Isso evita manter uma imagem/container antigo depois do deploy.
+
+```bash
+cd /var/www/oficina-api/car-workshop
+git fetch origin
+git reset --hard origin/main
+cd apps/api
+docker compose up -d --build --force-recreate
+docker image prune -f
+```
+
+O workflow `.github/workflows/deploy-api.yml` usa esse mesmo fluxo.
+
 ## Desenvolvimento com hot reload
 
 Para evitar chamar uma versão antiga da API depois de alterar rotas ou handlers, rode a API em modo dev. O `air` observa os arquivos `.go`, recompila e reinicia o servidor automaticamente.
