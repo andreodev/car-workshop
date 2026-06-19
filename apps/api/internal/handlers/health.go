@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"car-workshop-admin-api/internal/http/response"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,7 +19,7 @@ func NewHealthHandler(db *pgxpool.Pool) *HealthHandler {
 }
 
 func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
 	if err := h.db.Ping(ctx); err != nil {
