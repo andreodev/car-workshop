@@ -947,7 +947,7 @@ export const saleService = {
             items: {
               create: items.map((item) => ({
                 tenant: { connect: { id: tenantId } },
-                catalogItemId: item.catalogItemId,
+                catalogItem: { connect: { id: item.catalogItemId } },
                 description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
@@ -1388,7 +1388,9 @@ export const saleService = {
             items: {
               create: saleItems.map((item) => ({
                 tenant: { connect: { id: tenantId } },
-                catalogItemId: item.catalogItemId,
+                ...(item.catalogItemId
+                  ? { catalogItem: { connect: { id: item.catalogItemId } } }
+                  : {}),
                 description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
