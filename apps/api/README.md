@@ -73,8 +73,11 @@ Rotas `/admin/*` exigem:
 - `POST /admin/workshops`
 - `GET /admin/workshops/{id}`
 - `PATCH /admin/workshops/{id}`
+- `POST /admin/workshops/{id}/update`
 - `DELETE /admin/workshops/{id}`
+- `POST /admin/workshops/{id}/delete`
 - `PATCH /admin/workshops/{id}/status`
+- `POST /admin/workshops/{id}/status`
 - `PUT /admin/workshops/{id}/branding`
 - `PATCH /admin/workshops/{id}/custom-domain`
 - `POST /admin/workshops/{id}/custom-domain/verify`

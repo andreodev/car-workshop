@@ -9,7 +9,7 @@ export async function updateWorkshopStatus({
   id: string;
   status: TenantStatus;
 }) {
-  const { data } = await api.patch<Workshop>(`/admin/workshops/${id}/status`, {
+  const { data } = await api.post<Workshop>(`/admin/workshops/${id}/status`, {
     status,
   });
 
