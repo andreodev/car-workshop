@@ -105,7 +105,7 @@ async function fetchTenantTheme(domain: string) {
     }
   );
 
-  if (response.status === 404) {
+  if (response.status === 403 || response.status === 404) {
     window.localStorage.removeItem(tenantThemeCacheKey(domain));
     return null;
   }

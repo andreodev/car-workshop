@@ -187,7 +187,18 @@ func (r *WorkshopRepository) UpdateStatus(ctx context.Context, id string, status
 }
 
 func (r *WorkshopRepository) Delete(ctx context.Context, id string) error {
-	commandTag, err := r.db.Exec(ctx, `DELETE FROM "Tenant" WHERE "id" = $1`, id)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `DELETE FROM "CompanySettings" WHERE "tenantId" = $1`, id)
+	if err != nil {
+		return mapTenantDeleteError(err)
+	}
+
+	commandTag, err := tx.Exec(ctx, `DELETE FROM "Tenant" WHERE "id" = $1`, id)
 	if err != nil {
 		return mapTenantDeleteError(err)
 	}
@@ -195,7 +206,7 @@ func (r *WorkshopRepository) Delete(ctx context.Context, id string) error {
 		return domain.ErrNotFound
 	}
 
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *WorkshopRepository) Update(ctx context.Context, id string, input domain.UpdateWorkshopInput) (domain.Workshop, error) {
@@ -217,23 +228,23 @@ func (r *WorkshopRepository) Update(ctx context.Context, id string, input domain
 		return domain.Workshop{}, domain.ErrNotFound
 	}
 
-	commandTag, err = tx.Exec(ctx, `
-		UPDATE "CompanySettings"
-		SET
-			"legalName" = $2,
-			"tradeName" = $3,
-			"document" = $4,
-			"email" = $5,
-			"phone" = $6,
-			"logoUrl" = $7,
+	_, err = tx.Exec(ctx, `
+		INSERT INTO "CompanySettings" (
+			"id", "tenantId", "singletonKey", "legalName", "tradeName", "document",
+			"email", "phone", "logoUrl", "createdAt", "updatedAt"
+		)
+		VALUES ($1, $2, 'company', $3, $4, $5, $6, $7, $8, NOW(), NOW())
+		ON CONFLICT ("tenantId") DO UPDATE SET
+			"legalName" = EXCLUDED."legalName",
+			"tradeName" = EXCLUDED."tradeName",
+			"document" = EXCLUDED."document",
+			"email" = EXCLUDED."email",
+			"phone" = EXCLUDED."phone",
+			"logoUrl" = EXCLUDED."logoUrl",
 			"updatedAt" = NOW()
-		WHERE "tenantId" = $1
-	`, id, input.LegalName, input.TradeName, input.Document, input.Email, input.Phone, input.Branding.LogoURL)
+	`, uuid.NewString(), id, input.LegalName, input.TradeName, input.Document, input.Email, input.Phone, input.Branding.LogoURL)
 	if err != nil {
 		return domain.Workshop{}, mapPgError(err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		return domain.Workshop{}, domain.ErrNotFound
 	}
 
 	customizationJSON, err := marshalCustomization(input.Customization)
@@ -260,10 +271,16 @@ func (r *WorkshopRepository) Update(ctx context.Context, id string, input domain
 
 func (r *WorkshopRepository) UpdateBranding(ctx context.Context, id string, branding domain.WorkshopBranding) (domain.Workshop, error) {
 	commandTag, err := r.db.Exec(ctx, `
-		UPDATE "CompanySettings"
-		SET "logoUrl" = $2, "updatedAt" = NOW()
-		WHERE "tenantId" = $1
-	`, id, branding.LogoURL)
+		INSERT INTO "CompanySettings" (
+			"id", "tenantId", "singletonKey", "legalName", "logoUrl", "createdAt", "updatedAt"
+		)
+		SELECT $1, t."id", 'company', t."name", $3, NOW(), NOW()
+		FROM "Tenant" t
+		WHERE t."id" = $2
+		ON CONFLICT ("tenantId") DO UPDATE SET
+			"logoUrl" = EXCLUDED."logoUrl",
+			"updatedAt" = NOW()
+	`, uuid.NewString(), id, branding.LogoURL)
 	if err != nil {
 		return domain.Workshop{}, mapPgError(err)
 	}

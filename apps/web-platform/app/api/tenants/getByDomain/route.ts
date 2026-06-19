@@ -57,6 +57,13 @@ function parseCustomizationData(value: unknown): CustomizationData {
   return value as CustomizationData;
 }
 
+function domainNotFoundResponse() {
+  return Response.json(
+    { error: "Dominio nao encontrado.", code: "DOMAIN_NOT_FOUND" },
+    { status: 404 }
+  );
+}
+
 export async function GET(request: NextRequest) {
   const domain =
     normalizeDomain(request.nextUrl.searchParams.get("domain")) ??
@@ -98,17 +105,11 @@ export async function GET(request: NextRequest) {
   });
 
   if (!tenant) {
-    return Response.json(
-      { error: "Dominio nao encontrado.", code: "DOMAIN_NOT_FOUND" },
-      { status: 404 }
-    );
+    return domainNotFoundResponse();
   }
 
   if (tenant.status === "SUSPENDED" || tenant.status === "CANCELED") {
-    return Response.json(
-      { error: "Tenant indisponivel.", code: "TENANT_UNAVAILABLE" },
-      { status: 403 }
-    );
+    return domainNotFoundResponse();
   }
 
   const customization = parseCustomizationData(tenant.customization?.data);
