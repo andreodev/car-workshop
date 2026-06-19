@@ -30,6 +30,7 @@ git fetch origin
 git reset --hard origin/main
 cd apps/api
 docker compose up -d --build --force-recreate
+curl -fsS http://127.0.0.1:8080/healthz || (docker compose ps && docker compose logs --tail=200 admin-api)
 docker image prune -f
 ```
 

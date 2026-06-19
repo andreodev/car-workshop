@@ -24,4 +24,11 @@ jobs:
             git reset --hard origin/main
             cd apps/api
             docker compose up -d --build --force-recreate
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+                break
+              fi
+              sleep 2
+            done
+            curl -fsS http://127.0.0.1:8080/healthz || (docker compose ps && docker compose logs --tail=200 admin-api && exit 1)
             docker image prune -f
