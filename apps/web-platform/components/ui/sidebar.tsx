@@ -241,7 +241,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="relative flex size-full flex-col overflow-visible bg-sidebar text-sidebar-foreground before:absolute before:inset-0 before:bg-[radial-gradient(120%_80%_at_20%_0%,rgba(255,255,255,0.18),transparent_60%)] before:content-[''] after:absolute after:inset-0 after:bg-[linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.35))] after:content-[''] group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          className="relative flex size-full flex-col overflow-visible bg-[linear-gradient(145deg,var(--sidebar-primary)_0%,color-mix(in_oklab,var(--sidebar-primary)_78%,black_22%)_42%,color-mix(in_oklab,var(--sidebar-primary)_48%,black_52%)_100%)] text-sidebar-foreground before:absolute before:inset-0 before:bg-[radial-gradient(120%_80%_at_20%_0%,rgba(255,255,255,0.22),transparent_60%)] before:content-[''] after:absolute after:inset-0 after:bg-[linear-gradient(180deg,color-mix(in_oklab,var(--sidebar-primary)_18%,transparent),color-mix(in_oklab,var(--sidebar-primary)_62%,black_38%))] after:content-[''] group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
         >
           <div className="relative z-10 flex size-full flex-col">
             {children}

@@ -61,17 +61,16 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
             <Sidebar
                 collapsible="icon"
                 className={cn(
-                    "text-white",
+                    "text-sidebar-foreground",
                     "[&_[data-slot=sidebar-inner]]:border",
-                    "[&_[data-slot=sidebar-inner]]:border-white/15",
-                    "[&_[data-slot=sidebar-inner]]:bg-black",
-                    "[&_[data-slot=sidebar-inner]]:shadow-[0_22px_60px_-35px_rgba(0,0,0,0.8)]",
+                    "[&_[data-slot=sidebar-inner]]:border-sidebar-primary/45",
+                    "[&_[data-slot=sidebar-inner]]:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_22px_60px_-35px_rgba(0,0,0,0.9),0_0_0_1px_color-mix(in_oklab,var(--sidebar-primary)_18%,transparent)]",
                     "[&_[data-slot=sidebar-inner]]:backdrop-blur-xl"
                 )}
             >
                 <SidebarHeader className="relative flex items-center justify-center px-6 pt-6 pb-4">
                     <SidebarTrigger
-                        className="absolute right-[-18px] top-12 z-50 hidden h-9 w-9 items-center justify-center rounded-full bg-white text-primary shadow-lg transition-all duration-300 hover:scale-105 md:flex"
+                        className="absolute right-[-18px] top-12 z-50 hidden h-9 w-9 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-lg transition-all duration-300 hover:scale-105 md:flex"
                     />
                     {logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -90,7 +89,7 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                             priority
                         />
                     )}
-                    <div className="hidden size-11 items-center justify-center rounded-full bg-white/10 text-red-500 text-sm font-semibold tracking-[0.2em] group-data-[collapsible=icon]:flex">
+                    <div className="hidden size-11 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-sm font-semibold tracking-[0.2em] group-data-[collapsible=icon]:flex">
                         {resolvedBrandName.slice(0, 3).toUpperCase()}
                     </div>
                 </SidebarHeader>
@@ -98,7 +97,7 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                 <SidebarContent className="px-3 pb-6">
                     {menuGroups.map((group) => (
                         <SidebarGroup key={group.title}>
-                            <SidebarGroupLabel className="px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 group-data-[collapsible=icon]:hidden">
+                            <SidebarGroupLabel className="px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
                                 {group.title}
                             </SidebarGroupLabel>
                             <SidebarGroupContent>
@@ -109,11 +108,11 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                                                 asChild
                                                 size="lg"
                                                 isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                                                className="rounded-2xl border border-transparent bg-transparent px-3 text-sm font-medium text-white/90 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)] transition-colors duration-300 data-[active=true]:border-white/40 data-[active=true]:bg-white/12 data-[active=true]:text-white"
+                                                className="rounded-2xl border border-transparent bg-transparent px-3 text-sm font-medium text-sidebar-foreground/90 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.8)] transition-colors duration-300 hover:border-sidebar-accent/35 hover:bg-sidebar-accent/12 data-[active=true]:border-sidebar-accent data-[active=true]:bg-sidebar-accent/24 data-[active=true]:text-sidebar-accent-foreground data-[active=true]:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_12px_30px_-22px_var(--sidebar-accent)]"
                                             >
                                                 <Link
   href={item.href}
-  className="flex items-center gap-2 hover:bg-white/10"
+  className="flex items-center gap-2"
 >
                                                     <item.icon />
                                                     <span className="group-data-[collapsible=icon]:hidden">
@@ -128,10 +127,10 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                         </SidebarGroup>
                     ))}
                 </SidebarContent>
-                <SidebarSeparator className="mx-4 bg-white/10" />
+                <SidebarSeparator className="mx-4 bg-sidebar-border" />
                 <SidebarFooter className="px-4 pb-4 pt-3">
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/10 text-xs font-semibold text-white">
+                    <div className="flex items-center gap-3 rounded-2xl border border-sidebar-accent/35 bg-sidebar-accent/12 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-sidebar-accent/45 bg-sidebar-accent/22 text-xs font-semibold text-sidebar-accent-foreground">
                             {user?.image ? (
                                 <Image
                                     src={user.image}
@@ -145,8 +144,8 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                             )}
                         </div>
                         <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                            <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                            <p className="truncate text-xs text-white/60">{displayEmail}</p>
+                            <p className="truncate text-sm font-semibold text-sidebar-foreground">{displayName}</p>
+                            <p className="truncate text-xs text-sidebar-foreground/60">{displayEmail}</p>
                         </div>
                     </div>
                     <Button
@@ -157,7 +156,7 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                             clearBrowserSession();
                             void signOut({ callbackUrl: "/login" });
                         }}
-                        className="mt-3 w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                        className="mt-3 w-full border-sidebar-accent/35 bg-sidebar-accent/12 text-sidebar-accent-foreground hover:bg-sidebar-accent/22 hover:text-sidebar-accent-foreground"
                     >
                         Sair
                     </Button>

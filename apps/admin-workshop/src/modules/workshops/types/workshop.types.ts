@@ -6,6 +6,11 @@ export const customDomainStatuses = ["PENDING", "VERIFIED", "ERROR"] as const;
 export type TenantStatus = (typeof tenantStatuses)[number];
 export type CustomDomainStatus = (typeof customDomainStatuses)[number];
 
+export const defaultCustomizationColors = {
+  primaryColor: "#000205",
+  secondaryColor: "#00ff00",
+} as const;
+
 export type Workshop = {
   id: string;
   name: string;

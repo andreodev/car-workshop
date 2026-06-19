@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import {
+  defaultCustomizationColors,
   workshopFormSchema,
   type WorkshopFormValues,
 } from "../types/workshop.types";
@@ -29,8 +30,8 @@ const emptyValues: WorkshopFormValues = {
   phone: "",
   customDomain: "",
   logoUrl: "",
-  primaryColor: "#2563eb",
-  secondaryColor: "#16a34a",
+  primaryColor: defaultCustomizationColors.primaryColor,
+  secondaryColor: defaultCustomizationColors.secondaryColor,
   imageUrl: "",
   customizationName: "",
   customizationSlug: "",

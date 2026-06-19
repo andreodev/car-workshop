@@ -6,31 +6,59 @@ export type TenantBranding = {
   logoUrl: string | null;
 };
 
+type CustomizationData = {
+  imageUrl?: unknown;
+  name?: unknown;
+};
+
 export const fallbackBranding: TenantBranding = {
   title: "Rikinho Auto Center",
   logoUrl: null,
 };
 
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function parseCustomizationData(value: unknown): CustomizationData {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as CustomizationData;
+}
+
 export async function getCurrentTenantBranding(): Promise<TenantBranding> {
   try {
     const { tenantId, tenant } = await getTenantContext();
-    const settings = await prisma.companySettings.findUnique({
-      where: {
-        tenantId_singletonKey: {
-          tenantId,
-          singletonKey: "company",
+    const [settings, customization] = await Promise.all([
+      prisma.companySettings.findUnique({
+        where: {
+          tenantId_singletonKey: {
+            tenantId,
+            singletonKey: "company",
+          },
         },
-      },
-      select: {
-        legalName: true,
-        tradeName: true,
-        logoUrl: true,
-      },
-    });
+        select: {
+          legalName: true,
+          tradeName: true,
+          logoUrl: true,
+        },
+      }),
+      prisma.customization.findUnique({
+        where: { tenantId },
+        select: { data: true },
+      }),
+    ]);
+    const customizationData = parseCustomizationData(customization?.data);
 
     return {
-      title: settings?.tradeName ?? settings?.legalName ?? tenant.name,
-      logoUrl: settings?.logoUrl ?? null,
+      title:
+        getString(customizationData.name) ??
+        settings?.tradeName ??
+        settings?.legalName ??
+        tenant.name,
+      logoUrl: getString(customizationData.imageUrl) ?? settings?.logoUrl ?? null,
     };
   } catch (error) {
     if (error instanceof TenantAccessError) {

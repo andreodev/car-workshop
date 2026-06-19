@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 import { ToastProvider } from "@/components/ui/toast";
 import { BrowserSessionGuard } from "@/app/_components/browser-session-guard";
 import { PageTransitionLoading } from "@/components/ui/page-transition-loading";
+import { TenantThemeProvider } from "@/app/_components/tenant-theme-provider";
 
 const ReactQueryDevtools = dynamic(
   () =>
@@ -36,12 +37,14 @@ export default function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserSessionGuard>{children}</BrowserSessionGuard>
-        <Suspense fallback={null}>
-          <PageTransitionLoading />
-        </Suspense>
-      </ToastProvider>
+      <TenantThemeProvider>
+        <ToastProvider>
+          <BrowserSessionGuard>{children}</BrowserSessionGuard>
+          <Suspense fallback={null}>
+            <PageTransitionLoading />
+          </Suspense>
+        </ToastProvider>
+      </TenantThemeProvider>
       {process.env.NODE_ENV === "development" ? (
         <ReactQueryDevtools initialIsOpen={false} />
       ) : null}

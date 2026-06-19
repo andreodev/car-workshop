@@ -13,7 +13,11 @@ import { WorkshopForm } from "../components/workshop-form";
 import { useWorkshopAdminActions } from "../hooks/use-workshop-admin-actions";
 import { useUpdateWorkshop } from "../hooks/use-update-workshop";
 import { useWorkshop } from "../hooks/use-workshop";
-import type { Workshop, WorkshopFormValues } from "../types/workshop.types";
+import {
+  defaultCustomizationColors,
+  type Workshop,
+  type WorkshopFormValues,
+} from "../types/workshop.types";
 
 type EditWorkshopPageProps = {
   id: string;
@@ -177,8 +181,10 @@ function toFormValues(workshop: Workshop): WorkshopFormValues {
     phone: workshop.phone ?? "",
     customDomain: workshop.customDomain ?? "",
     logoUrl: workshop.logoUrl ?? "",
-    primaryColor: customization.primaryColor ?? "#2563eb",
-    secondaryColor: customization.secondaryColor ?? "#16a34a",
+    primaryColor:
+      customization.primaryColor ?? defaultCustomizationColors.primaryColor,
+    secondaryColor:
+      customization.secondaryColor ?? defaultCustomizationColors.secondaryColor,
     imageUrl: customization.imageUrl ?? "",
     customizationName: customization.name ?? workshop.name,
     customizationSlug: customization.slug ?? workshop.slug,

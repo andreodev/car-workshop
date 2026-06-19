@@ -18,8 +18,6 @@ import {
   Wrench,
 } from "lucide-react";
 
-import banner from "@/assets/banner/banner.png";
-
 import { markBrowserSession } from "@/app/lib/browser-session";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { Button } from "@/components/ui/button";
@@ -90,19 +88,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#0B0D12] text-white">
+    <main className="min-h-screen overflow-hidden bg-secondary text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="relative hidden overflow-hidden lg:block">
-          <Image
-            src={banner}
-            alt="Oficina mecânica"
-            fill
-            priority
-            className="object-cover opacity-70"
-          />
-
-          <div className="absolute inset-0 bg-linear-to-r from-[#07080D] via-[#07080D]/85 to-[#07080D]/20" />
-          <div className="absolute inset-0 bg-linear-to-t from-[#07080D] via-transparent to-transparent" />
+        <section className="relative hidden overflow-hidden bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_100%,black_0%)_0%,color-mix(in_oklab,var(--primary)_72%,black_28%)_42%,color-mix(in_oklab,var(--primary)_42%,black_58%)_100%)] lg:block">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.24),transparent_28%),radial-gradient(circle_at_78%_22%,rgba(255,255,255,0.14),transparent_24%),linear-gradient(120deg,rgba(0,0,0,0.18),rgba(0,0,0,0.58))]" />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/45 to-transparent" />
 
           <div className="absolute left-10 top-10 z-10 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl">
@@ -128,8 +118,8 @@ export default function LoginPage() {
 
           <div className="relative z-10 flex min-h-screen flex-col justify-end px-12 pb-14">
             <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-5 duration-700">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-red-500/25 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-100 backdrop-blur-xl">
-                <Sparkles className="h-4 w-4 text-red-400" />
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-xl">
+                <Sparkles className="h-4 w-4 text-white" />
                 Plataforma completa para sua oficina
               </div>
 
@@ -164,13 +154,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="absolute -right-24 top-1/2 h-[120%] w-48 -translate-y-1/2 rounded-l-[100%] border-l border-red-500/40 bg-linear-to-r from-red-500/20 to-transparent blur-sm" />
+          <div className="absolute -right-24 top-1/2 h-[120%] w-48 -translate-y-1/2 rounded-l-[100%] border-l border-white/25 bg-linear-to-r from-white/18 to-transparent blur-sm" />
         </section>
 
-        <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F8FAFC] px-5 py-10 text-[#0F172A]">
-          <div className="absolute inset-0 bg-[radial-linear(circle_at_top_right,#FEE2E2,transparent_35%),radial-linear(circle_at_bottom_left,#E0F2FE,transparent_35%)]" />
-          <div className="absolute right-30 top-30 h-80 w-80 rounded-full bg-red-500/10 blur-3xl" />
-          <div className="absolute bottom-30 left-30 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+        <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-5 py-10 text-foreground">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,color-mix(in_oklab,var(--primary)_18%,transparent),transparent_34%),radial-gradient(circle_at_bottom_left,color-mix(in_oklab,var(--secondary)_14%,transparent),transparent_36%)]" />
 
           <div className="relative z-10 w-full max-w-117.5 animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700">
             <div className="mb-6 flex justify-center lg:hidden">
@@ -186,12 +174,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-              <div className="h-1.5 bg-linear-to-r from-red-600 via-red-500 to-red-400" />
+            <div className="overflow-hidden rounded-[32px] border border-border/80 bg-card/90 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+              <div className="h-1.5 bg-[linear-gradient(90deg,var(--primary),color-mix(in_oklab,var(--primary)_72%,black_28%))]" />
 
               <div className="px-7 py-8 sm:px-9 sm:py-9">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto  mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-slate-200 bg-black shadow-sm">
+                  <div className="mx-auto  mb-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-border bg-secondary shadow-sm">
                     <Image
                       src="/assets/logo.png"
                       alt="Rikinho Auto Center"
@@ -202,16 +190,16 @@ export default function LoginPage() {
                     />
                   </div>
 
-                  <div className="mx-auto mb-4 flex w-fit items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  <div className="mx-auto mb-4 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                     Área administrativa
                   </div>
 
-                  <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                  <h2 className="text-3xl font-black tracking-tight text-foreground">
                     Bem-vindo de volta
                   </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     Acesse sua conta para gerenciar clientes, veículos, ordens
                     de serviço e financeiro da oficina.
                   </p>
@@ -221,13 +209,13 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label
                       htmlFor="email"
-                      className="text-sm font-semibold text-slate-700"
+                      className="text-sm font-semibold text-foreground"
                     >
                       E-mail
                     </Label>
 
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
 
                       <Input
                         id="email"
@@ -236,7 +224,7 @@ export default function LoginPage() {
                         placeholder="seuemail@exemplo.com"
                         autoComplete="email"
                         disabled={isSubmitting}
-                        className="h-13 rounded-2xl border-slate-200 bg-slate-50 pl-12 text-sm shadow-none transition-all placeholder:text-slate-400 focus-visible:border-red-500 focus-visible:bg-white focus-visible:ring-red-500/20"
+                        className="h-13 rounded-2xl border-border bg-muted/40 pl-12 text-sm shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary focus-visible:bg-card focus-visible:ring-primary/20"
                       />
                     </div>
                   </div>
@@ -245,21 +233,21 @@ export default function LoginPage() {
                     <div className="flex items-center justify-between gap-3">
                       <Label
                         htmlFor="password"
-                        className="text-sm font-semibold text-slate-700"
+                        className="text-sm font-semibold text-foreground"
                       >
                         Senha
                       </Label>
 
                       <Link
                         href="/forgot-password"
-                        className="text-xs font-bold text-red-600 transition hover:text-red-700 hover:underline"
+                        className="text-xs font-bold text-primary transition hover:text-primary/80 hover:underline"
                       >
                         Esqueci minha senha
                       </Link>
                     </div>
 
                     <div className="relative">
-                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
 
                       <Input
                         id="password"
@@ -268,14 +256,14 @@ export default function LoginPage() {
                         placeholder="Digite sua senha"
                         autoComplete="current-password"
                         disabled={isSubmitting}
-                        className="h-13 rounded-2xl border-slate-200 bg-slate-50 pl-12 pr-12 text-sm shadow-none transition-all placeholder:text-slate-400 focus-visible:border-red-500 focus-visible:bg-white focus-visible:ring-red-500/20"
+                        className="h-13 rounded-2xl border-border bg-muted/40 pl-12 pr-12 text-sm shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary focus-visible:bg-card focus-visible:ring-primary/20"
                       />
 
                       <button
                         type="button"
                         onClick={() => setShowPassword((current) => !current)}
                         disabled={isSubmitting}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg text-slate-400 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label={
                           showPassword ? "Ocultar senha" : "Mostrar senha"
                         }
@@ -290,8 +278,8 @@ export default function LoginPage() {
                   </div>
 
                   {error ? (
-                    <div className="animate-in fade-in slide-in-from-top-1 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 duration-300">
-                      <p className="text-sm font-medium text-red-700">
+                    <div className="animate-in fade-in slide-in-from-top-1 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 duration-300">
+                      <p className="text-sm font-medium text-destructive">
                         {error}
                       </p>
                     </div>
@@ -300,7 +288,7 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     disabled={isLoading || isSubmitting}
-                    className="group h-13 w-full rounded-2xl bg-linear-to-r from-red-600 to-red-500 text-sm font-bold text-white shadow-[0_14px_30px_rgba(239,68,68,0.30)] transition-all hover:from-red-700 hover:to-red-600 hover:shadow-[0_18px_36px_rgba(239,68,68,0.38)] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="group h-13 w-full rounded-2xl bg-[linear-gradient(90deg,var(--primary),color-mix(in_oklab,var(--primary)_72%,black_28%))] text-sm font-bold text-primary-foreground shadow-[0_14px_30px_color-mix(in_oklab,var(--primary)_30%,transparent)] transition-all hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isSubmitting ? (
                       <span className="flex items-center gap-2">
@@ -317,18 +305,18 @@ export default function LoginPage() {
                 </form>
 
                 <div className="my-7 flex items-center gap-4">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  <span className="text-xs font-medium text-slate-400">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-xs font-medium text-muted-foreground">
                     novo por aqui?
                   </span>
-                  <div className="h-px flex-1 bg-slate-200" />
+                  <div className="h-px flex-1 bg-border" />
                 </div>
 
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-muted-foreground">
                   Ainda não tem conta?{" "}
                   <Link
                     href="/signup"
-                    className="font-bold text-red-600 transition hover:text-red-700 hover:underline"
+                    className="font-bold text-primary transition hover:text-primary/80 hover:underline"
                   >
                     Criar uma conta
                   </Link>
@@ -337,7 +325,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-xs text-slate-400">
+            <p className="mt-6 text-center text-xs text-muted-foreground">
               © {new Date().getFullYear()} Rikinho Auto Center. Todos os
               direitos reservados.
             </p>
@@ -357,7 +345,7 @@ type FeatureCardProps = {
 function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
     <div className="rounded-3xl border border-white/10 bg-white/6 p-4 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-red-400">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/25 bg-white/10 text-white">
         {icon}
       </div>
 
