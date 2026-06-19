@@ -18,11 +18,11 @@ export async function updateWorkshop({
   const payload = toUpdateWorkshopPayload(values);
 
   try {
-    const { data } = await api.patch<Workshop>(`/admin/workshops/${id}`, payload);
+    const { data } = await api.put<Workshop>(`/admin/workshops/${id}`, payload);
     return data;
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 405) {
-      const { data } = await api.put<Workshop>(`/admin/workshops/${id}`, payload);
+      const { data } = await api.patch<Workshop>(`/admin/workshops/${id}`, payload);
       return data;
     }
 
