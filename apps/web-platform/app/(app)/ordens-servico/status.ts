@@ -30,6 +30,10 @@ export const serviceOrderStatusOptions: Array<{
   { value: "CANCELADA", label: "Cancelada", variant: "outline" },
 ];
 
+export const editableServiceOrderStatusOptions = serviceOrderStatusOptions.filter(
+  (option) => option.value !== "PAGA"
+);
+
 export function getServiceOrderStatusOption(status: ServiceOrderStatus) {
   return (
     serviceOrderStatusOptions.find((option) => option.value === status) ??

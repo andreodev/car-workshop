@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Copy, ExternalLink } from "lucide-react";
 
 import { fetchServiceOrder, updateServiceOrderStatus } from "../../service-order-api";
-import { getServiceOrderStatusOption, serviceOrderStatusOptions } from "../../status";
+import { editableServiceOrderStatusOptions, getServiceOrderStatusOption } from "../../status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header";
@@ -155,7 +155,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              {serviceOrderStatusOptions.map((option) => (
+              {editableServiceOrderStatusOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

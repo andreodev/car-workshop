@@ -38,7 +38,7 @@ export function Providers({ children }: ProvidersProps) {
   );
 
   return (
-    <SessionProvider>
+    <SessionProvider refetchInterval={30 * 60} refetchOnWindowFocus>
       <QueryClientProvider client={queryClient}>
         <AdminAuthSync />
         {children}

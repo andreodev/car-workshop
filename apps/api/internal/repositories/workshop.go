@@ -439,6 +439,14 @@ func mapPgError(err error) error {
 
 	switch pgErr.Code {
 	case "23505":
+		switch pgErr.ConstraintName {
+		case "Tenant_slug_key":
+			return fmt.Errorf("%w: slug já está em uso", domain.ErrConflict)
+		case "Tenant_customDomain_key":
+			return fmt.Errorf("%w: domínio personalizado já está em uso", domain.ErrConflict)
+		case "CompanySettings_tenantId_key", "CompanySettings_tenantId_singletonKey_key", "Customization_tenantId_key":
+			return fmt.Errorf("%w: metadados da oficina já existem", domain.ErrConflict)
+		}
 		return fmt.Errorf("%w: duplicated record", domain.ErrConflict)
 	case "23503":
 		return fmt.Errorf("%w: related record not found", domain.ErrInvalidInput)

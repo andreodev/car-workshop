@@ -735,6 +735,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       return;
     }
 
+    if (form.status === "PAGA") {
+      setLocalError("OS paga não pode ser alterada pela edição da ordem de serviço.");
+      setActiveTab("cabecalho");
+      return;
+    }
+
     const invalidItemMessage = form.items
       .map((item, index) => getItemValidationMessage(item, index))
       .find((message): message is string => Boolean(message));

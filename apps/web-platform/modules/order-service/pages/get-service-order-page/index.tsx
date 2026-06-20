@@ -22,7 +22,11 @@ import {
 } from "@/components/ui/select";
 import Header from "@/components/ui/header";
 import { fetchServiceOrders, updateServiceOrderStatus } from "@/app/(app)/ordens-servico/service-order-api";
-import { getServiceOrderStatusOption, serviceOrderStatusOptions } from "@/app/(app)/ordens-servico/status";
+import {
+  editableServiceOrderStatusOptions,
+  getServiceOrderStatusOption,
+  serviceOrderStatusOptions,
+} from "@/app/(app)/ordens-servico/status";
 import type { ServiceOrder, ServiceOrderStatus, StatusFilter } from "../../types/order-service.types";
 import { formatDateTime } from "@/lib/time";
 import { archivedBoardColumns, boardColumns } from "../../utils/order-service.constants";
@@ -382,7 +386,7 @@ export default function ServiceOrdersPage() {
                                   <SelectValue placeholder="Mover para" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {serviceOrderStatusOptions.map((option) => (
+                                  {editableServiceOrderStatusOptions.map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>

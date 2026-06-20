@@ -1,6 +1,11 @@
 import axios from "axios";
 
-import { clearAccessToken, getAccessToken, getSelectedTenantId } from "./auth-token";
+import {
+  clearAccessToken,
+  getAccessToken,
+  getSelectedTenantId,
+  notifyAccessTokenExpired,
+} from "./auth-token";
 import { normalizeApiError } from "./api-error";
 
 export const api = axios.create({
@@ -32,6 +37,7 @@ api.interceptors.response.use(
 
     if ("status" in normalizedError && normalizedError.status === 401) {
       clearAccessToken();
+      notifyAccessTokenExpired();
     }
 
     return Promise.reject(normalizedError);
