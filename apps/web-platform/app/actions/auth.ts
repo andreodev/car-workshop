@@ -1,9 +1,21 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/app/lib/prisma";
+import {
+  TENANT_HOST_HEADER,
+  TENANT_HOST_KIND_HEADER,
+  TENANT_SLUG_HEADER,
+} from "@/app/lib/tenant-headers";
+import {
+  classifyTenantHost,
+  hostFromHeaders,
+  normalizeHost,
+  type TenantHostKind,
+} from "@/app/lib/tenant-host";
 
 export type SignupState = {
   error?: string;
@@ -20,7 +32,50 @@ function getConfiguredSignupTenantId() {
   );
 }
 
+async function readSignupTenantSignal() {
+  const headerStore = await headers();
+  const host = normalizeHost(
+    headerStore.get(TENANT_HOST_HEADER) ?? hostFromHeaders(headerStore)
+  );
+  const classified = classifyTenantHost(host);
+
+  return {
+    host,
+    kind:
+      (headerStore.get(TENANT_HOST_KIND_HEADER) as TenantHostKind | null) ??
+      classified.kind,
+    slug: headerStore.get(TENANT_SLUG_HEADER) ?? classified.slug,
+  };
+}
+
 async function resolveSignupTenantId() {
+  const signal = await readSignupTenantSignal();
+
+  if (signal.kind === "tenant-subdomain" && signal.slug) {
+    const tenant = await prisma.tenant.findFirst({
+      where: {
+        slug: signal.slug,
+        status: { in: ["TRIAL", "ACTIVE"] },
+      },
+      select: { id: true },
+    });
+
+    return tenant?.id ?? null;
+  }
+
+  if (signal.kind === "custom-domain" && signal.host) {
+    const tenant = await prisma.tenant.findFirst({
+      where: {
+        customDomain: signal.host,
+        customDomainVerifiedAt: { not: null },
+        status: { in: ["TRIAL", "ACTIVE"] },
+      },
+      select: { id: true },
+    });
+
+    return tenant?.id ?? null;
+  }
+
   const configuredTenantId = getConfiguredSignupTenantId();
 
   if (configuredTenantId) {
@@ -90,6 +145,42 @@ async function createUserAccess(params: {
   });
 }
 
+async function addExistingUserTenantAccess(params: {
+  userId: string;
+  tenantId: string;
+}) {
+  const existingMembership = await prisma.tenantUser.findUnique({
+    where: {
+      tenantId_userId: {
+        tenantId: params.tenantId,
+        userId: params.userId,
+      },
+    },
+    select: {
+      isActive: true,
+    },
+  });
+
+  if (existingMembership?.isActive) {
+    return { error: "E-mail ja cadastrado nesta empresa." };
+  }
+
+  if (existingMembership) {
+    return { error: "Este acesso esta inativo nesta empresa." };
+  }
+
+  await prisma.tenantUser.create({
+    data: {
+      tenantId: params.tenantId,
+      userId: params.userId,
+      role: "STAFF",
+      isActive: true,
+    },
+  });
+
+  return { error: undefined };
+}
+
 export async function signup(
   _prevState: SignupState,
   formData: FormData
@@ -108,13 +199,6 @@ export async function signup(
     return { error: "A senha deve ter pelo menos 8 caracteres." };
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-
-  if (existingUser) {
-    return { error: "E-mail ja cadastrado." };
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
   const tenantId = await resolveSignupTenantId();
 
   if (!tenantId) {
@@ -123,6 +207,36 @@ export async function signup(
         "Empresa de cadastro não configurada. Defina SIGNUP_TENANT_ID no ambiente.",
     };
   }
+
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+
+  if (existingUser) {
+    if (!existingUser.passwordHash) {
+      return { error: "E-mail ja cadastrado. Entre com sua conta existente." };
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      password,
+      existingUser.passwordHash
+    );
+
+    if (!passwordMatches) {
+      return { error: "E-mail ja cadastrado. Confira a senha informada." };
+    }
+
+    const result = await addExistingUserTenantAccess({
+      userId: existingUser.id,
+      tenantId,
+    });
+
+    if (result.error) {
+      return result;
+    }
+
+    redirect("/login");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
 
   await createUserAccess({
     email,
