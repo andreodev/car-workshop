@@ -45,6 +45,18 @@ const TenantThemeContext = createContext<TenantThemeContextValue>({
   isLoading: false,
 });
 
+const LOCALHOST_TENANT_DOMAIN =
+  process.env.NEXT_PUBLIC_LOCALHOST_TENANT_DOMAIN ||
+  "app.rikinhoautocenter.com.br";
+
+function resolveLookupDomain(domain: string) {
+  if (domain === "localhost" || domain === "127.0.0.1" || domain === "::1") {
+    return LOCALHOST_TENANT_DOMAIN;
+  }
+
+  return domain;
+}
+
 function getCurrentDomain() {
   if (typeof window === "undefined") {
     return null;
@@ -98,8 +110,9 @@ function writeCachedTheme(domain: string, branding: TenantThemeBranding) {
 }
 
 async function fetchTenantTheme(domain: string) {
+  const lookupDomain = resolveLookupDomain(domain);
   const response = await fetch(
-    `/api/tenants/getByDomain?domain=${encodeURIComponent(domain)}`,
+    `/api/tenants/getByDomain?domain=${encodeURIComponent(lookupDomain)}`,
     {
       headers: { Accept: "application/json" },
     }

@@ -299,16 +299,28 @@ async function buildServiceOrderData(
     discountTotal: itemsParsed.discountTotal,
     total: itemsParsed.total,
   };
+  const itemCreates = itemsParsed.items.map((item) => ({
+    tenant: { connect: { id: tenantId } },
+    type: item.type,
+    ...(item.catalogItemId
+      ? { catalogItem: { connect: { id: item.catalogItemId } } }
+      : {}),
+    ...(item.mechanicId ? { mechanic: { connect: { id: item.mechanicId } } } : {}),
+    ...(item.sectorId ? { sector: { connect: { id: item.sectorId } } } : {}),
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    discount: item.discount,
+    total: item.total,
+    commissionBase: item.commissionBase,
+  })) satisfies Prisma.ServiceOrderItemCreateWithoutServiceOrderInput[];
 
   if (mode === "create") {
     return {
       data: {
         ...baseData,
         items: {
-          create: itemsParsed.items.map((item) => ({
-            ...item,
-            tenant: { connect: { id: tenantId } },
-          })),
+          create: itemCreates,
         },
       } satisfies Prisma.ServiceOrderCreateInput,
     };
@@ -319,10 +331,7 @@ async function buildServiceOrderData(
       ...baseData,
       items: {
         deleteMany: {},
-        create: itemsParsed.items.map((item) => ({
-          ...item,
-          tenant: { connect: { id: tenantId } },
-        })),
+        create: itemCreates,
       },
     } satisfies Prisma.ServiceOrderUpdateInput,
   };
