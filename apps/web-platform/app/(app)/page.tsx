@@ -4,14 +4,12 @@ import {
   AlertTriangle,
   ArrowRight,
   Banknote,
-  Boxes,
   Car,
   ClipboardList,
   FileText,
-  Package,
+  PlusCircle,
   ReceiptText,
   ShoppingCart,
-  TrendingUp,
   Users,
   Wrench,
 } from "lucide-react";
@@ -31,21 +29,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Empty, EmptyTitle } from "@/components/ui/empty";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { getEstimateStatusOption } from "@/modules/estimate/utils/estimate-status";
 import { getServiceOrderStatusOption } from "./ordens-servico/status";
 
@@ -69,16 +57,6 @@ const dashboardPeriodOptions = [
 
 type DashboardPeriod = (typeof dashboardPeriodOptions)[number]["value"];
 
-const serviceOrderStatusLabels: Record<ServiceOrderStatus, string> = {
-  ABERTA: "A fazer",
-  EM_ANDAMENTO: "Em execução",
-  AGUARDANDO_PECAS: "Aguardando peças",
-  IMPEDIDA: "Impedidas",
-  FINALIZADA: "Finalizadas",
-  CANCELADA: "Canceladas",
-  PAGA: "Pagas",
-};
-
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -101,18 +79,6 @@ function formatCurrency(value: unknown) {
 
 function formatInteger(value: number) {
   return integerFormatter.format(value);
-}
-
-function formatDate(value: Date | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  return value.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 function normalizeDashboardPeriod(value: unknown): DashboardPeriod {
@@ -402,47 +368,78 @@ export default async function DashboardPage({
 
   const operationCards = [
     {
-      title: "OS ativas",
+      title: "Atendimentos em andamento",
       value: formatInteger(activeServiceOrders),
-      description: `${formatInteger(blockedServiceOrders)} exigem atenção ${data.periodLabel}`,
-      href: "/ordens-servico",
+      description: `${formatInteger(blockedServiceOrders)} parados ou aguardando peça`,
+      href: "/atendimentos",
       icon: Wrench,
       tone: "bg-primary/10 text-primary",
     },
     {
-      title: "Faturamento",
+      title: "Vendas de hoje",
       value: formatCurrency(data.periodSales._sum.total),
-      description: `${formatInteger(data.periodSales._count._all)} vendas/OS pagas ${data.periodLabel}`,
+      description: `${formatInteger(data.periodSales._count._all)} recebimentos no período`,
       href: "/pdv/vendas",
-      icon: TrendingUp,
+      icon: ShoppingCart,
       tone: "bg-emerald-100 text-emerald-700",
     },
     {
-      title: "Vendas no período",
-      value: formatInteger(data.periodSales._count._all),
-      description: `${formatCurrency(data.periodSales._sum.total)} em atendimentos ${data.periodLabel}`,
-      href: "/pdv",
-      icon: ShoppingCart,
-      tone: "bg-blue-100 text-blue-700",
-    },
-    {
-      title: "Orçamentos abertos",
+      title: "Orçamentos pendentes",
       value: formatInteger(openEstimates),
-      description: `${formatInteger(statusCount(data.estimateGroups, "APROVADO"))} aprovados ${data.periodLabel}`,
-      href: "/orcamentos",
+      description: `${formatInteger(statusCount(data.estimateGroups, "APROVADO"))} aprovados para virar OS`,
+      href: "/atendimentos",
       icon: FileText,
       tone: "bg-amber-100 text-amber-800",
+    },
+    {
+      title: "Saldo previsto",
+      value: formatCurrency(balanceProjection),
+      description: "A receber menos a pagar no período",
+      href: "/financeiro",
+      icon: Banknote,
+      tone: "bg-blue-100 text-blue-700",
+    },
+  ];
+
+  const quickActions = [
+    {
+      title: "Novo atendimento",
+      description: "Comece por orçamento ou ordem de serviço.",
+      href: "/atendimentos",
+      icon: PlusCircle,
+      variant: "default" as const,
+    },
+    {
+      title: "Venda rápida",
+      description: "Abra o caixa para uma venda de balcão.",
+      href: "/pdv",
+      icon: ShoppingCart,
+      variant: "secondary" as const,
+    },
+    {
+      title: "Cadastrar cliente",
+      description: "Inclua cliente e depois associe o veículo.",
+      href: "/clientes/novo",
+      icon: Users,
+      variant: "outline" as const,
+    },
+    {
+      title: "Ver financeiro",
+      description: "Acompanhe contas a receber, pagar e caixa.",
+      href: "/financeiro",
+      icon: Banknote,
+      variant: "outline" as const,
     },
   ];
 
   return (
-    <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-6">
+    <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-5">
       <DashboardWelcome />
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Header
-          title="Painel"
-          description="Resumo operacional da oficina, financeiro, estoque e compras."
+          title="Hoje na oficina"
+          description="Comece atendimentos, veja a fila e acompanhe o financeiro sem procurar em vários menus."
         />
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -463,207 +460,157 @@ export default async function DashboardPage({
               </Button>
             ))}
           </div>
-          <Button asChild variant="outline" className="h-8 gap-2 px-3">
-            <Link href="/orcamentos/novo">
-              <FileText className="size-3.5" />
-              Orçamento
-            </Link>
-          </Button>
-          <Button asChild variant="secondary" className="h-8 gap-2 px-3">
-            <Link href="/pdv">
-              <ShoppingCart className="size-3.5" />
-              Caixa
+          <Button asChild className="h-8 gap-2 px-3">
+            <Link href="/atendimentos">
+              <PlusCircle className="size-3.5" />
+              Novo atendimento
             </Link>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {operationCards.map((card) => (
-          <Card key={card.title} className="min-h-32 shadow-sm">
-            <CardHeader className="gap-2">
-              <CardTitle className="text-xs font-700 uppercase text-muted-foreground">
-                {card.title}
-              </CardTitle>
-              <CardAction>
-                <span
-                  className={`flex size-9 items-center justify-center rounded-lg ${card.tone}`}
-                >
-                  <card.icon className="size-4" />
-                </span>
-              </CardAction>
-              <CardDescription>{card.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-end justify-between gap-3">
-              <strong className="font-heading text-2xl font-800 text-foreground">
-                {card.value}
-              </strong>
-              <Button asChild variant="ghost" size="icon-sm" aria-label={`Abrir ${card.title}`}>
-                <Link href={card.href}>
-                  <ArrowRight className="size-3.5" />
+      <Card className="overflow-hidden border-primary/20 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_10%,transparent),transparent_45%)] shadow-sm">
+        <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.9fr] lg:p-5">
+          <div className="flex flex-col justify-between gap-5">
+            <div>
+              <div className="mb-3 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <ClipboardList className="size-3.5" />
+                Fluxo simples
+              </div>
+              <h2 className="max-w-2xl text-2xl font-800 tracking-tight text-foreground md:text-3xl">
+                Atenda, aprove, execute e receba pelo mesmo caminho.
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Use a tela de Atendimentos para decidir se o caso começa como
+                orçamento, ordem de serviço ou venda rápida no caixa.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild size="lg" className="gap-2">
+                <Link href="/atendimentos">
+                  <PlusCircle className="size-4" />
+                  Novo atendimento
                 </Link>
               </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <Button asChild size="lg" variant="secondary" className="gap-2">
+                <Link href="/pdv">
+                  <ShoppingCart className="size-4" />
+                  Venda rápida
+                </Link>
+              </Button>
+            </div>
+          </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardList className="size-4 text-primary" />
-              Fila de serviço
-            </CardTitle>
-            <CardDescription>
-              Distribuição das ordens em andamento {data.periodLabel}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid flex-1 content-center gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {activeServiceOrderStatuses.map((status) => {
-              const count = statusCount(data.serviceOrderGroups, status);
-              const percent = activeServiceOrders > 0 ? (count / activeServiceOrders) * 100 : 0;
-
-              return (
-                <div key={status} className="rounded-lg border border-border bg-background p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {serviceOrderStatusLabels[status]}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {quickActions.map((action) => (
+              <Button
+                key={action.title}
+                asChild
+                variant={action.variant}
+                className="h-auto justify-start gap-3 rounded-lg p-3 text-left"
+              >
+                <Link href={action.href}>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background/80 text-foreground">
+                    <action.icon className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{action.title}</span>
+                    <span className="block text-xs font-normal opacity-75">
+                      {action.description}
                     </span>
-                    <span className="font-heading text-lg font-800">{count}</span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${Math.max(percent, count > 0 ? 8 : 0)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+                  </span>
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Banknote className="size-4 text-primary" />
-              Financeiro
-            </CardTitle>
-            <CardDescription>
-              Entradas, saídas e pendências com vencimento {data.periodLabel}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                <span className="text-xs text-emerald-700">A receber</span>
-                <strong className="block font-heading text-lg text-emerald-800">
-                  {formatCurrency(receivableMonth)}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {operationCards.map((card) => (
+          <Link key={card.title} href={card.href} className="group">
+            <Card className="h-full min-h-32 shadow-sm transition-colors group-hover:border-primary/45 group-hover:bg-accent/30">
+              <CardHeader className="gap-2">
+                <div className="flex items-start justify-between gap-3">
+                  <CardTitle className="text-xs font-700 uppercase text-muted-foreground">
+                    {card.title}
+                  </CardTitle>
+                  <span
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${card.tone}`}
+                  >
+                    <card.icon className="size-4" />
+                  </span>
+                </div>
+                <CardDescription>{card.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-end justify-between gap-3">
+                <strong className="font-heading text-2xl font-800 text-foreground">
+                  {card.value}
                 </strong>
-              </div>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <span className="text-xs text-red-700">A pagar</span>
-                <strong className="block font-heading text-lg text-red-800">
-                  {formatCurrency(payableMonth)}
-                </strong>
-              </div>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-              <span className="text-xs text-muted-foreground">Projeção</span>
-              <strong className="font-heading text-lg">{formatCurrency(balanceProjection)}</strong>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
-              <span className="flex items-center gap-2 text-xs">
-                <AlertTriangle className="size-3.5" />
-                Vencidas até hoje
-              </span>
-              <strong className="font-heading text-lg">
-                {formatCurrency(data.overdueFinancial._sum.amount)}
-              </strong>
-            </div>
-          </CardContent>
-        </Card>
+                <span
+                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
+                >
+                  <ArrowRight className="size-3.5" />
+                </span>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Wrench className="size-4 text-primary" />
-              Ordens recentes
+              <ClipboardList className="size-4 text-primary" />
+              Fila de atendimento
             </CardTitle>
             <CardDescription>
-              Últimas ordens ainda abertas com entrada {data.periodLabel}.
+              O que precisa andar agora na oficina.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-2">
             {data.recentServiceOrders.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="text-xs uppercase text-muted-foreground">OS</TableHead>
-                      <TableHead className="text-xs uppercase text-muted-foreground">
-                        Cliente
-                      </TableHead>
-                      <TableHead className="text-xs uppercase text-muted-foreground">
-                        Veículo
-                      </TableHead>
-                      <TableHead className="text-xs uppercase text-muted-foreground">
-                        Status
-                      </TableHead>
-                      <TableHead className="text-right text-xs uppercase text-muted-foreground">
-                        Total
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.recentServiceOrders.map((order) => {
-                      const statusOption = getServiceOrderStatusOption(order.status);
+              data.recentServiceOrders.slice(0, 5).map((order) => {
+                const statusOption = getServiceOrderStatusOption(order.status);
 
-                      return (
-                        <TableRow key={order.id} className="hover:bg-accent/40">
-                          <TableCell className="font-mono text-sm font-medium">
-                            <Link href={`/ordens-servico/${order.id}`} className="hover:text-primary">
-                              #{order.code}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="max-w-44">
-                            <Link
-                              href={`/clientes/${order.client.id}`}
-                              className="block truncate font-medium hover:text-primary"
-                              title={order.client.name}
-                            >
-                              {order.client.name}
-                            </Link>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {order.mechanic?.name ?? order.responsible}
-                            </span>
-                          </TableCell>
-                          <TableCell className="max-w-44 text-muted-foreground">
-                            <span className="block truncate">
-                              {order.vehicle.plate}
-                              {order.vehicle.model ? ` - ${order.vehicle.model}` : ""}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={statusOption.variant} className={statusOption.className}>
-                              {statusOption.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-sm">
-                            {formatCurrency(order.total)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                return (
+                  <Link
+                    key={order.id}
+                    href={`/ordens-servico/${order.id}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:bg-accent/40"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        OS #{order.code} - {order.client.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {order.vehicle.plate}
+                        {order.vehicle.model ? ` - ${order.vehicle.model}` : ""}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant={statusOption.variant} className={statusOption.className}>
+                        {statusOption.label}
+                      </Badge>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatCurrency(order.total)}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })
             ) : (
-              <EmptyState icon={Wrench} label="Nenhuma ordem ativa no momento." />
+              <div className="rounded-lg border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+                Nenhuma OS ativa para o período selecionado.
+              </div>
             )}
+            <Button asChild variant="outline" className="mt-2 justify-between">
+              <Link href="/atendimentos">
+                Ver todos os atendimentos
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -672,15 +619,15 @@ export default async function DashboardPage({
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ReceiptText className="size-4 text-primary" />
-                Orçamentos em aberto
+                Orçamentos para acompanhar
               </CardTitle>
               <CardDescription>
-                Propostas criadas {data.periodLabel} que ainda podem virar OS.
+                Propostas abertas que podem virar ordem de serviço.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
               {data.recentEstimates.length > 0 ? (
-                data.recentEstimates.map((estimate) => {
+                data.recentEstimates.slice(0, 4).map((estimate) => {
                   const statusOption = getEstimateStatusOption(estimate.status);
 
                   return (
@@ -710,7 +657,9 @@ export default async function DashboardPage({
                   );
                 })
               ) : (
-                <EmptyState icon={FileText} label="Sem orçamentos em aberto." />
+                <div className="rounded-lg border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+                  Sem orçamentos pendentes no período.
+                </div>
               )}
             </CardContent>
           </Card>
@@ -718,119 +667,106 @@ export default async function DashboardPage({
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Car className="size-4 text-primary" />
-                Base ativa
+                <Banknote className="size-4 text-primary" />
+                Financeiro simples
               </CardTitle>
-              <CardDescription>Clientes, veículos e equipe cadastrados.</CardDescription>
+              <CardDescription>A receber, a pagar e atrasos.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-3 gap-2">
-              <MiniMetric
-                href="/clientes"
-                icon={Users}
-                label="Clientes"
-                value={data.clientCount}
-              />
-              <MiniMetric href="/veiculos" icon={Car} label="Veículos" value={data.vehicleCount} />
-              <MiniMetric
-                href="/mecanicos"
-                icon={Wrench}
-                label="Mecânicos"
-                value={data.mechanicCount}
-              />
+            <CardContent className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/financeiro"
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"
+                >
+                  <span className="text-xs text-emerald-700">A receber</span>
+                  <strong className="block font-heading text-lg text-emerald-800">
+                    {formatCurrency(receivableMonth)}
+                  </strong>
+                </Link>
+                <Link
+                  href="/financeiro/contas-pagar"
+                  className="rounded-lg border border-red-200 bg-red-50 p-3"
+                >
+                  <span className="text-xs text-red-700">A pagar</span>
+                  <strong className="block font-heading text-lg text-red-800">
+                    {formatCurrency(payableMonth)}
+                  </strong>
+                </Link>
+              </div>
+              <Link
+                href="/financeiro"
+                className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900"
+              >
+                <span className="flex items-center gap-2 text-xs">
+                  <AlertTriangle className="size-3.5" />
+                  Vencidas
+                </span>
+                <strong className="font-heading text-lg">
+                  {formatCurrency(data.overdueFinancial._sum.amount)}
+                </strong>
+              </Link>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Boxes className="size-4 text-primary" />
-              Estoque baixo
-            </CardTitle>
-            <CardDescription>Itens com saldo igual ou abaixo do mínimo.</CardDescription>
+            <CardTitle className="text-base">Cadastros rápidos</CardTitle>
+            <CardDescription>
+              O mínimo para começar um atendimento novo.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            {data.lowStockItems.length > 0 ? (
-              data.lowStockItems.map((item) => (
-                <Link
-                  key={item.id}
-                  href={`/produtos/${item.id}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:bg-accent/40"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                      #{item.code} - {item.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">Unidade: {item.unit ?? "-"}</span>
-                  </span>
-                  <Badge variant="destructive">
-                    {decimalToNumber(item.stockCurrent)} / {decimalToNumber(item.stockMinimum)}
-                  </Badge>
-                </Link>
-              ))
-            ) : (
-              <EmptyState icon={Package} label="Nenhum item abaixo do mínimo." />
-            )}
+          <CardContent className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <MiniMetric
+              href="/clientes/novo"
+              icon={Users}
+              label="Novo cliente"
+              value={data.clientCount}
+            />
+            <MiniMetric
+              href="/veiculos/create"
+              icon={Car}
+              label="Novo veículo"
+              value={data.vehicleCount}
+            />
+            <MiniMetric
+              href="/produtos/novo"
+              icon={ClipboardList}
+              label="Produto ou serviço"
+              value={data.mechanicCount}
+            />
           </CardContent>
         </Card>
 
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Package className="size-4 text-primary" />
-              Compras pendentes
-            </CardTitle>
+            <CardTitle className="text-base">Etapas do atendimento</CardTitle>
             <CardDescription>
-              {formatInteger(data.openSupplierOrders)} pedidos de fornecedor em aberto.
+              A regra do sistema continua igual; a entrada ficou mais direta.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            {data.urgentSupplierOrders.length > 0 ? (
-              data.urgentSupplierOrders.map((order) => (
-                <Link
-                  key={order.id}
-                  href={`/fornecedores/pedidos/${order.id}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:bg-accent/40"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                      #{order.code} - {order.supplier.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Previsão {formatDate(order.forecastAt)}
-                    </span>
-                  </span>
-                  <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-                </Link>
-              ))
-            ) : (
-              <EmptyState icon={Package} label="Nenhuma compra com previsão próxima." />
-            )}
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            {[
+              ["1", "Orçar", "Monte a proposta quando o cliente ainda vai aprovar."],
+              ["2", "Executar", "Abra a OS quando o serviço já está na oficina."],
+              ["3", "Receber", "Finalize no caixa e acompanhe no financeiro."],
+            ].map(([step, title, description]) => (
+              <div key={step} className="rounded-lg border border-border bg-background p-4">
+                <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-800 text-primary">
+                  {step}
+                </span>
+                <h3 className="mt-3 font-semibold">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {description}
+                </p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>
     </section>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  label,
-}: {
-  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
-  label: string;
-}) {
-  return (
-    <Empty className="min-h-28 bg-background">
-      <span className="rounded-full bg-muted/60 p-2 text-muted-foreground">
-        <Icon className="size-5" strokeWidth={1.5} />
-      </span>
-      <EmptyTitle className="text-sm font-medium text-muted-foreground">
-        {label}
-      </EmptyTitle>
-    </Empty>
   );
 }
 

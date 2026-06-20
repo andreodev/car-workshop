@@ -1,58 +1,32 @@
 import {
-  Car,
-  FileText,
-  Grid2X2,
+  ClipboardList,
   Landmark,
   LayoutDashboard,
   LineChart,
   Package,
-  ClipboardList,
   Settings,
-  ShoppingCart,
-  Truck,
-  UserCog,
   Users,
-  Wrench,
 } from "lucide-react";
 
 export const menuGroups = [
   {
-    title: "Geral",
-    items: [{ title: "Painel", href: "/", icon: LayoutDashboard }],
+    title: "Principal",
+    items: [
+      { title: "Início", href: "/", icon: LayoutDashboard },
+      { title: "Atendimentos", href: "/atendimentos", icon: ClipboardList },
+    ],
   },
   {
-    title: "Cadastros",
+    title: "Dia a dia",
     items: [
       { title: "Clientes", href: "/clientes", icon: Users },
-      { title: "Veículos", href: "/veiculos", icon: Car },
-      { title: "Mecânicos", href: "/mecanicos", icon: UserCog },
-      { title: "Fornecedores", href: "/fornecedores", icon: Truck },
-      { title: "Produtos e Serviços", href: "/produtos", icon: Package },
-      { title: "Setores", href: "/setores", icon: Grid2X2 },
+      { title: "Estoque", href: "/produtos", icon: Package },
+      { title: "Financeiro", href: "/financeiro", icon: Landmark },
+      { title: "Relatórios", href: "/relatorios", icon: LineChart },
     ],
   },
   {
-    title: "Operações",
-    items: [
-      { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench },
-      { title: "Orçamentos", href: "/orcamentos", icon: FileText },
-      { title: "Pedidos e Serviços", href: "/pedidos", icon: ClipboardList },
-      { title: "Caixa", href: "/pdv", icon: ShoppingCart },
-    ],
-  },
-  {
-    title: "Financeiro",
-    items: [{ title: "Financeiro", href: "/financeiro", icon: Landmark }],
-  },
-  {
-    title: "Relatórios",
-    items: [{ title: "Relatórios", href: "/relatorios", icon: LineChart }],
-  },
-  {
-    title: "Configurações",
-    items: [
-      { title: "Configurações", href: "/configuracoes", icon: Settings },
-      { title: "Dados da empresa", href: "/configuracoes/dados-empresa", icon: Settings },
-    ],
+    title: "Sistema",
+    items: [{ title: "Configurações", href: "/configuracoes", icon: Settings }],
   },
 ];
