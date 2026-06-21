@@ -38,6 +38,7 @@ import { normalizeDashboardPeriod, statusCount } from "./utils/dashboard.date";
 import { formatInteger } from "@/app/lib/reports";
 import { CardMetric } from "./components/cards";
 import { financialAmountDashboard } from "./utils/dashboard.financial";
+import { formatCurrency } from "@/lib/finance/formatCurrency";
 
 export const dynamic = "force-dynamic";
 
