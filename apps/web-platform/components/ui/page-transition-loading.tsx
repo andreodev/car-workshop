@@ -1,8 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 type PageTransitionLoadingProps = {
@@ -38,21 +37,21 @@ export function PageTransitionLoading({
   primaryColor = "#ef4444",
 }: PageTransitionLoadingProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const [isLoading, setIsLoading] = useState(false);
-  const previousUrlRef = useRef<string | null>(null);
+  const previousPathRef = useRef<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const nextUrl = `${pathname}?${searchParams.toString()}`;
-
-    if (previousUrlRef.current !== null && previousUrlRef.current !== nextUrl) {
+    if (
+      previousPathRef.current !== null &&
+      previousPathRef.current !== pathname
+    ) {
       setIsLoading(false);
     }
 
-    previousUrlRef.current = nextUrl;
-  }, [pathname, searchParams]);
+    previousPathRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     if (!isLoading) return;
@@ -108,7 +107,6 @@ export function PageTransitionLoading({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Fundo borrado */}
           <motion.div
             className="absolute inset-0 bg-black/20 backdrop-blur-md"
             initial={{ backdropFilter: "blur(0px)" }}
@@ -116,7 +114,6 @@ export function PageTransitionLoading({
             exit={{ backdropFilter: "blur(0px)" }}
           />
 
-          {/* Card */}
           <motion.div
             className="relative flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 px-8 py-6 shadow-2xl backdrop-blur-xl"
             initial={{ scale: 0.96, y: 10, opacity: 0 }}
@@ -128,7 +125,6 @@ export function PageTransitionLoading({
               damping: 25,
             }}
           >
-            {/* Spinner */}
             <div className="relative h-12 w-12">
               <motion.div
                 className="absolute inset-0 rounded-full border-2 opacity-20"

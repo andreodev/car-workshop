@@ -20,10 +20,10 @@ import type { CatalogItem, Sector } from "@/modules/pdv/types/pdv.types";
 import type { EstimateItemFormValues } from "../types/estimate.types";
 import {
   calculateDiscountValue,
-  formatCurrency,
   getCommissionBaseValue,
   normalizeAmount,
 } from "../utils/estimate-form-utils";
+import { formatCurrency } from "@/lib/finance/formatCurrency";
 
 type EstimateItemsStepProps = {
   items: EstimateItemFormValues[];

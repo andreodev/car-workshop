@@ -38,12 +38,15 @@ export default function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <TenantThemeProvider>
-        <ToastProvider>
-          <BrowserSessionGuard>{children}</BrowserSessionGuard>
-          <Suspense fallback={null}>
-            <PageTransitionLoading />
-          </Suspense>
-        </ToastProvider>
+       <ToastProvider>
+  <BrowserSessionGuard>
+    <Suspense fallback={null}>{children}</Suspense>
+  </BrowserSessionGuard>
+
+  <Suspense fallback={null}>
+    <PageTransitionLoading />
+  </Suspense>
+</ToastProvider>
       </TenantThemeProvider>
       {process.env.NODE_ENV === "development" ? (
         <ReactQueryDevtools initialIsOpen={false} />

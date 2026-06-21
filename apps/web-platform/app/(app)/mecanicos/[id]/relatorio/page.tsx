@@ -630,7 +630,7 @@ function CommissionAccountsTable({ orders }: { orders: MechanicReportOrder[] }) 
   );
 }
 
-export default function MechanicReportPage({ params }: MechanicReportPageProps) {
+export default function MechanicReportClient({ params }: MechanicReportPageProps) {
   const { id } = use(params);
   const searchParams = useSearchParams();
   const period = normalizePeriod(searchParams.get("period"));
