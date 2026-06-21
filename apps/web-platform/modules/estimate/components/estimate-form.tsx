@@ -65,13 +65,13 @@ import {
   createEmptyEstimateItem,
   dateInputToUtcEndOfDay,
   emptyEstimateForm,
-  formatCurrency,
   getCommissionBaseValue,
   getEstimateItemValidationError,
   getVehicleLabel,
   mapEstimateToForm,
   normalizeAmount,
 } from "../utils/estimate-form-utils";
+import { formatCurrency } from "@/lib/finance/formatCurrency";
 
 type EstimateFormProps = {
   mode: "create" | "edit";
