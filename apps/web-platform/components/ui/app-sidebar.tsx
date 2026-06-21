@@ -74,7 +74,7 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                     />
                     {logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                             src={logoUrl}
                             alt={resolvedBrandName}
                             className="h-16 w-auto object-contain drop-shadow-sm transition-all duration-300 group-data-[collapsible=icon]:hidden"
@@ -89,9 +89,6 @@ export function AppSidebar({ logoUrl, brandName }: AppSidebarProps) {
                             priority
                         />
                     )}
-                    <div className="hidden size-11 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground text-sm font-semibold tracking-[0.2em] group-data-[collapsible=icon]:flex">
-                        {resolvedBrandName.slice(0, 3).toUpperCase()}
-                    </div>
                 </SidebarHeader>
 
                 <SidebarContent className="px-3 pb-6">

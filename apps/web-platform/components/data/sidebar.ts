@@ -6,6 +6,7 @@ import {
   Package,
   Settings,
   Users,
+  Wrench,
 } from "lucide-react";
 
 export const menuGroups = [
@@ -20,6 +21,7 @@ export const menuGroups = [
     title: "Dia a dia",
     items: [
       { title: "Clientes", href: "/clientes", icon: Users },
+      { title: "Mecânicos", href: "/mecanicos", icon: Wrench },
       { title: "Estoque", href: "/produtos", icon: Package },
       { title: "Financeiro", href: "/financeiro", icon: Landmark },
       { title: "Relatórios", href: "/relatorios", icon: LineChart },

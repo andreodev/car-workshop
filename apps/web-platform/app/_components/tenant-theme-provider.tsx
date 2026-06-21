@@ -15,7 +15,7 @@ import {
   tenantThemeCacheKey,
   type TenantThemeBranding,
 } from "@/app/lib/tenant-theme";
-import { AppBootLoading } from "@/components/ui/app-boot-loading";
+import { PageTransitionLoading } from "@/components/ui/page-transition-loading";
 
 type TenantThemeCache = {
   domain: string;
@@ -183,7 +183,7 @@ export function TenantThemeProvider({
   );
 
   if (shouldFetch && themeQuery.isLoading) {
-    return <AppBootLoading label="Carregando identidade..." />;
+    return <PageTransitionLoading />;
   }
 
   if (shouldFetch && themeQuery.data === null) {

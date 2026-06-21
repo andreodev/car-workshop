@@ -423,14 +423,14 @@ export default async function DashboardPage({
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="shadow-sm ">
           <CardHeader>
             <CardTitle className="text-base">Etapas do atendimento</CardTitle>
             <CardDescription>
               A regra do sistema continua igual; a entrada ficou mais direta.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
+          <CardContent className="grid min-h-80 content-center gap-3 md:grid-cols-3">
             {stepByStep.map(([step, title, description]) => (
               <div
                 key={step}

@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 
 import { hasBrowserSession } from "@/app/lib/browser-session";
 import { useTenantTheme } from "@/app/_components/tenant-theme-provider";
-import { AppBootLoading } from "@/components/ui/app-boot-loading";
+import { PageTransitionLoading } from "@/components/ui/page-transition-loading";
 
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
@@ -89,11 +89,11 @@ export function BrowserSessionGuard({ children }: { children: React.ReactNode })
   }, [isThemeLoading, pathname, router]);
 
   if (isThemeLoading) {
-    return <AppBootLoading label="Carregando identidade..." />;
+    return <PageTransitionLoading />;
   }
 
   if (!isReady) {
-    return <AppBootLoading label="Verificando acesso..." />;
+    return <PageTransitionLoading />;
   }
 
   return <>{children}</>;
