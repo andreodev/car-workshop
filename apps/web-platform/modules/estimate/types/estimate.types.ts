@@ -1,3 +1,5 @@
+export type EstimateFormStep = "client" | "items" | "review";
+
 export type EstimateStatus =
   | "RASCUNHO"
   | "ENVIADO"
@@ -149,4 +151,25 @@ export type ConvertEstimateResponse = {
     id: string;
     code: number;
   };
+};
+
+export type EstimateFormProps = {
+  mode: "create" | "edit";
+  initialData?: Estimate | null;
+};
+
+export type QuickCatalogDialogState = {
+  mode: "create" | "stock";
+  itemId: string;
+  itemType?: EstimateItemFormValues["type"];
+  catalogItemId?: string;
+} | null;
+
+export type QuickCatalogFormValues = {
+  name: string;
+  quantity: string;
+  unitPrice: string;
+  unit: string;
+  stockMinimum: string;
+  notes: string;
 };
