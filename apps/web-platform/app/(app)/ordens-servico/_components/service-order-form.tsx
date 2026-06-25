@@ -14,7 +14,10 @@ import {
   fetchAllCatalogItems,
   fetchSectors,
 } from "@/modules/pdv/api/pdv.service";
-import type { CatalogItem, CatalogItemListResponse } from "@/modules/pdv/types/pdv.types";
+import type {
+  CatalogItem,
+  CatalogItemListResponse,
+} from "@/modules/pdv/types/pdv.types";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
 import { serviceOrderStatusOptions } from "../status";
 import { createServiceOrder, updateServiceOrder } from "../service-order-api";
@@ -62,7 +65,9 @@ import {
 
 function createEmptyItem(): ServiceOrderItemFormValues {
   return {
-    id: globalThis.crypto?.randomUUID?.() ?? `item-${Date.now()}-${Math.random()}`,
+    id:
+      globalThis.crypto?.randomUUID?.() ??
+      `item-${Date.now()}-${Math.random()}`,
     type: "SERVICE",
     catalogItemId: "",
     mechanicId: "",
@@ -150,11 +155,13 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
               calculateDiscountPercent(
                 Number(item.quantity),
                 Number(item.unitPrice ?? 0),
-                item.discount ?? "0"
+                item.discount ?? "0",
               ),
             ),
             commissionBase:
-              item.commissionBase === null ? "" : formatAmountInput(item.commissionBase),
+              item.commissionBase === null
+                ? ""
+                : formatAmountInput(item.commissionBase),
           }))
         : [createEmptyItem()],
   };
@@ -314,7 +321,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ServiceOrderFormValues>(() =>
-    initialData ? mapOrderToForm(initialData) : emptyForm
+    initialData ? mapOrderToForm(initialData) : emptyForm,
   );
   const [activeTab, setActiveTab] =
     useState<ServiceOrderFormStepValue>("cabecalho");
@@ -326,8 +333,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   const { toast } = useToast();
 
   const sessionQuery = useAuthSession();
-  const sessionName = sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
-  const responsibleValue = form.responsible || (!initialData ? sessionName : "");
+  const sessionName =
+    sessionQuery.data?.user?.name ?? sessionQuery.data?.user?.email ?? "";
+  const responsibleValue =
+    form.responsible || (!initialData ? sessionName : "");
 
   const clientsQuery = useQuery({
     queryKey: ["service-order-clients"],
@@ -369,7 +378,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
       const exists = data.items.some((item) => item.id === catalogItem.id);
       const items = exists
-        ? data.items.map((item) => (item.id === catalogItem.id ? catalogItem : item))
+        ? data.items.map((item) =>
+            item.id === catalogItem.id ? catalogItem : item,
+          )
         : [catalogItem, ...data.items];
 
       return {
@@ -381,15 +392,15 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
     queryClient.setQueriesData<CatalogItemListResponse>(
       { queryKey: ["service-order-catalog-items"] },
-      updater
+      updater,
     );
     queryClient.setQueriesData<CatalogItemListResponse>(
       { queryKey: ["catalog-items"] },
-      updater
+      updater,
     );
     queryClient.setQueriesData<CatalogItemListResponse>(
       { queryKey: ["pdv-catalog-items"] },
-      updater
+      updater,
     );
   }
 
@@ -419,7 +430,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           throw new Error(
             itemType === "SERVICE"
               ? "Informe o nome do serviço."
-              : "Informe o nome do produto."
+              : "Informe o nome do produto.",
           );
         }
 
@@ -427,7 +438,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           throw new Error(
             itemType === "SERVICE"
               ? "Informe o valor unitário do serviço."
-              : "Informe o valor unitário do produto."
+              : "Informe o valor unitário do produto.",
           );
         }
 
@@ -436,7 +447,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           type: catalogType,
           unitPrice,
           salePrice: String(unitPrice),
-          stockCurrent: itemType === "PRODUCT" ? String(Math.max(quantity, 0)) : "",
+          stockCurrent:
+            itemType === "PRODUCT" ? String(Math.max(quantity, 0)) : "",
           stockMinimum:
             itemType === "PRODUCT"
               ? String(normalizeAmount(quickCatalogForm.stockMinimum))
@@ -444,14 +456,19 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
           unit: quickCatalogForm.unit.trim() || "UN",
           sectorId:
             itemType === "SERVICE"
-              ? form.items.find((item) => item.id === quickCatalogDialog.itemId)?.sectorId ?? ""
+              ? (form.items.find(
+                  (item) => item.id === quickCatalogDialog.itemId,
+                )?.sectorId ?? "")
               : "",
           active: true,
         });
       }
 
-      const formItem = form.items.find((item) => item.id === quickCatalogDialog.itemId);
-      const catalogItemId = quickCatalogDialog.catalogItemId || formItem?.catalogItemId;
+      const formItem = form.items.find(
+        (item) => item.id === quickCatalogDialog.itemId,
+      );
+      const catalogItemId =
+        quickCatalogDialog.catalogItemId || formItem?.catalogItemId;
 
       if (!catalogItemId) {
         throw new Error("Selecione o produto para adicionar estoque.");
@@ -465,12 +482,17 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     onSuccess: async (catalogItem) => {
       mergeCatalogItemIntoCaches(catalogItem);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["service-order-catalog-items"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["service-order-catalog-items"],
+        }),
         queryClient.invalidateQueries({ queryKey: ["catalog-items"] }),
         queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] }),
       ]);
 
-      if (quickCatalogDialog?.mode === "create" || quickCatalogDialog?.mode === "stock") {
+      if (
+        quickCatalogDialog?.mode === "create" ||
+        quickCatalogDialog?.mode === "stock"
+      ) {
         const itemType = catalogItem.type === "PRODUTO" ? "PRODUCT" : "SERVICE";
         setForm((prev) => ({
           ...prev,
@@ -488,7 +510,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                       ? item.mechanicId || form.mechanicId
                       : item.mechanicId,
                 }
-              : item
+              : item,
           ),
         }));
       }
@@ -509,7 +531,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "Não foi possível atualizar o produto.";
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o produto.";
       toast({
         title: "Erro no produto",
         description: message,
@@ -537,9 +561,13 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       queryClient.invalidateQueries({ queryKey: ["service-orders"] });
       queryClient.invalidateQueries({ queryKey: ["catalog-items"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-catalog-items"] });
-      queryClient.invalidateQueries({ queryKey: ["service-order-catalog-items"] });
+      queryClient.invalidateQueries({
+        queryKey: ["service-order-catalog-items"],
+      });
       if (mode === "edit" && initialData?.id) {
-        queryClient.invalidateQueries({ queryKey: ["service-order", initialData.id] });
+        queryClient.invalidateQueries({
+          queryKey: ["service-order", initialData.id],
+        });
       }
       toast({
         title: mode === "edit" ? "OS atualizada" : "OS criada",
@@ -551,7 +579,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "Nao foi possivel salvar a OS.";
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel salvar a OS.";
       setLocalError(message);
       toast({
         title: "Erro ao salvar OS",
@@ -569,7 +599,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
       const discountPercent = normalizeAmount(item.discount);
-      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const discount = calculateDiscountValue(
+        quantity,
+        unitPrice,
+        discountPercent,
+      );
       subtotal += quantity * unitPrice;
       discountTotal += discount;
     });
@@ -578,10 +612,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       const quantity = normalizeAmount(item.quantity);
       const unitPrice = normalizeAmount(item.unitPrice);
       const discountPercent = normalizeAmount(item.discount);
-      const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
+      const discount = calculateDiscountValue(
+        quantity,
+        unitPrice,
+        discountPercent,
+      );
       const lineTotal = Math.max(quantity * unitPrice - discount, 0);
 
-      return item.type === "SERVICE" ? sum + getCommissionBaseValue(item, lineTotal) : sum;
+      return item.type === "SERVICE"
+        ? sum + getCommissionBaseValue(item, lineTotal)
+        : sum;
     }, 0);
 
     return {
@@ -592,26 +632,34 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     };
   }, [form.items]);
 
-  const onChange = (field: keyof ServiceOrderFormValues) =>
+  const onChange =
+    (field: keyof ServiceOrderFormValues) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
       setLocalError(null);
     };
 
-  function updateItem(itemId: string, field: keyof ServiceOrderItemFormValues, value: string) {
+  function updateItem(
+    itemId: string,
+    field: keyof ServiceOrderItemFormValues,
+    value: string,
+  ) {
     const nextValue = maskServiceOrderItemField(field, value);
 
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.id === itemId ? { ...item, [field]: nextValue } : item
+        item.id === itemId ? { ...item, [field]: nextValue } : item,
       ),
     }));
     setLocalError(null);
   }
 
-  function updateItemType(itemId: string, type: ServiceOrderItemFormValues["type"]) {
+  function updateItemType(
+    itemId: string,
+    type: ServiceOrderItemFormValues["type"],
+  ) {
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
@@ -624,7 +672,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               sectorId: type === "SERVICE" ? item.sectorId : "",
               commissionBase: type === "SERVICE" ? item.commissionBase : "",
             }
-          : item
+          : item,
       ),
     }));
     setLocalError(null);
@@ -650,7 +698,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   : "SERVICE"
                 : item.type,
             }
-          : item
+          : item,
       ),
     }));
     setLocalError(null);
@@ -676,7 +724,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     });
   }
 
-  function openQuickStockAdd(itemId: string, catalogItem: CatalogItem | undefined) {
+  function openQuickStockAdd(
+    itemId: string,
+    catalogItem: CatalogItem | undefined,
+  ) {
     const formItem = form.items.find((item) => item.id === itemId);
     const requestedQuantity = normalizeAmount(formItem?.quantity ?? "1");
     const currentStock = normalizeAmount(catalogItem?.stockCurrent ?? "0");
@@ -697,7 +748,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   function removeItem(itemId: string) {
     setForm((prev) => {
       const nextItems = prev.items.filter((item) => item.id !== itemId);
-      return { ...prev, items: nextItems.length > 0 ? nextItems : [createEmptyItem()] };
+      return {
+        ...prev,
+        items: nextItems.length > 0 ? nextItems : [createEmptyItem()],
+      };
     });
   }
 
@@ -736,7 +790,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     }
 
     if (form.status === "PAGA") {
-      setLocalError("OS paga não pode ser alterada pela edição da ordem de serviço.");
+      setLocalError(
+        "OS paga não pode ser alterada pela edição da ordem de serviço.",
+      );
       setActiveTab("cabecalho");
       return;
     }
@@ -774,11 +830,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
         discount: calculateDiscountValue(
           normalizeAmount(item.quantity),
           normalizeAmount(item.unitPrice),
-          normalizeAmount(item.discount)
+          normalizeAmount(item.discount),
         ),
-        commissionBase: item.type === "SERVICE" && item.commissionBase.trim()
-          ? normalizeAmount(item.commissionBase)
-          : null,
+        commissionBase:
+          item.type === "SERVICE" && item.commissionBase.trim()
+            ? normalizeAmount(item.commissionBase)
+            : null,
       })),
     };
 
@@ -786,9 +843,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
   }
 
   const isSaving = mutation.isPending;
-  const errorMessage = localError ?? (mutation.error ? mutation.error.message : null);
+  const errorMessage =
+    localError ?? (mutation.error ? mutation.error.message : null);
   const activeStepIndex = serviceOrderFormSteps.findIndex(
-    (step) => step.value === activeTab
+    (step) => step.value === activeTab,
   );
   const previousStep = serviceOrderFormSteps[activeStepIndex - 1]?.value;
   const nextStep = serviceOrderFormSteps[activeStepIndex + 1]?.value;
@@ -810,15 +868,13 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
     : undefined;
   const quickDialogItemType =
     quickCatalogDialog?.itemType ?? quickDialogItem?.type ?? "PRODUCT";
-  const productCatalogItems = catalogItems.filter((item) => item.type === "PRODUTO");
+  const productCatalogItems = catalogItems.filter(
+    (item) => item.type === "PRODUTO",
+  );
   const isQuickCatalogSaving = quickCatalogMutation.isPending;
 
   if (isLoadingOptions) {
-    return (
-      <FormLoadingState
-        title="Carregando ordem de serviço..."
-      />
-    );
+    return <FormLoadingState title="Carregando ordem de serviço..." />;
   }
 
   return (
@@ -826,17 +882,27 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
       <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col">
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as ServiceOrderFormStepValue)}
+          onValueChange={(value) =>
+            setActiveTab(value as ServiceOrderFormStepValue)
+          }
           className="min-w-0 flex-1"
         >
           <div className="flex min-w-0 flex-1 flex-col gap-5 sm:gap-8">
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <Header
-                title={mode === "edit" ? "Editar ordem de serviço" : "Nova ordem de serviço"}
+                title={
+                  mode === "edit"
+                    ? "Editar ordem de serviço"
+                    : "Nova ordem de serviço"
+                }
                 description="Registre a OS, acompanhe itens e mantenha o time alinhado."
               />
               <Badge variant="secondary" className="h-fit w-fit text-[11px]">
-                {serviceOrderStatusOptions.find((option) => option.value === form.status)?.label}
+                {
+                  serviceOrderStatusOptions.find(
+                    (option) => option.value === form.status,
+                  )?.label
+                }
               </Badge>
             </div>
 
@@ -857,7 +923,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   {activeTab === "cabecalho" ? (
                     <section className="space-y-5">
                       <div className="space-y-1">
-                        <h3 className="font-heading text-lg text-foreground">Cabeçalho</h3>
+                        <h3 className="font-heading text-lg text-foreground">
+                          Cabeçalho
+                        </h3>
                         <p className="text-sm text-muted-foreground">
                           Cliente, veículo e datas principais da OS.
                         </p>
@@ -869,23 +937,31 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           <Select
                             value={form.clientId}
                             onValueChange={(value) => {
-                              setForm((prev) => ({ ...prev, clientId: value, vehicleId: "" }));
+                              setForm((prev) => ({
+                                ...prev,
+                                clientId: value,
+                                vehicleId: "",
+                              }));
                               setLocalError(null);
                             }}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={
-                                  clientsQuery.isLoading ? "Carregando clientes..." : "Selecione"
+                                  clientsQuery.isLoading
+                                    ? "Carregando clientes..."
+                                    : "Selecione"
                                 }
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {(clientsQuery.data?.items ?? []).map((client) => (
-                                <SelectItem key={client.id} value={client.id}>
-                                  {client.name}
-                                </SelectItem>
-                              ))}
+                              {(clientsQuery.data?.items ?? []).map(
+                                (client) => (
+                                  <SelectItem key={client.id} value={client.id}>
+                                    {client.name}
+                                  </SelectItem>
+                                ),
+                              )}
                             </SelectContent>
                           </Select>
                           {clientsQuery.isError ? (
@@ -916,13 +992,18 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={
-                                  mechanicsQuery.isLoading ? "Carregando mecânicos..." : "Selecione"
+                                  mechanicsQuery.isLoading
+                                    ? "Carregando mecânicos..."
+                                    : "Selecione"
                                 }
                               />
                             </SelectTrigger>
                             <SelectContent>
                               {mechanics.map((mechanic) => (
-                                <SelectItem key={mechanic.id} value={mechanic.id}>
+                                <SelectItem
+                                  key={mechanic.id}
+                                  value={mechanic.id}
+                                >
                                   {mechanic.name}
                                 </SelectItem>
                               ))}
@@ -942,21 +1023,27 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                           <Select
                             value={form.vehicleId}
                             onValueChange={(value) => {
-                              setForm((prev) => ({ ...prev, vehicleId: value }));
+                              setForm((prev) => ({
+                                ...prev,
+                                vehicleId: value,
+                              }));
                               setLocalError(null);
                             }}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={
-                                  vehiclesQuery.isLoading ? "Carregando veículos..." : "Selecione"
+                                  vehiclesQuery.isLoading
+                                    ? "Carregando veículos..."
+                                    : "Selecione"
                                 }
                               />
                             </SelectTrigger>
                             <SelectContent>
                               {availableVehicles.map((vehicle) => (
                                 <SelectItem key={vehicle.id} value={vehicle.id}>
-                                  {vehicle.plate} {vehicle.model ? `- ${vehicle.model}` : ""}
+                                  {vehicle.plate}{" "}
+                                  {vehicle.model ? `- ${vehicle.model}` : ""}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -972,7 +1059,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                       <div className="grid gap-4 md:grid-cols-3">
                         <div className="grid min-w-0 gap-2 md:col-span-2">
                           <Label>Responsável</Label>
-                          <Input value={responsibleValue} onChange={onChange("responsible")} />
+                          <Input
+                            value={responsibleValue}
+                            onChange={onChange("responsible")}
+                          />
                         </div>
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -1004,7 +1094,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             Itens e serviços
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            Registre os itens executados e atualize o total automaticamente.
+                            Registre os itens executados e atualize o total
+                            automaticamente.
                           </p>
                         </div>
                         <Button
@@ -1020,19 +1111,28 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                         {form.items.map((item, index) => {
                           const quantity = normalizeAmount(item.quantity);
                           const unitPrice = normalizeAmount(item.unitPrice);
-                          const discountPercent = normalizeAmount(item.discount);
+                          const discountPercent = normalizeAmount(
+                            item.discount,
+                          );
                           const discount = calculateDiscountValue(
                             quantity,
                             unitPrice,
-                            discountPercent
+                            discountPercent,
                           );
-                          const lineTotal = Math.max(quantity * unitPrice - discount, 0);
-                          const commissionBase = getCommissionBaseValue(item, lineTotal);
+                          const lineTotal = Math.max(
+                            quantity * unitPrice - discount,
+                            0,
+                          );
+                          const commissionBase = getCommissionBaseValue(
+                            item,
+                            lineTotal,
+                          );
                           const selectedCatalogItem = catalogItems.find(
-                            (catalogItem) => catalogItem.id === item.catalogItemId
+                            (catalogItem) =>
+                              catalogItem.id === item.catalogItemId,
                           );
                           const selectedStock = normalizeAmount(
-                            selectedCatalogItem?.stockCurrent ?? "0"
+                            selectedCatalogItem?.stockCurrent ?? "0",
                           );
                           const hasInsufficientStock =
                             item.type === "PRODUCT" &&
@@ -1052,10 +1152,14 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       Item {index + 1}
                                     </span>
                                     <Badge variant="outline">
-                                      {item.type === "PRODUCT" ? "Produto" : "Serviço"}
+                                      {item.type === "PRODUCT"
+                                        ? "Produto"
+                                        : "Serviço"}
                                     </Badge>
                                     {hasInsufficientStock ? (
-                                      <Badge variant="destructive">Estoque baixo</Badge>
+                                      <Badge variant="destructive">
+                                        Estoque baixo
+                                      </Badge>
                                     ) : null}
                                   </div>
                                   <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -1091,7 +1195,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       onValueChange={(value) =>
                                         updateItemType(
                                           item.id,
-                                          value as ServiceOrderItemFormValues["type"]
+                                          value as ServiceOrderItemFormValues["type"],
                                         )
                                       }
                                     >
@@ -1099,8 +1203,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="SERVICE">Serviço</SelectItem>
-                                        <SelectItem value="PRODUCT">Produto</SelectItem>
+                                        <SelectItem value="SERVICE">
+                                          Serviço
+                                        </SelectItem>
+                                        <SelectItem value="PRODUCT">
+                                          Produto
+                                        </SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -1113,14 +1221,17 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       type={item.type}
                                       loading={catalogItemsQuery.isLoading}
                                       manualLabel={
-                                        item.type === "PRODUCT" ? "Selecione produto" : "Manual"
+                                        item.type === "PRODUCT"
+                                          ? "Selecione produto"
+                                          : "Manual"
                                       }
                                       onChange={(value) =>
                                         updateItemCatalog(item.id, value)
                                       }
                                     />
                                     <div className="flex flex-col gap-2 pt-1">
-                                      {item.type === "PRODUCT" && selectedCatalogItem ? (
+                                      {item.type === "PRODUCT" &&
+                                      selectedCatalogItem ? (
                                         <span
                                           className={
                                             hasInsufficientStock
@@ -1128,7 +1239,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                               : "text-xs text-muted-foreground"
                                           }
                                         >
-                                          Estoque: {selectedStock}. Solicitado: {quantity || 0}.
+                                          Estoque: {selectedStock}. Solicitado:{" "}
+                                          {quantity || 0}.
                                         </span>
                                       ) : null}
                                       <div className="flex flex-wrap gap-2">
@@ -1136,7 +1248,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           type="button"
                                           variant="outline"
                                           className="h-8"
-                                          onClick={() => openQuickCatalogCreate(item.id)}
+                                          onClick={() =>
+                                            openQuickCatalogCreate(item.id)
+                                          }
                                         >
                                           {item.type === "PRODUCT"
                                             ? "Cadastrar produto"
@@ -1145,10 +1259,17 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         {item.type === "PRODUCT" ? (
                                           <Button
                                             type="button"
-                                            variant={hasInsufficientStock ? "secondary" : "outline"}
+                                            variant={
+                                              hasInsufficientStock
+                                                ? "secondary"
+                                                : "outline"
+                                            }
                                             className="h-8"
                                             onClick={() =>
-                                              openQuickStockAdd(item.id, selectedCatalogItem)
+                                              openQuickStockAdd(
+                                                item.id,
+                                                selectedCatalogItem,
+                                              )
                                             }
                                           >
                                             Adicionar estoque
@@ -1165,7 +1286,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         <Select
                                           value={item.mechanicId}
                                           onValueChange={(value) =>
-                                            updateItem(item.id, "mechanicId", value)
+                                            updateItem(
+                                              item.id,
+                                              "mechanicId",
+                                              value,
+                                            )
                                           }
                                         >
                                           <SelectTrigger className="h-11 w-full">
@@ -1179,7 +1304,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           </SelectTrigger>
                                           <SelectContent>
                                             {mechanics.map((mechanic) => (
-                                              <SelectItem key={mechanic.id} value={mechanic.id}>
+                                              <SelectItem
+                                                key={mechanic.id}
+                                                value={mechanic.id}
+                                              >
                                                 {mechanic.name}
                                               </SelectItem>
                                             ))}
@@ -1192,7 +1320,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         <Select
                                           value={item.sectorId}
                                           onValueChange={(value) =>
-                                            updateItem(item.id, "sectorId", value)
+                                            updateItem(
+                                              item.id,
+                                              "sectorId",
+                                              value,
+                                            )
                                           }
                                         >
                                           <SelectTrigger className="h-11 w-full">
@@ -1206,7 +1338,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           </SelectTrigger>
                                           <SelectContent>
                                             {sectors.map((sector) => (
-                                              <SelectItem key={sector.id} value={sector.id}>
+                                              <SelectItem
+                                                key={sector.id}
+                                                value={sector.id}
+                                              >
                                                 {sector.name}
                                               </SelectItem>
                                             ))}
@@ -1219,8 +1354,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   <div className="grid gap-2 md:col-span-2">
                                     <Label>
                                       {item.type === "SERVICE"
-                                        ? "Nome do serviço"
-                                        : "Nome do produto"}
+                                        ? "Descrição do serviço"
+                                        : "Descrição do produto"}
                                     </Label>
                                     <Input
                                       className="h-11"
@@ -1229,7 +1364,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         updateItem(
                                           item.id,
                                           "description",
-                                          event.target.value
+                                          event.target.value,
                                         )
                                       }
                                       placeholder={`Item ${index + 1}`}
@@ -1243,7 +1378,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       inputMode="numeric"
                                       value={item.quantity}
                                       onChange={(event) =>
-                                        updateItem(item.id, "quantity", event.target.value)
+                                        updateItem(
+                                          item.id,
+                                          "quantity",
+                                          event.target.value,
+                                        )
                                       }
                                     />
                                   </div>
@@ -1255,7 +1394,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       inputMode="decimal"
                                       value={item.unitPrice}
                                       onChange={(event) =>
-                                        updateItem(item.id, "unitPrice", event.target.value)
+                                        updateItem(
+                                          item.id,
+                                          "unitPrice",
+                                          event.target.value,
+                                        )
                                       }
                                     />
                                   </div>
@@ -1267,7 +1410,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                       inputMode="decimal"
                                       value={item.discount}
                                       onChange={(event) =>
-                                        updateItem(item.id, "discount", event.target.value)
+                                        updateItem(
+                                          item.id,
+                                          "discount",
+                                          event.target.value,
+                                        )
                                       }
                                     />
                                   </div>
@@ -1283,7 +1430,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                           updateItem(
                                             item.id,
                                             "commissionBase",
-                                            event.target.value
+                                            event.target.value,
                                           )
                                         }
                                         placeholder={formatCurrency(lineTotal)}
@@ -1293,7 +1440,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
                                   <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
                                     <div className="flex items-center justify-between gap-3">
-                                      <span className="text-muted-foreground">Total do item</span>
+                                      <span className="text-muted-foreground">
+                                        Total do item
+                                      </span>
                                       <span className="font-mono font-semibold">
                                         {formatCurrency(lineTotal)}
                                       </span>
@@ -1318,17 +1467,25 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
                       <div className="mx-5 mb-5 w-auto rounded-2xl border border-border bg-background p-5 text-sm shadow-sm sm:ml-auto sm:max-w-lg">
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Subtotal</span>
-                          <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
+                          <span className="text-muted-foreground">
+                            Subtotal
+                          </span>
+                          <span className="font-semibold">
+                            {formatCurrency(totals.subtotal)}
+                          </span>
                         </div>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="text-muted-foreground">Descontos</span>
+                          <span className="text-muted-foreground">
+                            Descontos
+                          </span>
                           <span className="font-semibold text-amber-700">
                             -{formatCurrency(totals.discountTotal)}
                           </span>
                         </div>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="text-muted-foreground">Base comissão</span>
+                          <span className="text-muted-foreground">
+                            Base comissão
+                          </span>
                           <span className="font-semibold">
                             {formatCurrency(totals.commissionBaseTotal)}
                           </span>
@@ -1347,9 +1504,12 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   {activeTab === "observações" ? (
                     <section className="space-y-5">
                       <div className="space-y-1">
-                        <h3 className="font-heading text-lg text-foreground">Observações</h3>
+                        <h3 className="font-heading text-lg text-foreground">
+                          Observações
+                        </h3>
                         <p className="text-sm text-muted-foreground">
-                          Registre notas internas e mensagens visiveis ao cliente.
+                          Registre notas internas e mensagens visiveis ao
+                          cliente.
                         </p>
                       </div>
 
@@ -1385,7 +1545,8 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
 
             <div className="sticky bottom-0 z-30 -mx-4 mt-auto flex flex-col items-stretch justify-between gap-3 border-t border-border/70 bg-background/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] backdrop-blur sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:flex-row lg:items-center lg:gap-4 lg:bg-transparent lg:px-0 lg:pb-0 lg:pr-20 lg:pt-6 lg:shadow-none lg:backdrop-blur-none 2xl:pr-0">
               <p className="hidden text-xs text-muted-foreground sm:block">
-                Revise os dados antes de salvar. A ordem ficará disponível para acompanhamento.
+                Revise os dados antes de salvar. A ordem ficará disponível para
+                acompanhamento.
               </p>
 
               <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-row lg:justify-end">
@@ -1472,7 +1633,9 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               <>
                 <div className="grid gap-2">
                   <Label>
-                    {quickDialogItemType === "SERVICE" ? "Nome do serviço" : "Nome do produto"}
+                    {quickDialogItemType === "SERVICE"
+                      ? "Nome do serviço"
+                      : "Nome do produto"}
                   </Label>
                   <Input
                     value={quickCatalogForm.name}
@@ -1559,7 +1722,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                       setQuickCatalogDialog((prev) =>
                         prev?.mode === "stock"
                           ? { ...prev, catalogItemId: value }
-                          : prev
+                          : prev,
                       )
                     }
                   >
@@ -1581,8 +1744,11 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Estoque atual:{" "}
-                    {normalizeAmount(quickDialogCatalogItem?.stockCurrent ?? "0")}. Quantidade
-                    na OS: {normalizeAmount(quickDialogItem?.quantity ?? "0")}.
+                    {normalizeAmount(
+                      quickDialogCatalogItem?.stockCurrent ?? "0",
+                    )}
+                    . Quantidade na OS:{" "}
+                    {normalizeAmount(quickDialogItem?.quantity ?? "0")}.
                   </p>
                 </div>
                 <div className="grid gap-2">

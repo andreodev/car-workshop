@@ -442,14 +442,14 @@ function formatDocument(value: string | null) {
   if (digits.length === 11) {
     return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(
       6,
-      9
+      9,
     )}-${digits.slice(9)}`;
   }
 
   if (digits.length === 14) {
     return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(
       5,
-      8
+      8,
     )}/${digits.slice(8, 12)}-${digits.slice(12)}`;
   }
 
@@ -472,14 +472,16 @@ function formatPhone(value: string | null) {
   return value;
 }
 
-function formatVehicle(value: {
-  plate: string;
-  brand: string | null;
-  model: string | null;
-  version: string | null;
-  modelYear: number | null;
-  color: string | null;
-} | null) {
+function formatVehicle(
+  value: {
+    plate: string;
+    brand: string | null;
+    model: string | null;
+    version: string | null;
+    modelYear: number | null;
+    color: string | null;
+  } | null,
+) {
   if (!value) {
     return "-";
   }
@@ -507,7 +509,9 @@ function paymentLabel(value: string) {
   return labels[value] ?? value;
 }
 
-function formatPaymentMethodWithInstallments(payment: ReceiptPayment | undefined) {
+function formatPaymentMethodWithInstallments(
+  payment: ReceiptPayment | undefined,
+) {
   if (!payment) {
     return "-";
   }
@@ -642,7 +646,7 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                   src: logoSrc,
                   style: styles.logo,
                 })
-              : null
+              : null,
           ),
 
           h(
@@ -654,14 +658,14 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: styles.companyName },
-              companySettings?.tradeName || "Empresa"
+              companySettings?.tradeName || "Empresa",
             ),
 
             companySettings?.document
               ? h(
                   Text,
                   { style: styles.companyInfo },
-                  `CNPJ: ${formatDocument(companySettings.document)}`
+                  `CNPJ: ${formatDocument(companySettings.document)}`,
                 )
               : null,
 
@@ -669,18 +673,14 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
               ? h(
                   Text,
                   { style: styles.companyInfo },
-                  formatPhone(companySettings.phone)
+                  formatPhone(companySettings.phone),
                 )
               : null,
 
             companySettings?.email
-              ? h(
-                  Text,
-                  { style: styles.companyInfo },
-                  companySettings.email
-                )
-              : null
-          )
+              ? h(Text, { style: styles.companyInfo }, companySettings.email)
+              : null,
+          ),
         ),
 
         h(
@@ -696,15 +696,15 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
           h(
             Text,
             { style: styles.receiptMeta },
-            `Emissão: ${formatDateTime(sale.createdAt)}`
+            `Emissão: ${formatDateTime(sale.createdAt)}`,
           ),
 
           h(
             Text,
             { style: styles.receiptMeta },
-            `Pagamento: ${paymentSummaryLabel}`
-          )
-        )
+            `Pagamento: ${paymentSummaryLabel}`,
+          ),
+        ),
       ),
 
       h(
@@ -717,7 +717,7 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
 
           h(Text, { style: styles.totalLabel }, "Valor total"),
 
-          h(Text, { style: styles.totalValue }, formatCurrency(sale.total))
+          h(Text, { style: styles.totalValue }, formatCurrency(sale.total)),
         ),
 
         h(
@@ -735,9 +735,9 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                 fontSize: 7,
               },
             },
-            `Responsável: ${sale.responsible || "-"}`
-          )
-        )
+            `Responsável: ${sale.responsible || "-"}`,
+          ),
+        ),
       ),
 
       h(
@@ -754,7 +754,7 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             Text,
             { style: styles.infoLine },
             "Nome: ",
-            h(Text, { style: styles.strong }, sale.client?.name || "-")
+            h(Text, { style: styles.strong }, sale.client?.name || "-"),
           ),
 
           sale.client?.cpf
@@ -765,8 +765,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                 h(
                   Text,
                   { style: styles.strong },
-                  formatDocument(sale.client.cpf)
-                )
+                  formatDocument(sale.client.cpf),
+                ),
               )
             : null,
 
@@ -778,8 +778,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                 h(
                   Text,
                   { style: styles.strong },
-                  formatPhone(sale.client.mobile)
-                )
+                  formatPhone(sale.client.mobile),
+                ),
               )
             : null,
 
@@ -788,9 +788,9 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                 Text,
                 { style: styles.infoLine },
                 "Email: ",
-                h(Text, { style: styles.strong }, sale.client.email)
+                h(Text, { style: styles.strong }, sale.client.email),
               )
-            : null
+            : null,
         ),
 
         h(
@@ -803,21 +803,21 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             Text,
             { style: styles.infoLine },
             "Código: ",
-            h(Text, { style: styles.strong }, `#${sale.code}`)
+            h(Text, { style: styles.strong }, `#${sale.code}`),
           ),
 
           h(
             Text,
             { style: styles.infoLine },
             "Data: ",
-            h(Text, { style: styles.strong }, formatDateTime(sale.createdAt))
+            h(Text, { style: styles.strong }, formatDateTime(sale.createdAt)),
           ),
 
           h(
             Text,
             { style: styles.infoLine },
             "Setor: ",
-            h(Text, { style: styles.strong }, sale.sector?.name || "-")
+            h(Text, { style: styles.strong }, sale.sector?.name || "-"),
           ),
 
           sale.serviceOrder?.vehicle
@@ -828,8 +828,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
                 h(
                   Text,
                   { style: styles.strong },
-                  formatVehicle(sale.serviceOrder.vehicle)
-                )
+                  formatVehicle(sale.serviceOrder.vehicle),
+                ),
               )
             : null,
 
@@ -837,9 +837,9 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             Text,
             { style: styles.infoLine },
             "Responsável: ",
-            h(Text, { style: styles.strong }, sale.responsible || "-")
-          )
-        )
+            h(Text, { style: styles.strong }, sale.responsible || "-"),
+          ),
+        ),
       ),
 
       h(
@@ -849,42 +849,34 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
         h(
           View,
           { style: styles.tableTitle },
-          h(Text, { style: styles.sectionTitle }, "Itens do recibo")
+          h(Text, { style: styles.sectionTitle }, "Itens do recibo"),
         ),
 
         h(
           View,
           { style: styles.tableHeader },
 
-          h(
-            Text,
-            { style: [styles.cellItem, styles.tableHeaderText] },
-            "Item"
-          ),
+          h(Text, { style: [styles.cellItem, styles.tableHeaderText] }, "Item"),
 
-          h(
-            Text,
-            { style: [styles.cellQty, styles.tableHeaderText] },
-            "Qtd."
-          ),
+          h(Text, { style: [styles.cellQty, styles.tableHeaderText] }, "Qtd."),
 
           h(
             Text,
             { style: [styles.cellUnit, styles.tableHeaderText] },
-            "Unitário"
+            "Unitário",
           ),
 
           h(
             Text,
             { style: [styles.cellDiscount, styles.tableHeaderText] },
-            "Desc."
+            "Desc.",
           ),
 
           h(
             Text,
             { style: [styles.cellTotal, styles.tableHeaderText] },
-            "Total"
-          )
+            "Total",
+          ),
         ),
 
         ...(sale.items || []).map((item, index, arr) =>
@@ -902,13 +894,15 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
               View,
               { style: styles.cellItem },
 
-              h(Text, { style: styles.itemName }, item.description),
-
               h(
                 Text,
-                { style: styles.itemSub },
-                item.catalogItem?.name || "Item"
-              )
+                { style: styles.itemName },
+                item.catalogItem?.name || "Item",
+              ),
+
+              item.description
+                ? h(Text, { style: styles.itemSub }, item.description)
+                : null,
             ),
 
             h(Text, { style: styles.cellQty }, String(item.quantity)),
@@ -918,12 +912,12 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: styles.cellDiscount },
-              formatCurrency(item.discount)
+              formatCurrency(item.discount),
             ),
 
-            h(Text, { style: styles.cellTotal }, formatCurrency(item.total))
-          )
-        )
+            h(Text, { style: styles.cellTotal }, formatCurrency(item.total)),
+          ),
+        ),
       ),
 
       h(
@@ -943,8 +937,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: styles.totalRowValue },
-              formatCurrency(sale.subtotal)
-            )
+              formatCurrency(sale.subtotal),
+            ),
           ),
 
           h(
@@ -956,8 +950,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: styles.totalRowValue },
-              formatCurrency(sale.discountTotal)
-            )
+              formatCurrency(sale.discountTotal),
+            ),
           ),
 
           h(
@@ -969,10 +963,10 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: styles.totalRowFinalValue },
-              formatCurrency(sale.total)
-            )
-          )
-        )
+              formatCurrency(sale.total),
+            ),
+          ),
+        ),
       ),
 
       h(
@@ -982,7 +976,7 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
         h(
           View,
           { style: styles.tableTitle },
-          h(Text, { style: styles.sectionTitle }, "Formas de pagamento")
+          h(Text, { style: styles.sectionTitle }, "Formas de pagamento"),
         ),
 
         h(
@@ -992,20 +986,20 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
           h(
             Text,
             { style: [styles.cellPaymentMethod, styles.tableHeaderText] },
-            "Método"
+            "Método",
           ),
 
           h(
             Text,
             { style: [styles.cellPaymentFee, styles.tableHeaderText] },
-            "Taxa"
+            "Taxa",
           ),
 
           h(
             Text,
             { style: [styles.cellPaymentAmount, styles.tableHeaderText] },
-            "Valor"
-          )
+            "Valor",
+          ),
         ),
 
         ...receiptPayments.map((payment, index, arr) =>
@@ -1022,22 +1016,22 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
             h(
               Text,
               { style: [styles.cellPaymentMethod, styles.paymentMethodText] },
-              formatPaymentMethodWithInstallments(payment)
+              formatPaymentMethodWithInstallments(payment),
             ),
 
             h(
               Text,
               { style: [styles.cellPaymentFee, styles.paymentFeeText] },
-              formatCurrency(payment.feeAmount ?? 0)
+              formatCurrency(payment.feeAmount ?? 0),
             ),
 
             h(
               Text,
               { style: [styles.cellPaymentAmount, styles.paymentAmountText] },
-              formatCurrency(payment.amount)
-            )
-          )
-        )
+              formatCurrency(payment.amount),
+            ),
+          ),
+        ),
       ),
 
       h(
@@ -1050,8 +1044,8 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
 
           h(View, { style: styles.signatureLine }),
 
-          h(Text, { style: styles.signatureText }, "Assinatura do cliente")
-        )
+          h(Text, { style: styles.signatureText }, "Assinatura do cliente"),
+        ),
       ),
 
       h(
@@ -1062,10 +1056,10 @@ export async function renderSaleReceiptPdf(id: string, tenantId: string) {
           Text,
           null,
           companySettings?.documentFooter ||
-            "Este recibo foi emitido digitalmente e comprova os valores descritos neste documento."
-        )
-      )
-    )
+            "Este recibo foi emitido digitalmente e comprova os valores descritos neste documento.",
+        ),
+      ),
+    ),
   );
 
   const pdfStream = await pdf(doc).toBuffer();

@@ -397,7 +397,7 @@ function buildServiceOrderSaleItems(params: {
     return {
       serviceOrderItemId: item.id,
       catalogItemId: item.catalogItemId,
-      description: item.catalogItem?.name ?? item.description,
+      description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       discount,
