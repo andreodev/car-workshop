@@ -1,442 +1,465 @@
-Objetivo
+# AGENT.md
 
-Refatorar o frontend atual (React + Next.js + TypeScript strict) para seguir o padrão modular descrito neste documento, com foco em organização por domínio, legibilidade e manutenibilidade.
+## Missão
 
-O foco deste agente é somente frontend.
+Implementar a arquitetura multi-tenant de e-mails do SaaS White Label de oficinas.
 
-Não alterar: backend, rotas de API/route handlers, Prisma, schema/migrations do banco de dados ou regras de negócio executadas no servidor.
+A implementação deve centralizar todo envio de e-mails em uma camada desacoplada, usando inicialmente apenas Resend como provider oficial da plataforma, mas preparada para múltiplos providers e domínios próprios por tenant no futuro.
 
-Princípio geral
+---
 
-Esta é uma refatoração estrutural, não uma reescrita. O comportamento observável da aplicação (UI, fluxos, validações, chamadas de API) deve permanecer idêntico antes e depois. Mudanças de nome de arquivo, local de pasta e separação de responsabilidades são o objetivo; mudanças de lógica de negócio não são.
+## Contexto do projeto
 
-Se, durante a refatoração, for identificado um bug, código morto ou uma melhoria de lógica que não seja estritamente necessária para mover o arquivo para o novo padrão, não corrija no mesmo PR. Anote em uma seção ## Notas / débito técnico encontrado no final do PR e siga em frente. Isso mantém os PRs de refatoração revisáveis e seguros de reverter.
+Este projeto é um sistema SaaS White Label para oficinas.
 
-Escopo
+Cada tenant representa uma oficina/empresa diferente.
 
-Refatorar páginas, componentes, hooks, types, utils e services do frontend para o padrão modular abaixo.
+O sistema deve permitir que cada tenant tenha:
 
-txtmodules/
-nome-do-modulo/
-api/
-components/
-hooks/
-pages/
-types/
-utils/
-index.ts
+- Nome da empresa
+- Logo
+- Cor principal
+- Site
+- E-mail de suporte
+- Nome do remetente
+- Reply-To
+- Lista de e-mails que recebem notificações internas
+- Ativação/desativação de notificações
+- Preparação futura para domínio próprio de e-mail
 
-Exemplo de referência
+Nesta primeira versão, todos os tenants usam uma única conta do Resend da plataforma.
 
-txtmodules/
-client/
-api/
-client.service.ts
-client.keys.ts
-client-cep.service.ts
+Não implementar API Key do Resend por tenant.
 
-    components/
-      client-form.tsx
-      client-form-fields.tsx
-      client-form-section.tsx
-      client-form-stepper.tsx
+---
 
-    hooks/
-      use-client-form.ts
-      use-clients-page.ts
-      use-client.ts
+## Objetivo principal
 
-    pages/
-      create-client-page/
-        index.tsx
-      edit-client-page/
-        index.tsx
-      get-clients-page/
-        index.tsx
-      client-details-page/
-        index.tsx
+Criar uma arquitetura semelhante a:
 
-    types/
-      client.types.ts
+```text
+Controllers
+  ↓
+Use Cases / Services
+  ↓
+EmailService
+  ↓
+EmailProvider interface
+  ↓
+ResendProvider
+  ↓
+Resend SDK
+```
 
-    utils/
-      client-form-schema.ts
-      client-form-utils.ts
-      client-input-masks.ts
+Nenhum controller, use case, service de domínio ou template pode importar diretamente o SDK do Resend.
 
-    index.ts
+---
 
-Particularidades do Next.js
+## Estrutura sugerida
 
-Como o projeto usa Next.js (App Router ou Pages Router), as pastas de rota (app/ ou pages/ na raiz do Next) continuam existindo e não são o mesmo conceito que modules/\*/pages/.
+Criar ou adaptar a estrutura conforme o padrão existente do projeto:
 
-Regra prática:
+```text
+modules/
+└── email/
+    ├── providers/
+    │   ├── email-provider.interface.ts
+    │   └── resend.provider.ts
+    │
+    ├── services/
+    │   └── email.service.ts
+    │
+    ├── templates/
+    │
+    ├── dto/
+    │
+    ├── interfaces/
+    │
+    ├── types/
+    │
+    └── index.ts
+```
 
-A pasta de rota do Next (app/clientes/page.tsx, por exemplo) deve ficar fina: só importa e renderiza o componente correspondente de modules/client/pages/get-clients-page.
-Toda a lógica de tela, hooks, montagem de layout e composição de componentes fica dentro de modules/_/pages/_/index.tsx.
-Isso evita acoplar a estrutura de domínio às convenções de roteamento do framework, e facilita mover/renomear rotas sem tocar na lógica.
+Se o projeto já possuir uma organização diferente, seguir o padrão existente e evitar criar arquitetura paralela.
+
+---
+
+## Regras obrigatórias
+
+- Não importar o SDK do Resend fora do `ResendProvider`.
+- Não acessar variáveis de ambiente do Resend fora do `ResendProvider`.
+- Todo envio de e-mail deve passar pelo `EmailService`.
+- Não criar `resendApiKey` por tenant.
+- Não criar `smtpUser`, `smtpPassword`, `smtpHost` ou provider customizado por tenant nesta etapa.
+- Não deixar dados de tenant hardcoded.
+- Não duplicar helpers, templates, services ou providers já existentes.
+- Antes de criar um arquivo novo, verificar se já existe algo parecido no projeto.
+- Reaproveitar padrões de `services`, `providers`, `interfaces`, `dto` e `types`.
+- Seguir SOLID.
+- Seguir Clean Architecture.
+- Manter baixo acoplamento e alta coesão.
+- Não alterar fluxos não relacionados sem necessidade.
+
+---
+
+## Interface do Provider
+
+Criar uma interface semelhante a:
+
+```ts
+export interface EmailProvider {
+  send(options: SendEmailOptions): Promise<void>;
+}
+```
+
+Criar também o tipo `SendEmailOptions`, por exemplo:
+
+```ts
+export type SendEmailOptions = {
+  to: string | string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  fromName?: string;
+  replyTo?: string | null;
+};
+```
+
+Adaptar conforme o padrão real do projeto.
+
+---
+
+## EmailService
+
+O `EmailService` deve ser o ponto único de envio.
+
+Ele deve ser responsável por:
+
+- Receber o tenant.
+- Resolver branding do tenant.
+- Resolver remetente.
+- Resolver reply-to.
+- Resolver destinatários.
+- Acionar o provider.
+- Normalizar e validar e-mails.
+- Remover duplicidades.
+- Tratar erro de envio de forma padronizada.
+
+---
+
+## Branding por Tenant
+
+Todos os templates devem receber os dados do tenant.
 
 Exemplo:
 
-tsx// app/clientes/page.tsx (Next.js — fica fino)
-import { GetClientsPage } from '@/modules/client';
+```ts
+tenantBranding = {
+  companyName,
+  logo,
+  primaryColor,
+  website,
+  supportEmail,
+};
+```
 
-export default function Page() {
-return <GetClientsPage />;
+Esses dados devem vir do tenant/configuração real do sistema.
+
+Nunca usar nome, logo, cor ou e-mail fixos dentro dos templates.
+
+---
+
+## Configurações de e-mail por Tenant
+
+Criar ou adaptar uma modelagem semelhante a:
+
+```ts
+TenantEmailSettings {
+  fromName: string;
+  replyTo: string | null;
+  notificationsEnabled: boolean;
+  notificationEmails: string[];
 }
+```
 
-tsx// modules/client/pages/get-clients-page/index.tsx (lógica real)
-import { useClientsPage } from '../../hooks/use-clients-page';
-import { ClientList } from '../../components/client-list';
+Se fizer mais sentido manter esses campos direto no Tenant/Workshop, pode adaptar, desde que a responsabilidade fique clara.
 
-export function GetClientsPage() {
-const { clients, isLoading, filters, setFilters } = useClientsPage();
+---
 
-if (isLoading) return <ClientListSkeleton />;
+## Campos sugeridos no Tenant/Workshop
 
-return <ClientList clients={clients} filters={filters} onFilterChange={setFilters} />;
-}
+Adicionar ou reaproveitar:
 
-Se houver loading.tsx, error.tsx, layout.tsx ou metadata específica de rota (App Router), eles continuam na pasta de rota do Next, pois são contratos do framework — não devem ser movidos para modules/.
+```text
+companyName
+logo
+primaryColor
+website
+supportEmail
+emailFromName
+emailReplyTo
+notificationsEnabled
+notificationEmails
+emailDomain
+emailDomainStatus
+```
 
-Server Components e Client Components: ao mover componentes para modules/\*/components, preserve a diretiva 'use client' exatamente como estava. Não promova um componente a Server Component nem o force a Client Component como parte da refatoração estrutural — isso é mudança de comportamento, não de organização.
+Status possíveis de `emailDomainStatus`:
 
-Regras principais
+```text
+NOT_CONFIGURED
+PENDING
+VERIFIED
+```
 
-Manter o comportamento atual funcionando, em todos os fluxos.
-Não mudar regras de negócio sem necessidade explícita.
-Não alterar backend.
-Não alterar contratos de API sem necessidade.
-Não quebrar imports existentes fora do código que está sendo movido (atualizar todos os pontos de import que apontam para os arquivos movidos).
-Não remover funcionalidades.
-Não criar componentes genéricos demais sem necessidade real de reuso.
-Separar responsabilidades por módulo.
-Evitar arquivos muito grandes (ver limites sugeridos abaixo).
-Priorizar clareza ao invés de abstração excessiva.
-Preservar tipagem estrita: nenhum any novo deve ser introduzido como atalho para fazer o build passar. Se um tipo ficou ambíguo após a movimentação, resolva o tipo corretamente.
+Nesta etapa, os campos `emailDomain` e `emailDomainStatus` são apenas preparação futura.
 
-Limites sugeridos (linha de corte, não regra rígida)
+Não implementar ainda verificação de domínio próprio.
 
-Componente (.tsx): se passar de ~200–250 linhas, considere quebrar em subcomponentes dentro do mesmo módulo.
-Hook: se um hook está orquestrando mais de 3–4 responsabilidades distintas (ex.: fetch + form state + paginação + filtros), considere dividir em hooks menores compostos por um hook "page" que os une.
-Arquivo de api/: um service por recurso. Se um .service.ts cresce muito, é sinal de que o módulo pode precisar ser dividido em submódulos.
+---
 
-Padrão de organização
+## Tipos de envio
 
-Cada módulo deve conter apenas o que pertence ao domínio dele.
+Separar claramente dois tipos de envio.
 
-Exemplos de módulos:
+### 1. E-mails transacionais
 
-txtmodules/
-client/
-vehicle/
-mechanic/
-sector/
-catalog/
-estimate/
-order-service/
-pdv/
-financial/
+São e-mails enviados para um destinatário específico.
 
-Responsabilidade das pastas
+Exemplos:
 
-api/
+- Recuperação de senha
+- Convite de usuário
+- Confirmação de cadastro
+- Confirmação de pagamento
+- Recibo
+- Nota fiscal
+- Código de verificação
 
-Arquivos responsáveis por chamadas HTTP, services e keys de cache.
+Nesses casos, o destinatário é informado diretamente pelo fluxo da aplicação.
 
-txtapi/
-estimate.service.ts
-estimate.keys.ts
+Exemplo conceitual:
 
-Use para:
+```ts
+emailService.sendTransactionalEmail({
+  tenantId,
+  to: user.email,
+  subject,
+  template,
+  payload,
+});
+```
 
-fetch / create / update / delete
-requests com query params
-query keys do React Query (se aplicável)
-chamadas a Server Actions do Next, quando o módulo as utiliza
+---
 
-components/
+### 2. Notificações internas
 
-Componentes visuais e partes reutilizáveis dentro do módulo.
+São e-mails enviados para a própria oficina/empresa.
 
-txtcomponents/
-estimate-form.tsx
-estimate-form-items.tsx
-estimate-summary-card.tsx
-estimate-status-badge.tsx
+Exemplos:
 
-Use para: formulários, cards, modais, tabelas, seções de tela, componentes específicos do módulo.
+- Nova Ordem de Serviço
+- Novo orçamento
+- Novo cliente
+- Novo usuário
+- Pagamento recebido
+- Cobrança paga
+- Solicitação de saque
+- Relatórios
+- Alertas importantes
+- Falhas críticas
 
-hooks/
+Nesses casos, o `EmailService` deve buscar automaticamente os e-mails cadastrados em `notificationEmails`.
 
-Hooks específicos do módulo.
+Exemplo conceitual:
 
-txthooks/
-use-estimate-form.ts
-use-estimates-page.ts
-use-estimate.ts
+```ts
+emailService.sendInternalNotification({
+  tenantId,
+  subject,
+  template,
+  payload,
+});
+```
 
-Use para: estado de formulário, mutations, queries, paginação, filtros, lógica de tela.
+Se `notificationsEnabled` for `false`, não enviar.
 
-pages/
+Se `notificationEmails` estiver vazio, não enviar e registrar log seguro.
 
-Cada página (no sentido de "tela", não de rota do Next) deve ficar isolada em uma pasta com index.tsx.
+---
 
-txtpages/
-get-estimates-page/
-index.tsx
-create-estimate-page/
-index.tsx
-edit-estimate-page/
-index.tsx
-estimate-details-page/
-index.tsx
+## Remetente
 
-A page deve ser responsável por montar a tela usando hooks e components. Evite colocar lógica grande diretamente na page — ela deve ler como uma composição, não como uma implementação.
+Nesta primeira versão, todos os e-mails saem pelo domínio oficial da plataforma.
 
-types/
+Exemplo:
 
-Tipos e interfaces do módulo.
+```text
+Rikinho Auto Center <no-reply@seudominio.com.br>
+```
 
-txttypes/
-estimate.types.ts
+ou:
 
-Use para: DTOs, tipos de formulário, tipos de listagem, tipos de filtro, tipos de resposta da API.
+```text
+Oficina XPTO <no-reply@seudominio.com.br>
+```
 
-utils/
+Apenas o nome do remetente muda por tenant.
 
-Funções auxiliares, schemas, masks e formatadores específicos do módulo.
+O domínio continua sendo o domínio da plataforma.
 
-txtutils/
-estimate-form-schema.ts
-estimate-form-utils.ts
-estimate-input-masks.ts
+O domínio deve vir de variável de ambiente da plataforma, por exemplo:
 
-Use para: Zod schemas, helpers, máscaras, normalizadores, formatadores locais.
+```env
+EMAIL_FROM_ADDRESS=no-reply@seudominio.com.br
+```
 
-Código compartilhado entre módulos
+---
 
-Nem todo código pertence a um módulo específico. Antes de mover algo para dentro de modules/x, verifique se ele é usado por mais de um módulo.
+## Reply-To
 
-Se um componente, hook, type ou util é usado por 2 ou mais módulos, ele não pertence a nenhum módulo específico — deve ir para uma área compartilhada (ex.: shared/components, shared/hooks, shared/types, shared/utils), seguindo a mesma convenção de nomenclatura.
-Não duplique código entre módulos só para "manter isolado". Duplicação de UI genérica (botão, input, modal base) deve estar em shared/, não repetida em cada módulo.
-Se ficar em dúvida se algo é específico do domínio ou genérico, pergunte: "isso teria sentido fora do contexto de estimate/client/etc.?" Se sim, é compartilhado.
+Se o tenant tiver `emailReplyTo` ou `supportEmail`, usar como Reply-To.
 
-Barrel exports (index.ts)
+Exemplo:
 
-Cada módulo deve ter um index.ts.
+```text
+Reply-To: contato@empresa.com.br
+```
 
-tsexport _ from './api/estimate.service';
-export _ from './api/estimate.keys';
+Assim, quando alguém responder, a resposta vai para a empresa.
 
-export \* from './types/estimate.types';
+---
 
-export _ from './hooks/use-estimate';
-export _ from './hooks/use-estimate-form';
-export \* from './hooks/use-estimates-page';
+## Templates
 
-Regras:
+Todos os templates devem receber somente dados prontos.
 
-Exporte apenas o que será usado fora do módulo. Evite exportar tudo desnecessariamente.
-Componentes de pages/ geralmente também devem ser exportados pelo barrel, já que a rota do Next precisa importá-los (ver seção "Particularidades do Next.js").
-Não crie barrel exports dentro de subpastas (components/index.ts, hooks/index.ts) a menos que o módulo já tenha esse padrão — um único index.ts na raiz do módulo é suficiente na maioria dos casos, e evita ciclos de import acidentais.
+Exemplo:
 
-Padrão de nomenclatura
+```ts
+template({
+  tenant,
+  user,
+  payload,
+});
+```
 
-Usar kebab-case para arquivos:
+Os templates não devem consultar banco de dados.
 
-txtestimate-form.tsx
-use-estimate-form.ts
-estimate.service.ts
-estimate.types.ts
-estimate-form-schema.ts
+Os templates não devem conhecer Resend.
 
-Usar PascalCase para componentes:
+Os templates não devem conter dados hardcoded de uma oficina específica.
 
-tsexport function EstimateForm() {}
+---
 
-Usar camelCase para funções:
+## ResendProvider
 
-tsexport function formatEstimateStatus() {}
+O `ResendProvider` deve:
 
-Usar prefixo use para hooks:
+- Instanciar o SDK do Resend.
+- Ler a API Key apenas de variável de ambiente.
+- Converter `SendEmailOptions` para o formato do Resend.
+- Enviar o e-mail.
+- Isolar detalhes específicos do Resend.
 
-tsexport function useEstimateForm() {}
+Variáveis esperadas:
 
-Como refatorar
+```env
+RESEND_API_KEY=
+EMAIL_FROM_ADDRESS=
+```
 
-Para cada tela ou módulo, seguir esta ordem:
+Opcional:
 
-Identificar todos os arquivos relacionados ao domínio (telas, componentes, hooks, services, types, schemas) espalhados pelo código atual.
-Criar a pasta em modules/nome-do-modulo com as subpastas api/, components/, hooks/, pages/, types/, utils/.
-Mover (não recriar) os arquivos, preservando o conteúdo original o máximo possível — a refatoração é estrutural, não uma reescrita de lógica.
-Separar chamadas HTTP em api/.
-Separar componentes em components/.
-Separar lógica de estado em hooks/.
-Separar tipos em types/.
-Separar schemas e helpers em utils/.
-Criar/atualizar index.ts do módulo com os exports públicos.
-Atualizar todos os imports no restante do código que apontavam para os caminhos antigos.
-Deixar a pasta de rota do Next (app/ ou pages/ na raiz) apenas importando da page do módulo.
-Rodar lint e typecheck.
-Rodar a aplicação localmente (ou os testes existentes) e validar manualmente que a tela continua funcionando como antes.
+```env
+EMAIL_DEFAULT_FROM_NAME=
+```
 
-Importante
+---
 
-Não fazer refatoração gigantesca em vários módulos ao mesmo tempo. Refatorar módulo por módulo, um PR por módulo.
+## Preparação para múltiplos providers
 
-Prioridade sugerida
+A arquitetura deve permitir que futuramente existam providers como:
 
-estimate
-order-service
-pdv
-client
-vehicle
-catalog
-financial
+```text
+SESProvider
+PostmarkProvider
+MailgunProvider
+BrevoProvider
+SMTPProvider
+ResendProvider
+```
 
-Exemplo: antes vs depois
+A troca ou adição de provider não deve exigir alteração nos controllers, use cases ou templates.
 
-Antes (estrutura comum em projetos não modulares)
+---
 
-txtsrc/
-pages/
-clientes/
-index.tsx # busca dados, define estado, renderiza tabela, tudo junto
-novo.tsx
-[id]/editar.tsx
-components/
-ClientForm.tsx
-ClientTable.tsx
-CepInput.tsx
-services/
-clientApi.ts
-hooks/
-useClients.ts
-types/
-index.ts # tipos de todos os domínios misturados
-utils/
-masks.ts # máscaras de todos os domínios misturadas
+## Preparação para domínio próprio
 
-Problemas típicos: types/index.ts e utils/masks.ts crescem indefinidamente e misturam domínios sem relação; useClients.ts frequentemente acumula fetch, paginação, filtros e mutações no mesmo hook; fica difícil saber, só pelo nome do arquivo, a qual domínio ele pertence.
+Não implementar domínio próprio agora.
 
-Depois (padrão modular deste documento)
+Apenas deixar preparado para que no futuro, quando:
 
-txtmodules/
-client/
-api/
-client.service.ts
-client.keys.ts
-client-cep.service.ts
-components/
-client-form.tsx
-client-form-fields.tsx
-client-table.tsx
-hooks/
-use-client-form.ts
-use-clients-page.ts
-pages/
-get-clients-page/index.tsx
-create-client-page/index.tsx
-edit-client-page/index.tsx
-types/
-client.types.ts
-utils/
-client-input-masks.ts
-index.ts
+```ts
+emailDomainStatus === "VERIFIED";
+```
 
-app/
-clientes/
-page.tsx # importa GetClientsPage de modules/client
-novo/page.tsx # importa CreateClientPage de modules/client
-[id]/editar/page.tsx # importa EditClientPage de modules/client
+o sistema possa enviar como:
 
-O que muda na prática: ClientForm.tsx se torna client-form.tsx dentro de modules/client/components; clientApi.ts se divide em client.service.ts (chamadas HTTP) e client.keys.ts (query keys); useClients.ts, se fazia fetch + filtros + paginação junto, se divide em use-clients-page.ts (orquestração da tela) podendo compor hooks menores se necessário; CepInput.tsx, por ser específico de endereço/cliente, vira client-cep.service.ts (chamada) + componente correspondente em components/, a menos que seja usado por outros módulos — nesse caso vai para shared/.
+```text
+empresa@dominio-do-tenant.com
+```
 
-Validação obrigatória
+sem mudar o restante da aplicação.
 
-Após alterações, rodar lint:
+---
 
-bashnpm run lint
+## Validações
 
-# ou
+Implementar validações para:
 
-pnpm lint
+- E-mails inválidos.
+- Lista de destinatários vazia.
+- Duplicidade em `notificationEmails`.
+- Tenant inexistente.
+- Configuração de e-mail ausente.
+- Notificações internas desativadas.
+- Provider sem API Key configurada.
 
-# ou
+---
 
-yarn lint
+## Logs
 
-Validar build e tipos:
+Adicionar logs seguros para:
 
-bashnpm run build
+- E-mail enviado com sucesso.
+- Falha ao enviar e-mail.
+- Notificação ignorada por estar desativada.
+- Notificação ignorada por falta de destinatários.
+- Tenant sem configuração de e-mail.
 
-# ou
+Nunca logar API Key.
 
-npm run typecheck
+Nunca logar dados sensíveis desnecessários.
 
-Como o projeto usa TypeScript em modo estrito, o typecheck deve passar sem novos erros e sem novos any, @ts-ignore ou @ts-expect-error introduzidos só para contornar a movimentação de arquivos.
+---
 
-Checklist de PR
+## Resultado esperado
 
-Todo PR de refatoração de módulo deve confirmar os itens abaixo antes de ser aberto para revisão:
+Ao final, o projeto deve ter:
 
-Apenas um módulo foi refatorado neste PR.
-Nenhum arquivo de backend, rota de API, Prisma, schema ou migration foi alterado.
-Nenhuma regra de negócio foi alterada (comportamento idêntico ao anterior).
-Nenhum contrato de API (request/response) foi alterado sem necessidade.
-Estrutura do módulo segue api/ components/ hooks/ pages/ types/ utils/ index.ts.
-Nomenclatura de arquivos em kebab-case, componentes em PascalCase, hooks com prefixo use.
-Código usado por 2+ módulos foi movido para shared/, não duplicado.
-index.ts do módulo exporta apenas o que é consumido fora do módulo.
-Pastas de rota do Next (app//pages/ na raiz) ficaram finas, apenas importando das pages do módulo.
-Diretivas 'use client' preservadas exatamente como no código original.
-Todos os imports que apontavam para os arquivos antigos foram atualizados (nenhum import quebrado).
-npm run lint (ou equivalente) passa sem novos erros.
-npm run typecheck / npm run build passa sem novos erros, sem novos any ou supressões de tipo.
-Telas afetadas foram testadas manualmente (ou via testes automatizados, se existirem) e o comportamento está idêntico ao anterior.
-Itens de débito técnico encontrados durante a refatoração (bugs, código morto, melhorias fora de escopo) estão listados na seção "Notas / débito técnico encontrado", não corrigidos neste PR.
-
-Restrições
-
-Não alterar:
-
-backend
-Prisma
-migrations
-banco de dados
-regras de comissão
-regras financeiras
-contratos públicos da API
-
-Só alterar frontend.
-
-Resultado esperado
-
-O frontend deve ficar organizado por domínio, seguindo o padrão:
-
-txtmodules/
-modulo/
-api/
-components/
-hooks/
-pages/
-types/
-utils/
-index.ts
-
-Com arquivos menores, responsabilidades separadas, imports mais claros, pastas de rota do Next finas e o mesmo comportamento de antes da refatoração.
-
-Notas / débito técnico encontrado
-
-Preencher durante a refatoração de cada módulo. Listar aqui qualquer bug, código morto, duplicação ou melhoria identificada que não foi corrigida neste PR por estar fora do escopo de "refatoração estrutural".
-
-(vazio)
-
-Nome de commit
-
-bashrefactor(frontend): organize modules by domain structure
-
-Para PRs de módulos individuais, sugestão de padrão:
-
-bashrefactor(frontend): organize <nome-do-modulo> module by domain structure
+- Uma camada centralizada de e-mail.
+- Um `EmailService` único.
+- Um `EmailProvider` desacoplado.
+- Um `ResendProvider`.
+- Configuração de e-mail por tenant.
+- Branding por tenant nos templates.
+- Reply-To por tenant.
+- Lista de destinatários internos por tenant.
+- Notificações internas ativáveis/desativáveis.
+- Preparação para domínio próprio.
+- Preparação para múltiplos providers.
+- Nenhum SDK do Resend espalhado pelo projeto.
+- Nenhuma API Key por tenant.
+- Nenhuma duplicação desnecessária.
+- Código seguindo o padrão arquitetural existente.

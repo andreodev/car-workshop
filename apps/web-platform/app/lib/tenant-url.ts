@@ -5,6 +5,11 @@ type TenantUrlInput = {
   customDomainVerifiedAt?: Date | string | null;
 };
 
+type BuildTenantUrlOptions = {
+  useCustomDomain?: boolean;
+  useTenantSubdomain?: boolean;
+};
+
 function normalizeBaseUrl(value: string | undefined) {
   if (!value) {
     return null;
@@ -21,19 +26,26 @@ function isLocalRootDomain(domain: string | undefined) {
   return !domain || domain === "localhost" || domain === "127.0.0.1";
 }
 
-export function buildTenantUrl(tenant: TenantUrlInput) {
-  if (tenant.customDomain && tenant.customDomainVerifiedAt) {
+export function buildTenantUrl(
+  tenant: TenantUrlInput,
+  options: BuildTenantUrlOptions = {}
+) {
+  if (options.useCustomDomain && tenant.customDomain && tenant.customDomainVerifiedAt) {
     return `https://${tenant.customDomain}`;
   }
 
   const rootDomain =
     process.env.PLATFORM_ROOT_DOMAIN ?? process.env.NEXT_PUBLIC_PLATFORM_ROOT_DOMAIN;
 
-  if (process.env.NODE_ENV === "production" && !isLocalRootDomain(rootDomain)) {
+  if (
+    options.useTenantSubdomain &&
+    process.env.NODE_ENV === "production" &&
+    !isLocalRootDomain(rootDomain)
+  ) {
     return `https://${tenant.slug}.${rootDomain}`;
   }
 
-  if (!isLocalRootDomain(rootDomain)) {
+  if (options.useTenantSubdomain && !isLocalRootDomain(rootDomain)) {
     return `https://${tenant.slug}.${rootDomain}`;
   }
 

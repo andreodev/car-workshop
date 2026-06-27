@@ -151,18 +151,18 @@ const settingGroups = [
         icon: Settings,
       },
       {
+        title: "E-mails",
+        description: "Remetente, domínio e destinatários internos de relatórios e avisos.",
+        href: "/configuracoes/emails",
+        status: "Ativo",
+        icon: Mail,
+      },
+      {
         title: "Permissões",
         description: "Papéis de acesso para proteger rotinas sensíveis.",
         href: null,
         status: "Planejado",
         icon: LockKeyhole,
-      },
-      {
-        title: "Modelos de mensagem",
-        description: "Textos reutilizáveis para clientes, aprovações e acompanhamento.",
-        href: null,
-        status: "Planejado",
-        icon: Mail,
       },
       {
         title: "Site e idioma",

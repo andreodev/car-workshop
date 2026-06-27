@@ -46,33 +46,29 @@ export function maskCompanySettingsField<K extends keyof CompanySettingsFormValu
   field: K,
   value: CompanySettingsFormValues[K]
 ) {
-  if (typeof value !== "string") {
-    return value;
-  }
-
   const mask = companySettingsInputMasks[field];
   return (mask ? mask(value) : value) as CompanySettingsFormValues[K];
 }
 
 export const companySettingsInputMasks = {
-  legalName: (value) => limitText(value, textLimits.legalName),
-  tradeName: (value) => limitText(value, textLimits.tradeName),
-  document: maskCnpj,
-  stateRegistration: (value) => limitText(value, textLimits.stateRegistration),
-  municipalRegistration: (value) => limitText(value, textLimits.municipalRegistration),
-  email: (value) => limitText(value.trimStart().toLowerCase(), textLimits.email),
-  phone: maskPhone,
-  whatsapp: maskPhone,
-  website: (value) => limitText(value.trimStart(), textLimits.website),
-  cep: maskCep,
-  address: (value) => limitText(value, textLimits.address),
-  number: (value) => limitText(value, textLimits.number),
-  complement: (value) => limitText(value, textLimits.complement),
-  neighborhood: (value) => limitText(value, textLimits.neighborhood),
-  city: (value) => limitText(value, textLimits.city),
-  state: maskState,
-  ibgeCode: maskIbgeCode,
-  logoUrl: (value) => limitText(value.trimStart(), textLimits.logoUrl),
-  documentFooter: (value) => limitText(value, textLimits.documentFooter),
-  commercialNotes: (value) => limitText(value, textLimits.commercialNotes),
+  legalName: (value) => limitText(String(value), textLimits.legalName),
+  tradeName: (value) => limitText(String(value), textLimits.tradeName),
+  document: (value) => maskCnpj(String(value)),
+  stateRegistration: (value) => limitText(String(value), textLimits.stateRegistration),
+  municipalRegistration: (value) => limitText(String(value), textLimits.municipalRegistration),
+  email: (value) => limitText(String(value).trimStart().toLowerCase(), textLimits.email),
+  phone: (value) => maskPhone(String(value)),
+  whatsapp: (value) => maskPhone(String(value)),
+  website: (value) => limitText(String(value).trimStart(), textLimits.website),
+  cep: (value) => maskCep(String(value)),
+  address: (value) => limitText(String(value), textLimits.address),
+  number: (value) => limitText(String(value), textLimits.number),
+  complement: (value) => limitText(String(value), textLimits.complement),
+  neighborhood: (value) => limitText(String(value), textLimits.neighborhood),
+  city: (value) => limitText(String(value), textLimits.city),
+  state: (value) => maskState(String(value)),
+  ibgeCode: (value) => maskIbgeCode(String(value)),
+  logoUrl: (value) => limitText(String(value).trimStart(), textLimits.logoUrl),
+  documentFooter: (value) => limitText(String(value), textLimits.documentFooter),
+  commercialNotes: (value) => limitText(String(value), textLimits.commercialNotes),
 } satisfies Record<keyof CompanySettingsFormValues, CompanySettingsInputMask>;

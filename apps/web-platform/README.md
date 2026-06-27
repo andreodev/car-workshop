@@ -66,16 +66,11 @@ Configure these variables in `.env` or in the deployment environment:
 
 ```bash
 RESEND_API_KEY=
-RESEND_FROM_EMAIL="Car Workshop <relatorios@seudominio.com>"
-DAILY_REPORT_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
-PDV_SALE_EMAIL_RECIPIENTS="andreohenriqueleite@gmail.com"
 CRON_SECRET=change-me
 DAILY_REPORT_TIME_ZONE=America/Manaus
 ```
 
-`DAILY_REPORT_EMAIL_RECIPIENTS` accepts one or more email addresses separated by comma or semicolon. The automation sends the daily financial PDF through Resend and says in the email text whether the day was good or bad based on the cash balance.
-
-`PDV_SALE_EMAIL_RECIPIENTS` receives a notification whenever a PDV sale is launched into finance. If it is not configured, the app uses `DAILY_REPORT_EMAIL_RECIPIENTS`.
+The sender email and internal notification recipients are configured per tenant in `Configurações > E-mails`. The automation sends the daily financial PDF through the centralized email service and says in the email text whether the day was good or bad based on the cash balance.
 
 The project includes a Vercel Cron in `vercel.json`:
 

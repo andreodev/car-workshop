@@ -134,8 +134,10 @@ export function CompanySettingsForm() {
     const nextValues = mapCompanySettingsToFormValues(settingsQuery.data ?? null);
 
     form.reset(nextValues);
-    setCepDigits(onlyDigits(nextValues.cep));
-    setHasLoadedRemoteData(true);
+    queueMicrotask(() => {
+      setCepDigits(onlyDigits(nextValues.cep));
+      setHasLoadedRemoteData(true);
+    });
   }, [
     form,
     hasLoadedRemoteData,
@@ -170,17 +172,19 @@ export function CompanySettingsForm() {
       maskCompanySettingsField("ibgeCode", address.ibge)
     );
 
-    setFieldErrors((prev) => {
-      const nextErrors = { ...prev };
+    queueMicrotask(() => {
+      setFieldErrors((prev) => {
+        const nextErrors = { ...prev };
 
-      delete nextErrors.cep;
-      delete nextErrors.address;
-      delete nextErrors.neighborhood;
-      delete nextErrors.city;
-      delete nextErrors.state;
-      delete nextErrors.ibgeCode;
+        delete nextErrors.cep;
+        delete nextErrors.address;
+        delete nextErrors.neighborhood;
+        delete nextErrors.city;
+        delete nextErrors.state;
+        delete nextErrors.ibgeCode;
 
-      return nextErrors;
+        return nextErrors;
+      });
     });
   }, [cepQuery.data, form]);
 
@@ -685,6 +689,7 @@ export function CompanySettingsForm() {
                     </form.Field>
                   </div>
                 </FormSection>
+
               </div>
 
               <form.Subscribe selector={(state) => state.values}>
@@ -919,7 +924,7 @@ const InputField = memo(function InputField({
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <Field className={wrapperClassName}>
+    <Field className={wrapperClassName} data-field={field}>
       <FieldLabel>
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
@@ -927,6 +932,7 @@ const InputField = memo(function InputField({
 
       <FieldControl>
         <Input
+          id={field}
           type={type}
           value={value}
           placeholder={placeholder}
@@ -952,22 +958,25 @@ const InputField = memo(function InputField({
 });
 
 const TextareaField = memo(function TextareaField({
+  field,
   label,
   placeholder,
+  wrapperClassName,
   value,
   error,
   onChange,
-}: Pick<FieldConfig, "field" | "label" | "placeholder"> & {
+}: Pick<FieldConfig, "field" | "label" | "placeholder" | "wrapperClassName"> & {
   value: string;
   error?: string;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
 }) {
   return (
-    <Field>
+    <Field className={wrapperClassName} data-field={field}>
       <FieldLabel>{label}</FieldLabel>
 
       <FieldControl>
         <Textarea
+          id={field}
           value={value}
           placeholder={placeholder}
           rows={4}

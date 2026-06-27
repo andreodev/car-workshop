@@ -1,14 +1,21 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowRight, Building2 } from "lucide-react";
 
 import { getServerAuthSession } from "@/app/lib/auth-server";
 import { prisma } from "@/app/lib/prisma";
 import { buildTenantUrl } from "@/app/lib/tenant-url";
+import { classifyTenantHost, hostFromHeaders } from "@/app/lib/tenant-host";
 import { Button } from "@/components/ui/button";
 
 export default async function SelecionarOficinaPage() {
   const session = await getServerAuthSession();
+  const headerStore = await headers();
+  const tenantHostSignal = classifyTenantHost(hostFromHeaders(headerStore));
+  const isTenantHost =
+    tenantHostSignal.kind === "custom-domain" ||
+    tenantHostSignal.kind === "tenant-subdomain";
 
   if (!session?.user?.id) {
     redirect("/login");
@@ -45,7 +52,7 @@ export default async function SelecionarOficinaPage() {
   });
 
   if (memberships.length === 1) {
-    redirect(buildTenantUrl(memberships[0].tenant));
+    redirect(isTenantHost ? "/" : buildTenantUrl(memberships[0].tenant));
   }
 
   return (
@@ -65,7 +72,7 @@ export default async function SelecionarOficinaPage() {
         ) : (
           <div className="grid gap-3">
             {memberships.map(({ tenant, role }) => {
-              const url = buildTenantUrl(tenant);
+              const url = isTenantHost ? "/" : buildTenantUrl(tenant);
               const displayName =
                 tenant.companySettings?.tradeName ??
                 tenant.companySettings?.legalName ??

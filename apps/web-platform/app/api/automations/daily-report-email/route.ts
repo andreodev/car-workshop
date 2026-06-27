@@ -1,13 +1,8 @@
 import { NextRequest } from "next/server";
 
-import {
-  escapeEmailHtml,
-  parseEmailRecipients,
-  sendResendEmail,
-  type ResendEmailPayload,
-} from "@/app/lib/resend";
 import { prisma } from "@/app/lib/prisma";
 import { formatCurrency } from "@/app/lib/reports";
+import { emailService, escapeEmailHtml } from "@/modules/email";
 
 import {
   getDailyReportData,
@@ -17,8 +12,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const DEFAULT_DAILY_REPORT_EMAIL = "andreohenriqueleite@gmail.com";
 
 function getRequestToken(request: NextRequest) {
   const authorization = request.headers.get("authorization");
@@ -98,9 +91,7 @@ async function resolveTenantForAutomation(request: NextRequest) {
   return { tenant } as const;
 }
 
-function buildEmailPayload(params: {
-  from: string;
-  recipients: string[];
+function buildEmailContent(params: {
   pdfBase64: string;
   filename: string;
   dateLabel: string;
@@ -109,7 +100,7 @@ function buildEmailPayload(params: {
   entries: number;
   exits: number;
   balance: number;
-}): ResendEmailPayload {
+}) {
   const subject = `Relatório diário - ${params.dateLabel} - dia ${params.performanceStatus}`;
   const text = [
     `O fechamento de ${params.dateLabel} foi ${params.performanceStatus}.`,
@@ -135,8 +126,6 @@ function buildEmailPayload(params: {
   `;
 
   return {
-    from: params.from,
-    to: params.recipients,
     subject,
     text,
     html,
@@ -154,26 +143,6 @@ async function handleDailyReportEmail(request: NextRequest) {
 
   if (!auth.ok) {
     return Response.json({ message: auth.message }, { status: auth.status });
-  }
-
-  const recipients = parseEmailRecipients(
-    process.env.DAILY_REPORT_EMAIL_RECIPIENTS || DEFAULT_DAILY_REPORT_EMAIL
-  );
-
-  if (recipients.length === 0) {
-    return Response.json(
-      { message: "Configure DAILY_REPORT_EMAIL_RECIPIENTS com pelo menos um email." },
-      { status: 500 }
-    );
-  }
-
-  const from = process.env.RESEND_FROM_EMAIL?.trim();
-
-  if (!from) {
-    return Response.json(
-      { message: "Configure RESEND_FROM_EMAIL com o remetente verificado no Resend." },
-      { status: 500 }
-    );
   }
 
   const dateKey = request.nextUrl.searchParams.get("date");
@@ -194,9 +163,7 @@ async function handleDailyReportEmail(request: NextRequest) {
   const pdfBuffer = await renderDailyReportPdf(report);
   const performance = getDailyReportPerformance(report);
   const filename = `relatório-diário-${report.dateKey}.pdf`;
-  const payload = buildEmailPayload({
-    from,
-    recipients,
+  const payload = buildEmailContent({
     pdfBase64: pdfBuffer.toString("base64"),
     filename,
     dateLabel: report.dateLabel,
@@ -206,25 +173,42 @@ async function handleDailyReportEmail(request: NextRequest) {
     exits: report.cash.exits,
     balance: report.cash.balance,
   });
-  let resendResult: unknown = null;
+  let emailResult: Awaited<ReturnType<typeof emailService.sendInternalNotification>>;
 
   try {
     const idempotencyKey = isTestSend
       ? `daily-report-test-${report.dateKey}-${Date.now()}`
-      : `daily-report-${tenantResult.tenant.slug}-${report.dateKey}-${recipients.join("-")}`;
+      : `daily-report-${tenantResult.tenant.slug}-${report.dateKey}`;
 
-    resendResult = await sendResendEmail(
-      payload,
+    emailResult = await emailService.sendInternalNotification({
+      tenantId: tenantResult.tenant.id,
+      purpose: "daily-report",
+      ...payload,
       idempotencyKey
-    );
+    });
   } catch (error) {
     return Response.json(
       {
-        message: "Falha ao enviar relatório diário pelo Resend.",
+        message: "Falha ao enviar relatório diário.",
         details: error instanceof Error && "details" in error ? error.details : error,
       },
       { status: 502 }
     );
+  }
+
+  if (!emailResult.sent) {
+    return Response.json({
+      message: "Relatorio diario gerado, mas notificacao nao enviada.",
+      reason: emailResult.skippedReason,
+      tenant: {
+        id: tenantResult.tenant.id,
+        name: tenantResult.tenant.name,
+        slug: tenantResult.tenant.slug,
+      },
+      date: report.dateKey,
+      recipients: emailResult.recipients,
+      test: isTestSend,
+    });
   }
 
   return Response.json({
@@ -235,7 +219,7 @@ async function handleDailyReportEmail(request: NextRequest) {
       slug: tenantResult.tenant.slug,
     },
     date: report.dateKey,
-    recipients,
+    recipients: emailResult.recipients,
     performance: performance.status,
     cash: {
       entries: report.cash.entries,
@@ -244,7 +228,7 @@ async function handleDailyReportEmail(request: NextRequest) {
       movementCount: report.cash.movementCount,
     },
     test: isTestSend,
-    resend: resendResult,
+    email: emailResult.providerResult,
   });
 }
 

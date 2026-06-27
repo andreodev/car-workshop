@@ -2,17 +2,17 @@ import type { SalePaymentMethod } from "@prisma/client";
 
 import { renderSaleReceiptPdf } from "@/app/api/sales/[id]/receipt/receipt-pdf";
 import { prisma } from "@/app/lib/prisma";
-import { escapeEmailHtml, parseEmailRecipients, sendResendEmail } from "@/app/lib/resend";
 import { formatCurrency } from "@/app/lib/reports";
 import { getPaymentMethodLabel } from "@/app/(app)/financeiro/status";
+import { emailService, escapeEmailHtml } from "@/modules/email";
 
-const DEFAULT_NOTIFICATION_EMAIL = "andreohenriqueleite@gmail.com";
 const MAX_EMAIL_ITEMS = 8;
 
 type PdvSaleEmailEvent = "CREATED" | "CANCELED";
 
 type PdvSaleEmailData = {
   id: string;
+  tenantId: string | null;
   code: number;
   createdAt: Date;
   total: unknown;
@@ -156,28 +156,7 @@ function buildSaleEmailContent(sale: PdvSaleEmailData, event: PdvSaleEmailEvent)
   return { html, subject, text };
 }
 
-function getNotificationRecipients() {
-  const recipients = parseEmailRecipients(
-    process.env.PDV_SALE_EMAIL_RECIPIENTS ||
-      process.env.DAILY_REPORT_EMAIL_RECIPIENTS ||
-      DEFAULT_NOTIFICATION_EMAIL
-  );
-  const from = process.env.RESEND_FROM_EMAIL?.trim();
-
-  if (recipients.length === 0 || !from) {
-    return null;
-  }
-
-  return { from, recipients };
-}
-
 export async function sendPdvSaleFinancialEmail(saleId: string, tenantId: string) {
-  const notification = getNotificationRecipients();
-
-  if (!notification) {
-    return null;
-  }
-
   const sale = await prisma.sale.findFirst({
     where: { id: saleId, tenantId },
     include: {
@@ -208,45 +187,39 @@ export async function sendPdvSaleFinancialEmail(saleId: string, tenantId: string
   const { html, subject, text } = buildSaleEmailContent(sale, "CREATED");
   const receipt = await renderSaleReceiptPdf(sale.id, tenantId);
 
-  return sendResendEmail(
-    {
-      from: notification.from,
-      to: notification.recipients,
-      subject,
-      text,
-      html,
-      ...(receipt
-        ? {
-            attachments: [
-              {
-                filename: receipt.filename,
-                content: receipt.pdfBuffer.toString("base64"),
-              },
-            ],
-          }
-        : {}),
-    },
-    `pdv-sale-financial-${sale.id}`
-  );
+  return emailService.sendInternalNotification({
+    tenantId,
+    purpose: "pdv-sale",
+    subject,
+    text,
+    html,
+    ...(receipt
+      ? {
+          attachments: [
+            {
+              filename: receipt.filename,
+              content: receipt.pdfBuffer.toString("base64"),
+            },
+          ],
+        }
+      : {}),
+    idempotencyKey: `pdv-sale-financial-${sale.id}`,
+  });
 }
 
 export async function sendPdvSaleCancellationFinancialEmail(sale: PdvSaleEmailData) {
-  const notification = getNotificationRecipients();
-
-  if (!notification) {
+  if (!sale.tenantId) {
     return null;
   }
 
   const { html, subject, text } = buildSaleEmailContent(sale, "CANCELED");
 
-  return sendResendEmail(
-    {
-      from: notification.from,
-      to: notification.recipients,
-      subject,
-      text,
-      html,
-    },
-    `pdv-sale-financial-canceled-${sale.id}`
-  );
+  return emailService.sendInternalNotification({
+    tenantId: sale.tenantId,
+    purpose: "pdv-sale",
+    subject,
+    text,
+    html,
+    idempotencyKey: `pdv-sale-financial-canceled-${sale.id}`,
+  });
 }
