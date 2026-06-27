@@ -16,6 +16,7 @@ export type MechanicCommissionSourceItem = {
   discount: string;
   total: string;
   commissionBase: string;
+  commissionValue: string | null;
 };
 export type MechanicPaymentInfo = {
   paymentKey: string | null;
@@ -174,8 +175,17 @@ function serviceItemCommissionBase(item: {
   type: "SERVICE" | "PRODUCT";
   total: Prisma.Decimal;
   commissionBase: Prisma.Decimal | null;
+  commissionValue?: Prisma.Decimal | null;
   catalogItem: { type: "PRODUTO" | "SERVICO" } | null;
 }) {
+  if (
+    item.commissionValue !== null &&
+    item.commissionValue !== undefined &&
+    item.commissionValue.greaterThan(0)
+  ) {
+    return new Prisma.Decimal(0);
+  }
+
   if (item.commissionBase !== null && item.commissionBase !== undefined) {
     return new Prisma.Decimal(item.commissionBase);
   }
@@ -205,6 +215,7 @@ function decimalToCents(value: Prisma.Decimal) {
 function findSourceItemsForBase<
   T extends {
     commissionBaseValue: Prisma.Decimal;
+    commissionValueValue: Prisma.Decimal | null;
   },
 >(items: T[], targetBase: Prisma.Decimal) {
   const targetCents = decimalToCents(targetBase);
@@ -219,7 +230,7 @@ function findSourceItemsForBase<
       index,
       cents: decimalToCents(item.commissionBaseValue),
     }))
-    .filter((entry) => entry.cents > 0)
+    .filter((entry) => entry.cents > 0 && entry.item.commissionValueValue === null)
     .sort((a, b) => b.cents - a.cents || a.index - b.index);
 
   const matches = new Map<number, number[]>([[0, []]]);
@@ -425,6 +436,12 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
         })
         .map((item) => {
           const base = serviceItemCommissionBase(item);
+          const commissionValue =
+            item.commissionValue !== null &&
+            item.commissionValue !== undefined &&
+            item.commissionValue.greaterThan(0)
+              ? new Prisma.Decimal(item.commissionValue)
+              : null;
 
           return {
             id: item.id,
@@ -435,6 +452,7 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
             discount: decimalToString(item.discount),
             total: decimalToString(item.total),
             commissionBaseValue: base,
+            commissionValueValue: commissionValue,
           };
         }) ?? [];
 
@@ -442,13 +460,20 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       (sum, item) => sum.add(item.commissionBaseValue),
       new Prisma.Decimal(0)
     );
+    const hasFixedSourceCommission = sourceItemsWithBase.some(
+      (item) => item.commissionValueValue !== null
+    );
     const accountCommissionBase = deriveCommissionBaseFromAccount(
       account.amount,
       commissionPercent ?? null
     );
-    const commissionBase = accountCommissionBase ?? sourceItemsCommissionBase;
+    const commissionBase = hasFixedSourceCommission
+      ? sourceItemsCommissionBase
+      : accountCommissionBase ?? sourceItemsCommissionBase;
     const hasAccountCommissionBaseOverride =
-      accountCommissionBase !== null && !accountCommissionBase.equals(sourceItemsCommissionBase);
+      !hasFixedSourceCommission &&
+      accountCommissionBase !== null &&
+      !accountCommissionBase.equals(sourceItemsCommissionBase);
     const reconciledSourceItems =
       hasAccountCommissionBaseOverride
         ? findSourceItemsForBase(sourceItemsWithBase, accountCommissionBase)
@@ -462,6 +487,9 @@ export async function getMechanicCommissionReport(params: CommissionReportParams
       discount: item.discount,
       total: item.total,
       commissionBase: decimalToString(item.commissionBaseValue),
+      commissionValue: item.commissionValueValue
+        ? decimalToString(item.commissionValueValue)
+        : null,
     }));
 
     if (!groups.has(groupName)) {

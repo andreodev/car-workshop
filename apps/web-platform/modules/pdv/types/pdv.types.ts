@@ -453,6 +453,7 @@ export type ServiceOrderPdvResponse = {
     discount?: string | number | null;
     total: string | number;
     commissionBase?: string | number | null;
+    commissionValue?: string | number | null;
     stockCurrent?: string | number | null;
   }>;
   subtotal?: string | number;

@@ -137,7 +137,13 @@ function formatSource(account: MechanicCommissionAccount) {
   }
 
   return account.sourceItems
-    .map((item) => `${item.description} (${formatCurrency(item.commissionBase)})`)
+    .map((item) => {
+      const commissionLabel = item.commissionValue
+        ? `fixa ${formatCurrency(item.commissionValue)}`
+        : `base ${formatCurrency(item.commissionBase)}`;
+
+      return `${item.description} (${commissionLabel})`;
+    })
     .join("; ");
 }
 
@@ -318,6 +324,7 @@ function CommissionDetailsDialog({
                         <TableHead className="text-right">Desconto</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead className="text-right">Base</TableHead>
+                        <TableHead className="text-right">Fixa</TableHead>
                       </TableRow>
                     </TableHeader>
 
@@ -344,6 +351,9 @@ function CommissionDetailsDialog({
                           </TableCell>
                           <TableCell className="text-right font-semibold">
                             {formatCurrency(item.commissionBase)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {item.commissionValue ? formatCurrency(item.commissionValue) : "-"}
                           </TableCell>
                         </TableRow>
                       ))}

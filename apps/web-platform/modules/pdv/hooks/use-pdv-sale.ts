@@ -188,7 +188,10 @@ function buildServiceOrderCommissionPreview(
     .map((item) => {
       const isService = item.type === "SERVICO";
       const fallbackBase = isService ? Number(item.total ?? 0) : 0;
-      const base = toCurrencyNumber(item.commissionBase ?? fallbackBase);
+      const fixedCommission = toCurrencyNumber(item.commissionValue ?? 0);
+      const base = fixedCommission > 0
+        ? fixedCommission
+        : toCurrencyNumber(item.commissionBase ?? fallbackBase);
       const mechanicName = item.mechanic?.name?.trim();
 
       return {

@@ -313,6 +313,7 @@ async function buildServiceOrderData(
     discount: item.discount,
     total: item.total,
     commissionBase: item.commissionBase,
+    commissionValue: item.commissionValue,
   })) satisfies Prisma.ServiceOrderItemCreateWithoutServiceOrderInput[];
 
   if (mode === "create") {

@@ -27,6 +27,7 @@ export type ParsedEstimateItems = {
     discount: Prisma.Decimal;
     total: Prisma.Decimal;
     commissionBase: Prisma.Decimal | null;
+    commissionValue: Prisma.Decimal | null;
   }>;
   subtotal: Prisma.Decimal;
   discountTotal: Prisma.Decimal;
@@ -173,13 +174,25 @@ export function parseEstimateItems(payload: unknown) {
       item.commissionBase === null || item.commissionBase === undefined
         ? null
         : String(item.commissionBase);
+    const rawCommissionValue =
+      item.commissionValue === null || item.commissionValue === undefined
+        ? null
+        : String(item.commissionValue);
     const hasCommissionBase = rawCommissionBase !== null && rawCommissionBase.trim() !== "";
+    const hasCommissionValue = rawCommissionValue !== null && rawCommissionValue.trim() !== "";
     const commissionBaseParsed = hasCommissionBase
       ? parseDecimal(item.commissionBase, "Base de comissão")
+      : null;
+    const commissionValueParsed = hasCommissionValue
+      ? parseDecimal(item.commissionValue, "Comissão fixa")
       : null;
 
     if (commissionBaseParsed && "error" in commissionBaseParsed) {
       return { error: commissionBaseParsed.error };
+    }
+
+    if (commissionValueParsed && "error" in commissionValueParsed) {
+      return { error: commissionValueParsed.error };
     }
 
     const commissionBase = hasCommissionBase
@@ -187,9 +200,16 @@ export function parseEstimateItems(payload: unknown) {
       : type === "SERVICE"
         ? lineTotal
         : new Prisma.Decimal(0);
+    const commissionValue = hasCommissionValue
+      ? commissionValueParsed?.value ?? new Prisma.Decimal(0)
+      : null;
 
     if (commissionBase.greaterThan(lineTotal)) {
       return { error: "Base de comissão não pode ser maior que o total do item." };
+    }
+
+    if (commissionValue && commissionValue.greaterThan(lineTotal)) {
+      return { error: "Comissão fixa não pode ser maior que o total do item." };
     }
 
     subtotal = subtotal.add(lineSubtotal);
@@ -205,6 +225,7 @@ export function parseEstimateItems(payload: unknown) {
       discount,
       total: lineTotal,
       commissionBase,
+      commissionValue,
     });
   }
 
@@ -232,5 +253,6 @@ export function toEstimateItemCreateInput(
     discount: item.discount,
     total: item.total,
     commissionBase: item.commissionBase,
+    commissionValue: item.commissionValue,
   }));
 }

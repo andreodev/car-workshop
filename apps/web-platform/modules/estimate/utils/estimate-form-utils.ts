@@ -19,6 +19,7 @@ export function createEmptyEstimateItem(): EstimateItemFormValues {
     unitPrice: "",
     discount: "0",
     commissionBase: "",
+    commissionValue: "",
   };
 }
 
@@ -118,6 +119,12 @@ export function getCommissionBaseValue(
   return item.type === "SERVICE" ? lineTotal : 0;
 }
 
+export function getCommissionValue(item: EstimateItemFormValues) {
+  const rawCommissionValue = item.commissionValue.trim();
+
+  return rawCommissionValue ? normalizeAmount(rawCommissionValue) : null;
+}
+
 export function getEstimateItemValidationError(
   item: EstimateItemFormValues,
   index: number,
@@ -129,6 +136,7 @@ export function getEstimateItemValidationError(
   const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
   const lineTotal = Math.max(quantity * unitPrice - discount, 0);
   const commissionBase = getCommissionBaseValue(item, lineTotal);
+  const commissionValue = getCommissionValue(item);
   const isService = item.type === "SERVICE";
 
   if (!item.description.trim()) {
@@ -161,6 +169,10 @@ export function getEstimateItemValidationError(
 
   if (isService && commissionBase > lineTotal) {
     return `${itemLabel}: base de comissão não pode ser maior que o total do item.`;
+  }
+
+  if (isService && commissionValue !== null && commissionValue > lineTotal) {
+    return `${itemLabel}: comissão fixa não pode ser maior que o total do item.`;
   }
 
   return null;
@@ -216,6 +228,10 @@ export function mapEstimateToForm(estimate: Estimate): EstimateFormValues {
               item.commissionBase === null
                 ? ""
                 : formatAmountInput(item.commissionBase),
+            commissionValue:
+              item.commissionValue === null
+                ? ""
+                : formatAmountInput(item.commissionValue),
           }))
         : [createEmptyEstimateItem()],
   };

@@ -859,6 +859,7 @@ export default function EstimatesPage() {
                         <TableHead className="text-right">Unitário</TableHead>
                         <TableHead className="text-right">Desconto</TableHead>
                         <TableHead className="text-right">Base comissão</TableHead>
+                        <TableHead className="text-right">Comissão fixa</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -886,6 +887,9 @@ export default function EstimatesPage() {
                               item.commissionBase ??
                                 (item.catalogItem?.type === "SERVICO" ? item.total : "0")
                             )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {item.commissionValue ? formatCurrency(item.commissionValue) : "-"}
                           </TableCell>
                           <TableCell className="text-right font-mono font-semibold">
                             {formatCurrency(item.total)}

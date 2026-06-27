@@ -260,6 +260,7 @@ export const estimateRepository = {
               discount: item.discount,
               total: item.total,
               commissionBase: item.commissionBase,
+              commissionValue: item.commissionValue,
             })),
           },
           vehicleInspection: {

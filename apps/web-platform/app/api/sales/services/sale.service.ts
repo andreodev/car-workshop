@@ -291,6 +291,7 @@ function getItemCommissionBase(item: {
   type: "SERVICE" | "PRODUCT";
   total: Prisma.Decimal;
   commissionBase: Prisma.Decimal | null;
+  commissionValue?: Prisma.Decimal | null;
   catalogItem: {
     type: "PRODUTO" | "SERVICO";
   } | null;
@@ -302,6 +303,16 @@ function getItemCommissionBase(item: {
   const isService = item.type === "SERVICE" || item.catalogItem?.type === "SERVICO";
 
   return isService ? new Prisma.Decimal(item.total) : new Prisma.Decimal(0);
+}
+
+function getItemFixedCommission(item: { commissionValue?: Prisma.Decimal | null }) {
+  if (item.commissionValue === null || item.commissionValue === undefined) {
+    return null;
+  }
+
+  const fixed = new Prisma.Decimal(item.commissionValue);
+
+  return fixed.greaterThan(0) ? fixed : null;
 }
 
 function normalizeServiceOrderPaymentDiscount(
@@ -450,6 +461,7 @@ async function createMechanicCommissionPayable(params: {
       discount: Prisma.Decimal;
       total: Prisma.Decimal;
       commissionBase: Prisma.Decimal | null;
+      commissionValue: Prisma.Decimal | null;
       mechanic: {
         id: string;
         name: string;
@@ -471,6 +483,7 @@ async function createMechanicCommissionPayable(params: {
         commissionPercent: Prisma.Decimal;
       };
       base: Prisma.Decimal;
+      fixed: Prisma.Decimal;
     }
   >();
 
@@ -482,29 +495,39 @@ async function createMechanicCommissionPayable(params: {
     }
 
     const base = getItemCommissionBase(item);
+    const fixed = getItemFixedCommission(item);
 
-    if (base.lessThanOrEqualTo(0)) {
+    if (fixed === null && base.lessThanOrEqualTo(0)) {
       continue;
     }
 
     const current = commissionByMechanic.get(mechanic.id);
+    const currentBase = current?.base ?? new Prisma.Decimal(0);
+    const currentFixed = current?.fixed ?? new Prisma.Decimal(0);
 
     commissionByMechanic.set(mechanic.id, {
       mechanic,
-      base: current ? current.base.plus(base) : base,
+      base: fixed === null ? currentBase.plus(base) : currentBase,
+      fixed: fixed === null ? currentFixed : currentFixed.plus(fixed),
     });
   }
 
   const createdAccounts = [];
 
-  for (const { mechanic, base } of commissionByMechanic.values()) {
+  for (const { mechanic, base, fixed } of commissionByMechanic.values()) {
     const commissionPercent = new Prisma.Decimal(mechanic.commissionPercent ?? 0);
 
-    if (commissionPercent.lessThanOrEqualTo(0) || base.lessThanOrEqualTo(0)) {
+    if (
+      fixed.lessThanOrEqualTo(0) &&
+      (commissionPercent.lessThanOrEqualTo(0) || base.lessThanOrEqualTo(0))
+    ) {
       continue;
     }
 
-    const commissionAmount = base.mul(commissionPercent).div(100).toDecimalPlaces(2);
+    const percentCommissionAmount = commissionPercent.greaterThan(0)
+      ? base.mul(commissionPercent).div(100).toDecimalPlaces(2)
+      : new Prisma.Decimal(0);
+    const commissionAmount = percentCommissionAmount.plus(fixed).toDecimalPlaces(2);
 
     if (commissionAmount.lessThanOrEqualTo(0)) {
       continue;
@@ -543,11 +566,15 @@ async function createMechanicCommissionPayable(params: {
         amount: commissionAmount,
         paidAmount: null,
         paymentMethod: null,
-        notes: `Comissão de ${commissionPercent.toFixed(
-          2,
-        )}% sobre base comissionável da OS #${serviceOrder.code}. Base: ${base.toFixed(
-          2,
-        )}.`,
+        notes: fixed.greaterThan(0)
+          ? `Comissão fixa da OS #${serviceOrder.code}. Fixa: ${fixed.toFixed(
+              2,
+            )}. Base percentual: ${base.toFixed(2)}. Percentual: ${commissionPercent.toFixed(2)}%.`
+          : `Comissão de ${commissionPercent.toFixed(
+              2,
+            )}% sobre base comissionável da OS #${serviceOrder.code}. Base: ${base.toFixed(
+              2,
+            )}.`,
       },
     });
 
@@ -1091,6 +1118,7 @@ export const saleService = {
           discount: item.discount,
           total: Number(item.quantity) * Number(item.unitPrice),
           commissionBase: getItemCommissionBase(item).toFixed(2),
+          commissionValue: item.commissionValue ? item.commissionValue.toFixed(2) : null,
           stockCurrent: item.catalogItem?.stockCurrent ?? null,
         })),
         subtotal: serviceOrder.subtotal,

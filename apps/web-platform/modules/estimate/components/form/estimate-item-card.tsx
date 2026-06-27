@@ -1,5 +1,10 @@
 import { formatCurrency } from "@/lib/finance/formatCurrency";
-import { calculateDiscountValue, getCommissionBaseValue, normalizeAmount } from "../../utils/estimate-form-utils";
+import {
+  calculateDiscountValue,
+  getCommissionBaseValue,
+  getCommissionValue,
+  normalizeAmount,
+} from "../../utils/estimate-form-utils";
 import type { EstimateItemCardProps } from "./estimate-items-form";
 import { Calculator, ChevronDown, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +40,7 @@ export function EstimateItemCard({
   const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
   const lineTotal = Math.max(quantity * unitPrice - discount, 0);
   const commissionBase = getCommissionBaseValue(item, lineTotal);
+  const commissionValue = getCommissionValue(item);
   const selectedCatalogItem = catalogItems.find(
     (catalogItem) => catalogItem.id === item.catalogItemId,
   );
@@ -322,9 +328,9 @@ export function EstimateItemCard({
                     <div className="rounded-lg bg-muted/40 p-3">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <Label>Base comissão</Label>
+                          <Label>Base comissão (%)</Label>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Valor usado para cálculo da comissão.
+                            Valor usado quando a comissão segue o percentual do mecânico.
                           </p>
                         </div>
                         <Calculator className="size-4 text-muted-foreground" />
@@ -343,6 +349,23 @@ export function EstimateItemCard({
                         }
                         placeholder={formatCurrency(lineTotal)}
                       />
+
+                      <div className="mt-3">
+                        <Label>Comissão fixa</Label>
+                        <Input
+                          className="mt-2 h-10 bg-background"
+                          inputMode="decimal"
+                          value={item.commissionValue}
+                          onChange={(event) =>
+                            onUpdateMaskedItem(
+                              item.id,
+                              "commissionValue",
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0,00"
+                        />
+                      </div>
                     </div>
                   ) : null}
 
@@ -362,6 +385,14 @@ export function EstimateItemCard({
                         </span>
                         <span className="font-mono font-semibold">
                           {formatCurrency(commissionBase)}
+                        </span>
+                      </div>
+                    ) : null}
+                    {isService && commissionValue !== null ? (
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Comissão fixa</span>
+                        <span className="font-mono font-semibold">
+                          {formatCurrency(commissionValue)}
                         </span>
                       </div>
                     ) : null}

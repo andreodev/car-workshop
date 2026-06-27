@@ -19,6 +19,7 @@ export type EstimateItem = {
   discount: string;
   total: string;
   commissionBase: string | null;
+  commissionValue: string | null;
   mechanicId: string | null;
   mechanic: {
     id: string;
@@ -103,6 +104,7 @@ export type EstimateItemFormValues = {
   unitPrice: string;
   discount: string;
   commissionBase: string;
+  commissionValue: string;
 };
 
 export type EstimatePayloadItem = {
@@ -115,6 +117,7 @@ export type EstimatePayloadItem = {
   unitPrice: number;
   discount: number;
   commissionBase: number | null;
+  commissionValue: number | null;
 };
 
 export type EstimateFormValues = {

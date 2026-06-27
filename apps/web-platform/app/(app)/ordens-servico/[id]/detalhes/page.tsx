@@ -304,6 +304,7 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
                   <TableHead>Valor</TableHead>
                   <TableHead>Desconto</TableHead>
                   <TableHead>Base comissão</TableHead>
+                  <TableHead>Comissão fixa</TableHead>
                   <TableHead>Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -331,6 +332,9 @@ export default function ServiceOrderDetailsPage({ params }: ServiceOrderDetailsP
                       {formatCurrency(
                         item.commissionBase ?? (item.type === "SERVICE" ? item.total : "0")
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {item.commissionValue ? formatCurrency(item.commissionValue) : "-"}
                     </TableCell>
                     <TableCell>{formatCurrency(item.total)}</TableCell>
                   </TableRow>

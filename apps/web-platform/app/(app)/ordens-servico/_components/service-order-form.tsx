@@ -77,6 +77,7 @@ function createEmptyItem(): ServiceOrderItemFormValues {
     unitPrice: "",
     discount: "0",
     commissionBase: "",
+    commissionValue: "",
   };
 }
 
@@ -162,6 +163,10 @@ function mapOrderToForm(order: ServiceOrder): ServiceOrderFormValues {
               item.commissionBase === null
                 ? ""
                 : formatAmountInput(item.commissionBase),
+            commissionValue:
+              item.commissionValue === null
+                ? ""
+                : formatAmountInput(item.commissionValue),
           }))
         : [createEmptyItem()],
   };
@@ -235,6 +240,12 @@ function getCommissionBaseValue(
   return item.type === "SERVICE" ? lineTotal : 0;
 }
 
+function getCommissionValue(item: ServiceOrderItemFormValues) {
+  const rawCommissionValue = item.commissionValue.trim();
+
+  return rawCommissionValue ? normalizeAmount(rawCommissionValue) : null;
+}
+
 function getItemValidationMessage(
   item: ServiceOrderItemFormValues,
   index: number,
@@ -246,6 +257,7 @@ function getItemValidationMessage(
   const discount = calculateDiscountValue(quantity, unitPrice, discountPercent);
   const lineTotal = Math.max(quantity * unitPrice - discount, 0);
   const commissionBase = getCommissionBaseValue(item, lineTotal);
+  const commissionValue = getCommissionValue(item);
   const isService = item.type === "SERVICE";
 
   if (!item.description.trim()) {
@@ -282,6 +294,10 @@ function getItemValidationMessage(
 
   if (isService && commissionBase > lineTotal) {
     return `${itemLabel}: a base de comissão não pode ser maior que o total do item.`;
+  }
+
+  if (isService && commissionValue !== null && commissionValue > lineTotal) {
+    return `${itemLabel}: a comissão fixa não pode ser maior que o total do item.`;
   }
 
   return null;
@@ -671,6 +687,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
               mechanicId: type === "SERVICE" ? item.mechanicId : "",
               sectorId: type === "SERVICE" ? item.sectorId : "",
               commissionBase: type === "SERVICE" ? item.commissionBase : "",
+              commissionValue: type === "SERVICE" ? item.commissionValue : "",
             }
           : item,
       ),
@@ -835,6 +852,10 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
         commissionBase:
           item.type === "SERVICE" && item.commissionBase.trim()
             ? normalizeAmount(item.commissionBase)
+            : null,
+        commissionValue:
+          item.type === "SERVICE" && item.commissionValue.trim()
+            ? normalizeAmount(item.commissionValue)
             : null,
       })),
     };
@@ -1127,6 +1148,7 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                             item,
                             lineTotal,
                           );
+                          const commissionValue = getCommissionValue(item);
                           const selectedCatalogItem = catalogItems.find(
                             (catalogItem) =>
                               catalogItem.id === item.catalogItemId,
@@ -1420,22 +1442,41 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                   </div>
 
                                   {item.type === "SERVICE" ? (
-                                    <div className="grid gap-2">
-                                      <Label>Base comissão</Label>
-                                      <Input
-                                        className="h-11"
-                                        inputMode="decimal"
-                                        value={item.commissionBase}
-                                        onChange={(event) =>
-                                          updateItem(
-                                            item.id,
-                                            "commissionBase",
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder={formatCurrency(lineTotal)}
-                                      />
-                                    </div>
+                                    <>
+                                      <div className="grid gap-2">
+                                        <Label>Base comissão (%)</Label>
+                                        <Input
+                                          className="h-11"
+                                          inputMode="decimal"
+                                          value={item.commissionBase}
+                                          onChange={(event) =>
+                                            updateItem(
+                                              item.id,
+                                              "commissionBase",
+                                              event.target.value,
+                                            )
+                                          }
+                                          placeholder={formatCurrency(lineTotal)}
+                                        />
+                                      </div>
+
+                                      <div className="grid gap-2">
+                                        <Label>Comissão fixa</Label>
+                                        <Input
+                                          className="h-11"
+                                          inputMode="decimal"
+                                          value={item.commissionValue}
+                                          onChange={(event) =>
+                                            updateItem(
+                                              item.id,
+                                              "commissionValue",
+                                              event.target.value,
+                                            )
+                                          }
+                                          placeholder="0,00"
+                                        />
+                                      </div>
+                                    </>
                                   ) : null}
 
                                   <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm md:col-span-2">
@@ -1454,6 +1495,16 @@ export function ServiceOrderForm({ mode, initialData }: ServiceOrderFormProps) {
                                         </span>
                                         <span className="font-mono font-semibold">
                                           {formatCurrency(commissionBase)}
+                                        </span>
+                                      </div>
+                                    ) : null}
+                                    {item.type === "SERVICE" && commissionValue !== null ? (
+                                      <div className="mt-2 flex items-center justify-between gap-3">
+                                        <span className="text-muted-foreground">
+                                          Comissão fixa
+                                        </span>
+                                        <span className="font-mono font-semibold">
+                                          {formatCurrency(commissionValue)}
                                         </span>
                                       </div>
                                     ) : null}

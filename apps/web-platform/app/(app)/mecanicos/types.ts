@@ -64,6 +64,7 @@ export type MechanicReportOrderItem = {
   discount: string;
   total: string;
   commissionBase: string;
+  commissionValue: string | null;
   catalogItem: {
     id: string;
     code: number;

@@ -478,6 +478,10 @@ export function EstimateForm({ mode, initialData }: EstimateFormProps) {
           item.type === "SERVICE" && item.commissionBase.trim()
             ? normalizeAmount(item.commissionBase)
             : null,
+        commissionValue:
+          item.type === "SERVICE" && item.commissionValue.trim()
+            ? normalizeAmount(item.commissionValue)
+            : null,
       })),
     };
 

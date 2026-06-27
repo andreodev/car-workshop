@@ -72,6 +72,7 @@ function updateMaskedItem(
               mechanicId: type === "SERVICE" ? item.mechanicId : "",
               sectorId: type === "SERVICE" ? item.sectorId : "",
               commissionBase: type === "SERVICE" ? item.commissionBase : "",
+              commissionValue: type === "SERVICE" ? item.commissionValue : "",
             }
           : item,
       ),

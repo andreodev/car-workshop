@@ -157,6 +157,7 @@ export type MechanicCommissionSourceItem = {
   discount: string;
   total: string;
   commissionBase: string;
+  commissionValue: string | null;
 };
 
 export type MechanicPaymentInfo = {

@@ -46,6 +46,7 @@ export type ServiceOrderItem = {
   discount: string;
   total: string;
   commissionBase: string | null;
+  commissionValue: string | null;
 };
 
 export type ServiceOrderVehicleInspectionPhoto = {
@@ -127,6 +128,7 @@ export type ServiceOrderItemFormValues = {
   unitPrice: string;
   discount: string;
   commissionBase: string;
+  commissionValue: string;
 };
 
 export type ServiceOrderPayloadItem = {
@@ -139,6 +141,7 @@ export type ServiceOrderPayloadItem = {
   unitPrice: number;
   discount: number;
   commissionBase: number | null;
+  commissionValue: number | null;
 };
 
 export type ServiceOrderFormValues = {

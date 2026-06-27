@@ -123,6 +123,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           discount: true,
           total: true,
           commissionBase: true,
+          commissionValue: true,
           catalogItem: { select: { id: true, code: true, name: true, type: true } },
           sector: { select: { id: true, name: true } },
           createdAt: true,
@@ -201,6 +202,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   const getCommissionBaseTotal = (order: (typeof orders)[number]) =>
     order.items.reduce((sum, item) => {
+      if (
+        item.commissionValue !== null &&
+        item.commissionValue !== undefined &&
+        item.commissionValue.greaterThan(0)
+      ) {
+        return sum;
+      }
+
       if (item.commissionBase !== null && item.commissionBase !== undefined) {
         return sum.add(item.commissionBase);
       }
@@ -210,6 +219,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       }
 
       return sum.add(item.total);
+    }, new Prisma.Decimal(0));
+  const getFixedCommissionTotal = (order: (typeof orders)[number]) =>
+    order.items.reduce((sum, item) => {
+      if (
+        item.commissionValue === null ||
+        item.commissionValue === undefined ||
+        item.commissionValue.lessThanOrEqualTo(0)
+      ) {
+        return sum;
+      }
+
+      return sum.add(item.commissionValue);
     }, new Prisma.Decimal(0));
 
   orders.forEach((order) => {
@@ -265,6 +286,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const mapOrder = (order: (typeof orders)[number]) => {
     const assignedServiceTotal = getAssignedServiceTotal(order);
     const serviceTotal = getCommissionBaseTotal(order);
+    const fixedCommissionTotal = getFixedCommissionTotal(order);
     const orderCommissionAccounts =
       commissionAccountsByDocument.get(`OS-${order.code}`) ?? [];
 
@@ -277,7 +299,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       updatedAt: order.updatedAt,
       total: assignedServiceTotal,
       serviceTotal,
-      commissionTotal: serviceTotal.mul(commissionRate),
+      commissionTotal: serviceTotal.mul(commissionRate).plus(fixedCommissionTotal),
       location: order.location,
       client: order.client,
       vehicle: order.vehicle,
@@ -289,6 +311,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         discount: decimalToString(item.discount),
         total: decimalToString(item.total),
         commissionBase: decimalToString(item.commissionBase ?? item.total),
+        commissionValue: item.commissionValue ? decimalToString(item.commissionValue) : null,
         catalogItem: item.catalogItem,
         sector: item.sector,
       })),

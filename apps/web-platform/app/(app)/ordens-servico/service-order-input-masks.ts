@@ -87,7 +87,7 @@ export function maskServiceOrderItemField(
     return maskQuantityInput(value);
   }
 
-  if (field === "unitPrice" || field === "commissionBase") {
+  if (field === "unitPrice" || field === "commissionBase" || field === "commissionValue") {
     return maskMoneyInput(value);
   }
 
