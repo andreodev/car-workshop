@@ -1,4 +1,5 @@
 import {
+  ClipboardCheck,
   ClipboardList,
   Landmark,
   LayoutDashboard,
@@ -20,6 +21,7 @@ export const menuGroups = [
   {
     title: "Dia a dia",
     items: [
+      { title: "Ordens de Serviço", href: "/ordens-servico", icon: ClipboardCheck },
       { title: "Clientes", href: "/clientes", icon: Users },
       { title: "Mecânicos", href: "/mecanicos", icon: Wrench },
       { title: "Estoque", href: "/produtos", icon: Package },

@@ -72,6 +72,8 @@ function buildEstimateWhere(
   search: string,
   status: string | null,
   visibility: EstimateVisibility,
+  from: Date | null,
+  to: Date | null,
 ) {
   const where: Prisma.EstimateWhereInput = {
     tenantId,
@@ -103,6 +105,13 @@ function buildEstimateWhere(
     where.OR = or;
   }
 
+  if (from || to) {
+    where.createdAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    };
+  }
+
   if (visibility === "ATIVOS") {
     where.NOT = archivedEstimateWhere();
   }
@@ -112,6 +121,18 @@ function buildEstimateWhere(
   }
 
   return { data: where };
+}
+
+function parseOptionalDate(value: string | null) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const date = new Date(normalized);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function validateCatalogItems(items: ParsedEstimateItems["items"], tenantId: string) {
@@ -381,7 +402,9 @@ export const estimateService = {
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
     const visibility = normalizeVisibility(normalizeString(searchParams.get("visibility")));
-    const where = buildEstimateWhere(tenantId, search, status, visibility);
+    const from = parseOptionalDate(searchParams.get("from"));
+    const to = parseOptionalDate(searchParams.get("to"));
+    const where = buildEstimateWhere(tenantId, search, status, visibility, from, to);
 
     if ("error" in where) {
       return where;

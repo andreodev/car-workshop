@@ -35,8 +35,18 @@ function normalizeString(value: unknown) {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/\s+/g, " ");
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeDescription(value: unknown) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return `${normalized.charAt(0).toLocaleUpperCase("pt-BR")}${normalized.slice(1)}`;
 }
 
 function normalizeNumber(value: unknown) {
@@ -129,6 +139,47 @@ function normalizePaymentMethod(value: unknown) {
   return normalized as SalePaymentMethod;
 }
 
+async function validateCategoryId(
+  tenantId: string,
+  categoryId: string | null,
+  type: CashMovementType
+) {
+  if (!categoryId) {
+    return {
+      error: Response.json({ error: "Categoria é obrigatória." }, { status: 400 }),
+      categoryId: null,
+    };
+  }
+
+  const compatibleTypes = type === "ENTRADA" ? ["RECEITA", "AMBOS"] : ["DESPESA", "AMBOS"];
+  const category = await prisma.financialCategory.findFirst({
+    where: {
+      id: categoryId,
+      tenantId,
+      active: true,
+      type: { in: compatibleTypes },
+    },
+    select: { id: true },
+  });
+
+  if (!category) {
+    return {
+      error: Response.json(
+        {
+          error:
+            type === "ENTRADA"
+              ? "Selecione uma categoria ativa de receita."
+              : "Selecione uma categoria ativa de despesa.",
+        },
+        { status: 400 }
+      ),
+      categoryId: null,
+    };
+  }
+
+  return { error: null, categoryId: category.id };
+}
+
 export async function GET(request: NextRequest) {
   const { tenant, response } = await requireTenantOrJson(request);
 
@@ -214,7 +265,7 @@ export async function POST(request: NextRequest) {
 
   const payload = (await request.json()) as Record<string, unknown>;
   const type = normalizeType(payload.type);
-  const description = normalizeString(payload.description);
+  const description = normalizeDescription(payload.description);
   const movementDate = normalizeDate(payload.movementDate);
   const amount = normalizeMoney(payload.amount);
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
@@ -240,22 +291,16 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Forma de pagamento inválida." }, { status: 400 });
   }
 
-  if (categoryId) {
-    const category = await prisma.financialCategory.findFirst({
-      where: { id: categoryId, tenantId: tenant.tenantId },
-      select: { id: true },
-    });
-
-    if (!category) {
-      return Response.json({ error: "Categoria não encontrada." }, { status: 404 });
-    }
+  const categoryValidation = await validateCategoryId(tenant.tenantId, categoryId, type);
+  if (categoryValidation.error) {
+    return categoryValidation.error;
   }
 
   const movement = await prisma.cashMovement.create({
     data: {
       tenantId: tenant.tenantId,
       type,
-      categoryId,
+      categoryId: categoryValidation.categoryId,
       description,
       movementDate,
       amount,

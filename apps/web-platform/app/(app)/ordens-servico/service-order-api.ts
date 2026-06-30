@@ -47,6 +47,8 @@ export async function fetchServiceOrders(params: {
   search?: string;
   status?: string;
   includeArchived?: boolean;
+  from?: string;
+  to?: string;
 }) {
   const query = toQuery({
     page: params.page ?? 1,
@@ -54,6 +56,8 @@ export async function fetchServiceOrders(params: {
     search: params.search,
     status: params.status,
     includeArchived: params.includeArchived ? "true" : undefined,
+    from: params.from,
+    to: params.to,
   });
 
   const response = await fetch(`/api/service-orders?${query}`, {

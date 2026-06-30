@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   keepPreviousData,
@@ -8,7 +8,18 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
+import {
+  Car,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  FileText,
+  Plus,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,50 +32,179 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Header from "@/components/ui/header";
-import { fetchServiceOrders, updateServiceOrderStatus } from "@/app/(app)/ordens-servico/service-order-api";
 import {
-  editableServiceOrderStatusOptions,
+  fetchServiceOrders,
+  updateServiceOrderStatus,
+} from "@/app/(app)/ordens-servico/service-order-api";
+import { fetchEstimates } from "@/modules/estimate/api/estimate.service";
+import { getEstimateStatusOption } from "@/modules/estimate/utils/estimate-status";
+import type {
+  Estimate,
+  EstimateStatus,
+} from "@/modules/estimate/types/estimate.types";
+import {
   getServiceOrderStatusOption,
   serviceOrderStatusOptions,
 } from "@/app/(app)/ordens-servico/status";
-import type { ServiceOrder, ServiceOrderStatus, StatusFilter } from "../../types/order-service.types";
-import { formatDateTime } from "@/lib/time";
-import { archivedBoardColumns, boardColumns } from "../../utils/order-service.constants";
-import { Dialog } from "@/components/ui/dialog";
-import { DialogContent } from "@radix-ui/react-dialog";
+import type {
+  ServiceOrder,
+  ServiceOrderStatus,
+  StatusFilter,
+} from "../../types/order-service.types";
+import {
+  archivedBoardColumns,
+  boardColumns,
+} from "../../utils/order-service.constants";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
-function needsEntryInspection(order: ServiceOrder) {
-  return !order.vehicleInspection || order.vehicleInspection.status !== "CONCLUIDA";
+const estimateColumns: Array<{
+  status: EstimateStatus;
+  title: string;
+  description: string;
+}> = [
+  {
+    status: "RASCUNHO",
+    title: "Orçamentos criados",
+    description: "Ainda em elaboração",
+  },
+  {
+    status: "ENVIADO",
+    title: "Aguardando aprovação",
+    description: "Enviados para o cliente",
+  },
+];
+
+const columnMeta: Record<
+  ServiceOrderStatus,
+  {
+    accentClassName: string;
+    surfaceClassName: string;
+  }
+> = {
+  ABERTA: {
+    accentClassName: "bg-primary/55",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_16%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_6%,var(--card))]",
+  },
+  EM_ANDAMENTO: {
+    accentClassName: "bg-primary",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_32%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]",
+  },
+  AGUARDANDO_PECAS: {
+    accentClassName: "bg-primary/75",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_24%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_8%,var(--card))]",
+  },
+  IMPEDIDA: {
+    accentClassName: "bg-primary",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_38%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_12%,var(--card))]",
+  },
+  FINALIZADA: {
+    accentClassName: "bg-primary/70",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_22%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_7%,var(--card))]",
+  },
+  CANCELADA: {
+    accentClassName: "bg-muted-foreground",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_10%,var(--border))] bg-muted",
+  },
+  PAGA: {
+    accentClassName: "bg-primary",
+    surfaceClassName:
+      "border-[color-mix(in_oklab,var(--primary)_42%,var(--border))] bg-[color-mix(in_oklab,var(--primary)_14%,var(--card))]",
+  },
+};
+
+function getVehicleLabel(order: ServiceOrder) {
+  const plate = order.vehicle?.plate?.trim();
+  const model = order.vehicle?.model?.trim();
+
+  if (!plate && !model) {
+    return "Veículo não informado";
+  }
+
+  return [plate, model].filter(Boolean).join(" - ");
+}
+
+function getOrderSubtitle(order: ServiceOrder) {
+  return order.client?.name ?? order.responsible ?? "Cliente não informado";
+}
+
+function getCurrentWeekRange() {
+  const now = new Date();
+  const day = now.getDay();
+  const distanceFromMonday = day === 0 ? 6 : day - 1;
+  const from = new Date(now);
+  from.setDate(now.getDate() - distanceFromMonday);
+  from.setHours(0, 0, 0, 0);
+
+  const to = new Date(from);
+  to.setDate(from.getDate() + 6);
+  to.setHours(23, 59, 59, 999);
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+  };
 }
 
 export default function ServiceOrdersPage() {
   const queryClient = useQueryClient();
+  const boardScrollRef = useRef<HTMLDivElement | null>(null);
+  const boardPanRef = useRef<{
+    pointerId: number;
+    startX: number;
+    scrollLeft: number;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<StatusFilter>("TODOS");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
   const [draggingOrderId, setDraggingOrderId] = useState<string | null>(null);
-  const [dragOverStatus, setDragOverStatus] = useState<ServiceOrderStatus | null>(null);
-  const [includeArchived, setIncludeArchived] = useState(false);
-  const showArchivedColumns =
-    includeArchived || status === "FINALIZADA" || status === "CANCELADA";
+  const [dragOverStatus, setDragOverStatus] =
+    useState<ServiceOrderStatus | null>(null);
   const visibleColumns = useMemo(
-    () => (showArchivedColumns ? [...boardColumns, ...archivedBoardColumns] : boardColumns),
-    [showArchivedColumns]
+    () => [...boardColumns, ...archivedBoardColumns],
+    [],
   );
+  const weekRange = useMemo(() => getCurrentWeekRange(), []);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["service-orders", { page, status, search, includeArchived }],
+    queryKey: ["service-orders", { page, status, search, weekRange }],
     queryFn: () =>
       fetchServiceOrders({
         page,
         pageSize: PAGE_SIZE,
         status,
         search,
-        includeArchived,
+        includeArchived: true,
+        from: weekRange.from,
+        to: weekRange.to,
+      }),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const {
+    data: estimatesData,
+    isLoading: isLoadingEstimates,
+    isError: isEstimateError,
+    error: estimateError,
+  } = useQuery({
+    queryKey: ["yard-estimates", { search, weekRange }],
+    queryFn: () =>
+      fetchEstimates({
+        page: 1,
+        pageSize: PAGE_SIZE,
+        search,
+        visibility: "ATIVOS",
+        from: weekRange.from,
+        to: weekRange.to,
       }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
@@ -90,7 +230,7 @@ export default function ServiceOrdersPage() {
 
   const ordersByStatus = useMemo(() => {
     const grouped = new Map<ServiceOrderStatus, ServiceOrder[]>(
-      visibleColumns.map((column) => [column.status, []])
+      visibleColumns.map((column) => [column.status, []]),
     );
 
     (data?.items ?? []).forEach((order) => {
@@ -100,6 +240,18 @@ export default function ServiceOrdersPage() {
     return grouped;
   }, [data, visibleColumns]);
 
+  const estimatesByStatus = useMemo(() => {
+    const grouped = new Map<EstimateStatus, Estimate[]>(
+      estimateColumns.map((column) => [column.status, []]),
+    );
+
+    (estimatesData?.items ?? []).forEach((estimate) => {
+      grouped.get(estimate.status)?.push(estimate);
+    });
+
+    return grouped;
+  }, [estimatesData]);
+
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
@@ -108,11 +260,6 @@ export default function ServiceOrdersPage() {
 
   function handleStatusChange(value: string) {
     setStatus(value as StatusFilter);
-    setPage(1);
-  }
-
-  function handleArchivedChange(value: string) {
-    setIncludeArchived(value === "COM_HISTORICO");
     setPage(1);
   }
 
@@ -126,7 +273,10 @@ export default function ServiceOrdersPage() {
     statusMutation.mutate({ id: orderId, status: nextStatus });
   }
 
-  function handleDrop(event: React.DragEvent<HTMLElement>, nextStatus: ServiceOrderStatus) {
+  function handleDrop(
+    event: React.DragEvent<HTMLElement>,
+    nextStatus: ServiceOrderStatus,
+  ) {
     event.preventDefault();
     const orderId = event.dataTransfer.getData("text/plain") || draggingOrderId;
 
@@ -139,29 +289,99 @@ export default function ServiceOrdersPage() {
     moveOrderToStatus(orderId, nextStatus);
   }
 
+  function handleBoardPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (
+      event.button !== 0 ||
+      (event.target as HTMLElement).closest("[data-service-order-card]")
+    ) {
+      return;
+    }
+
+    const scroller = boardScrollRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    boardPanRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: scroller.scrollLeft,
+    };
+    scroller.setPointerCapture(event.pointerId);
+  }
+
+  function handleBoardPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const pan = boardPanRef.current;
+    const scroller = boardScrollRef.current;
+
+    if (!pan || !scroller || pan.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    scroller.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+  }
+
+  function finishBoardPan(event: React.PointerEvent<HTMLDivElement>) {
+    const pan = boardPanRef.current;
+    const scroller = boardScrollRef.current;
+
+    if (!pan || pan.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (scroller?.hasPointerCapture(event.pointerId)) {
+      scroller.releasePointerCapture(event.pointerId);
+    }
+
+    boardPanRef.current = null;
+  }
+
   return (
-    <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="flex min-h-[calc(100vh-3rem)] w-full flex-col gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <Header
-          title="Ordens de serviço"
-          description="Acompanhe o fluxo de trabalho dos mecânicos por etapa."
+          title="Controle de pátio"
+          description="Acompanhe orçamentos e ordens de serviço da semana."
         />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 gap-1" asChild>
+            <Link href="/ordens-servico/novo">
+              <Plus className="size-3.5" />
+              Nova OS
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            aria-label="Atualizar ordens de serviço"
+            onClick={() =>
+              queryClient.invalidateQueries({ queryKey: ["service-orders"] })
+            }
+          >
+            <RefreshCw className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <form
         onSubmit={handleSearch}
-        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center"
+        className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-sm lg:flex-row lg:items-center"
       >
-        <div className="flex-1">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por cliente, veículo, mecânico, responsável ou OS..."
+            placeholder="Pesquisar por OS, cliente, veículo, placa, mecânico ou responsável"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            className="h-9 text-sm"
+            className="h-9 rounded-md pl-8 text-sm"
           />
         </div>
 
-        <div className="w-full sm:w-56">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,12rem)_auto]">
           <Select value={status} onValueChange={handleStatusChange}>
             <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder="Status" />
@@ -175,83 +395,202 @@ export default function ServiceOrdersPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="w-full sm:w-56">
-          <Select
-            value={includeArchived ? "COM_HISTORICO" : "OPERACIONAL"}
-            onValueChange={handleArchivedChange}
+          <Button
+            type="submit"
+            variant="secondary"
+            size="lg"
+            className="h-9 gap-1"
           >
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Visão" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="OPERACIONAL">Só operação ativa</SelectItem>
-              <SelectItem value="COM_HISTORICO">Incluir histórico</SelectItem>
-            </SelectContent>
-          </Select>
+            <SlidersHorizontal className="size-3.5" />
+            Filtrar
+          </Button>
         </div>
-
-        <Button type="submit" variant="secondary" size="sm" className="h-9 px-5 font-medium">
-          Buscar
-        </Button>
       </form>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        {isLoading && (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-primary/20 bg-[color-mix(in_oklab,var(--primary)_18%,var(--card))] p-2 shadow-sm">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1 text-foreground">
+          <div className="flex items-center gap-2 text-xs">
+            <Circle className="size-2.5 fill-primary text-primary" />
+            <span className="font-medium">
+              {(data?.total ?? 0) + (estimatesData?.total ?? 0)} itens da semana
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Arraste uma OS para outra coluna para alterar a etapa.
+          </p>
+        </div>
+
+        {(isLoading || isLoadingEstimates) && (
+          <div className="flex min-h-96 items-center justify-center gap-2 rounded-md border border-primary/15 bg-card/75 text-sm text-muted-foreground">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            Carregando ordens de serviço...
+            Carregando painel da semana...
           </div>
         )}
 
         {isError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error instanceof Error
               ? error.message
               : "Erro ao carregar ordens de serviço."}
           </div>
         )}
 
-        {data && data.items.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="opacity-40"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6M9 15h6M9 11h2" />
-            </svg>
-            Nenhuma ordem de serviço encontrada para os filtros aplicados.
+        {isEstimateError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {estimateError instanceof Error
+              ? estimateError.message
+              : "Erro ao carregar orçamentos."}
           </div>
         )}
 
+        {data &&
+          estimatesData &&
+          data.items.length === 0 &&
+          estimatesData.items.length === 0 &&
+          !isLoading &&
+          !isLoadingEstimates && (
+          <div className="flex min-h-96 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-primary/25 bg-card/75 px-4 text-center text-sm text-muted-foreground">
+            <FileText className="size-8 opacity-60" />
+            Nenhum orçamento ou ordem de serviço encontrado nesta semana.
+          </div>
+        )}
 
-        {data && data.items.length > 0 && (
-          <div className="overflow-x-auto pb-2">
+        {data && estimatesData && (data.items.length > 0 || estimatesData.items.length > 0) && (
+          <div
+            ref={boardScrollRef}
+            onPointerDown={handleBoardPointerDown}
+            onPointerMove={handleBoardPointerMove}
+            onPointerUp={finishBoardPan}
+            onPointerCancel={finishBoardPan}
+            className="min-h-0 flex-1 cursor-grab overflow-x-auto active:cursor-grabbing"
+          >
             <div
-              className={
-                includeArchived
-                  ? "grid min-w-345 grid-cols-6 gap-3"
-                  : "grid min-w-240 grid-cols-4 gap-3"
-              }
+              className={cn(
+                "grid min-h-[620px] gap-2",
+                "min-w-[1800px] grid-cols-9",
+              )}
             >
+              {estimateColumns.map((column) => {
+                const estimates = estimatesByStatus.get(column.status) ?? [];
+                const meta =
+                  column.status === "RASCUNHO"
+                    ? columnMeta.ABERTA
+                    : columnMeta.EM_ANDAMENTO;
+
+                return (
+                  <section
+                    key={column.status}
+                    className={cn(
+                      "flex min-h-0 flex-col rounded-md border p-2 transition-all",
+                      meta.surfaceClassName,
+                    )}
+                  >
+                    <header className="flex min-h-12 items-start justify-between gap-2 border-b border-black/10 pb-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "size-2.5 rounded-full",
+                              meta.accentClassName,
+                            )}
+                            aria-hidden="true"
+                          />
+                          <h2 className="truncate text-xs font-semibold uppercase text-foreground">
+                            {column.title}
+                          </h2>
+                        </div>
+                        <p className="mt-1 line-clamp-1 text-[0.6875rem] text-muted-foreground">
+                          {column.description}
+                        </p>
+                      </div>
+                      <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-card px-2 text-xs font-semibold text-foreground shadow-sm">
+                        {estimates.length}
+                      </span>
+                    </header>
+
+                    <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+                      {estimates.length === 0 ? (
+                        <div className="flex min-h-28 items-center justify-center rounded-md border border-dashed border-black/15 bg-white/50 px-3 text-center text-xs text-muted-foreground">
+                          Nenhum orçamento nesta etapa.
+                        </div>
+                      ) : null}
+
+                      {estimates.map((estimate) => {
+                        const statusOption = getEstimateStatusOption(estimate.status);
+
+                        return (
+                          <article
+                            key={estimate.id}
+                            data-service-order-card
+                            className="rounded-md border border-border bg-card p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="min-w-0 truncate font-mono text-[0.6875rem] font-semibold text-muted-foreground">
+                                ORÇ #{estimate.code}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className="max-w-24 shrink-0 truncate border-primary/20 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))] text-[0.625rem] text-foreground"
+                              >
+                                {statusOption.label}
+                              </Badge>
+                            </div>
+
+                            <h3
+                              className="mt-1 truncate text-sm font-semibold leading-tight text-foreground"
+                              title={estimate.client?.name ?? "Cliente não informado"}
+                            >
+                              {estimate.client?.name ?? "Cliente não informado"}
+                            </h3>
+
+                            <div className="mt-1 grid gap-1 text-[0.6875rem]">
+                              <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                                <Car className="size-3.5 shrink-0" />
+                                <span className="truncate font-medium text-foreground">
+                                  {[estimate.vehicle?.plate, estimate.vehicle?.model]
+                                    .filter(Boolean)
+                                    .join(" - ") || "Veículo não informado"}
+                                </span>
+                              </p>
+                              <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                                <Wrench className="size-3.5 shrink-0" />
+                                <span className="truncate font-medium text-foreground">
+                                  {estimate.mechanic?.name ?? estimate.responsible}
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="mt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-7 w-full"
+                              >
+                                <Link href={`/orcamentos/${estimate.id}/detalhes`}>
+                                  <FileText className="size-3" />
+                                  Detalhes
+                                </Link>
+                              </Button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+
               {visibleColumns.map((column) => {
                 const orders = ordersByStatus.get(column.status) ?? [];
+                const meta = columnMeta[column.status];
 
                 return (
                   <section
                     key={column.status}
                     onDragOver={(event) => {
-                      if (!draggingOrderId) {
+                      if (!draggingOrderId || column.status === "PAGA") {
                         return;
                       }
 
@@ -260,160 +599,148 @@ export default function ServiceOrdersPage() {
                       setDragOverStatus(column.status);
                     }}
                     onDragLeave={(event) => {
-                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                      if (
+                        event.currentTarget.contains(
+                          event.relatedTarget as Node | null,
+                        )
+                      ) {
                         return;
                       }
 
                       setDragOverStatus(null);
                     }}
-                    onDrop={(event) => handleDrop(event, column.status)}
-                    className={`flex min-h-[520px] flex-col rounded-lg border p-3 transition-all ${column.className} ${
-                      dragOverStatus === column.status
-                        ? "ring-2 ring-primary ring-offset-2"
-                        : ""
-                    }`}
+                    onDrop={(event) => {
+                      if (column.status === "PAGA") {
+                        return;
+                      }
+
+                      handleDrop(event, column.status);
+                    }}
+                    className={cn(
+                      "flex min-h-0 flex-col rounded-md border p-2 transition-all",
+                      meta.surfaceClassName,
+                      dragOverStatus === column.status &&
+                        "ring-2 ring-primary ring-offset-2",
+                    )}
                   >
-                    <header className="space-y-1 border-b border-black/10 pb-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-semibold text-foreground">
-                          {column.title}
-                        </h2>
-                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-white px-2 text-xs font-semibold text-foreground shadow-sm">
-                          {orders.length}
-                        </span>
+                    <header className="flex min-h-12 items-start justify-between gap-2 border-b border-black/10 pb-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "size-2.5 rounded-full",
+                              meta.accentClassName,
+                            )}
+                            aria-hidden="true"
+                          />
+                          <h2 className="truncate text-xs font-semibold uppercase text-foreground">
+                            {column.title}
+                          </h2>
+                        </div>
+                        <p className="mt-1 line-clamp-1 text-[0.6875rem] text-muted-foreground">
+                          {column.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{column.description}</p>
+                      <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-card px-2 text-xs font-semibold text-foreground shadow-sm">
+                        {orders.length}
+                      </span>
                     </header>
 
-                    <div className="mt-3 flex flex-1 flex-col gap-3">
+                    <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
                       {orders.length === 0 ? (
-                        <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-black/15 bg-white/50 px-3 text-center text-xs text-muted-foreground">
+                        <div className="flex min-h-28 items-center justify-center rounded-md border border-dashed border-black/15 bg-white/50 px-3 text-center text-xs text-muted-foreground">
                           Nenhuma OS nesta etapa.
                         </div>
                       ) : null}
 
                       {orders.map((order) => {
-                        const statusOption = getServiceOrderStatusOption(order.status);
-                        const isChangingThis =
-                          statusMutation.isPending &&
-                          statusMutation.variables?.id === order.id;
-                        const isMissingEntryInspection = needsEntryInspection(order);
+                        const statusOption = getServiceOrderStatusOption(
+                          order.status,
+                        );
 
                         return (
                           <article
                             key={order.id}
+                            data-service-order-card
                             draggable={!statusMutation.isPending}
                             onDragStart={(event) => {
                               event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData("text/plain", order.id);
+                              event.dataTransfer.setData(
+                                "text/plain",
+                                order.id,
+                              );
                               setDraggingOrderId(order.id);
                             }}
                             onDragEnd={() => {
                               setDraggingOrderId(null);
                               setDragOverStatus(null);
                             }}
-                            className={`rounded-md border border-border bg-white p-3 shadow-sm transition-all ${
+                            className={cn(
+                              "rounded-md border border-border bg-card p-2 shadow-sm transition-all",
                               draggingOrderId === order.id
                                 ? "scale-[0.98] cursor-grabbing opacity-60"
-                                : "cursor-grab hover:-translate-y-0.5 hover:shadow-md"
-                            }`}
+                                : "cursor-grab hover:-translate-y-0.5 hover:shadow-md",
+                            )}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="font-mono text-xs font-semibold text-muted-foreground">
-                                  OS #{order.code}
-                                </p>
-                                <h3
-                                  className="mt-1 truncate text-sm font-semibold text-foreground"
-                                  title={order.client?.name ?? undefined}
-                                >
-                                  {order.client?.name ?? "-"}
-                                </h3>
-                              </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="min-w-0 truncate font-mono text-[0.6875rem] font-semibold text-muted-foreground">
+                                #{order.code}
+                              </p>
                               <Badge
-                                variant={statusOption.variant}
-                                className={`shrink-0 text-[10px] ${statusOption.className ?? ""}`}
+                                variant="outline"
+                                className={cn(
+                                  "max-w-24 shrink-0 truncate border-primary/20 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))] text-[0.625rem] text-foreground",
+                                )}
                               >
                                 {statusOption.label}
                               </Badge>
                             </div>
 
-                            <dl className="mt-3 space-y-2 text-xs">
-                              <div>
-                                <dt className="text-muted-foreground">Veículo</dt>
-                                <dd className="font-medium text-foreground">
-                                  {order.vehicle?.plate ?? "-"}
-                                  {order.vehicle?.model ? ` - ${order.vehicle.model}` : ""}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted-foreground">Mecânico</dt>
-                                <dd className="font-medium text-foreground">
-                                  {order.mechanic?.name ?? "-"}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted-foreground">Entrada</dt>
-                                <dd className="font-mono text-foreground">
-                                  {formatDateTime(order.entryAt)} {formatDateTime(order.entryAt)}
-                                </dd>
-                              </div>
-                            </dl>
+                            <h3
+                              className="mt-1 truncate text-sm font-semibold leading-tight text-foreground"
+                              title={getOrderSubtitle(order)}
+                            >
+                              {getOrderSubtitle(order)}
+                            </h3>
 
-                            {isMissingEntryInspection ? (
-                              <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-900">
-                                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                                <span>Verificação de entrada pendente.</span>
-                              </div>
-                            ) : null}
-
-                            <div className="mt-3">
-                              <Select
-                                value={order.status}
-                                disabled={isChangingThis}
-                                onValueChange={(value) => {
-                                  if (value === order.status) {
-                                    return;
-                                  }
-
-                                  statusMutation.mutate({
-                                    id: order.id,
-                                    status: value as ServiceOrderStatus,
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 w-full bg-white text-xs">
-                                  <SelectValue placeholder="Mover para" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {editableServiceOrderStatusOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                            <div className="mt-1 grid gap-1 text-[0.6875rem]">
+                              <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                                <Car className="size-3.5 shrink-0" />
+                                <span className="truncate font-medium text-foreground">
+                                  {getVehicleLabel(order)}
+                                </span>
+                              </p>
+                              <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                                <Wrench className="size-3.5 shrink-0" />
+                                <span className="truncate font-medium text-foreground">
+                                  {order.mechanic?.name ?? "Sem mecânico"}
+                                </span>
+                              </p>
                             </div>
 
-                            <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 asChild
-                                className="h-8 px-2 text-xs"
+                                className="h-7"
                               >
-                                <Link href={`/ordens-servico/${order.id}/detalhes`}>
+                                <Link
+                                  href={`/ordens-servico/${order.id}/detalhes`}
+                                >
+                                  <FileText className="size-3" />
                                   Detalhes
                                 </Link>
                               </Button>
                               <Button
                                 type="button"
                                 variant="secondary"
-                                size="sm"
-                                className="h-8 px-2 text-xs"
+                                size="icon-sm"
+                                className="h-7 w-8 bg-primary text-primary-foreground hover:bg-primary/80"
+                                aria-label={`Abrir relatório da OS ${order.code}`}
                                 onClick={() => setReportOrder(order)}
                               >
-                                Relatório
+                                <FileText className="size-3.5" />
                               </Button>
                             </div>
                           </article>
@@ -431,7 +758,10 @@ export default function ServiceOrdersPage() {
       {data && totalPages > 1 && (
         <div className="mt-auto flex flex-col items-center justify-between gap-3 border-t border-border pt-3 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            Página <span className="font-medium text-foreground">{data.page ?? page}</span>{" "}
+            Página{" "}
+            <span className="font-medium text-foreground">
+              {data.page ?? page}
+            </span>{" "}
             de <span className="font-medium text-foreground">{totalPages}</span>
             {data.total ? ` - ${data.total} ordens de serviço` : ""}
           </p>
@@ -444,7 +774,7 @@ export default function ServiceOrdersPage() {
               disabled={page <= 1}
               className="h-8 gap-1 px-3 text-xs"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+              <ChevronLeft className="size-3" />
               Anterior
             </Button>
             <Button
@@ -455,7 +785,7 @@ export default function ServiceOrdersPage() {
               className="h-8 gap-1 px-3 text-xs"
             >
               Próxima
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <ChevronRight className="size-3" />
             </Button>
           </div>
         </div>

@@ -39,8 +39,18 @@ function normalizeString(value: unknown) {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/\s+/g, " ");
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeDescription(value: unknown) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return `${normalized.charAt(0).toLocaleUpperCase("pt-BR")}${normalized.slice(1)}`;
 }
 
 function normalizeNumber(value: unknown) {
@@ -197,6 +207,47 @@ function normalizePaymentMethod(value: unknown) {
   return normalized as SalePaymentMethod;
 }
 
+async function validateCategoryName(
+  tenantId: string,
+  name: string | null,
+  type: FinancialAccountType
+) {
+  if (!name) {
+    return {
+      error: Response.json({ error: "Categoria é obrigatória." }, { status: 400 }),
+      categoryName: null,
+    };
+  }
+
+  const compatibleTypes = type === "RECEBER" ? ["RECEITA", "AMBOS"] : ["DESPESA", "AMBOS"];
+  const category = await prisma.financialCategory.findFirst({
+    where: {
+      tenantId,
+      name: { equals: name, mode: "insensitive" },
+      active: true,
+      type: { in: compatibleTypes },
+    },
+    select: { name: true },
+  });
+
+  if (!category) {
+    return {
+      error: Response.json(
+        {
+          error:
+            type === "RECEBER"
+              ? "Selecione uma categoria ativa de receita."
+              : "Selecione uma categoria ativa de despesa.",
+        },
+        { status: 400 }
+      ),
+      categoryName: null,
+    };
+  }
+
+  return { error: null, categoryName: category.name };
+}
+
 async function normalizePaidSummary<
   TSummary extends Array<{
     type: FinancialAccountType;
@@ -333,13 +384,14 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json()) as Record<string, unknown>;
   const type = normalizeType(payload.type);
   const status = normalizeStatus(payload.status) ?? "ABERTA";
-  const description = normalizeString(payload.description);
+  const description = normalizeDescription(payload.description);
   const dueDate = normalizeDate(payload.dueDate);
   const paymentDate = normalizeDate(payload.paymentDate);
   const amount = normalizeMoney(payload.amount);
   const paidAmount = normalizeMoney(payload.paidAmount);
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
   const clientId = normalizeString(payload.clientId);
+  const category = normalizeString(payload.category);
 
   if (!type) {
     return Response.json({ error: "Tipo de conta inválido." }, { status: 400 });
@@ -359,6 +411,11 @@ export async function POST(request: NextRequest) {
 
   if (paymentMethod === undefined) {
     return Response.json({ error: "Forma de pagamento invalida." }, { status: 400 });
+  }
+
+  const categoryValidation = await validateCategoryName(tenant.tenantId, category, type);
+  if (categoryValidation.error) {
+    return categoryValidation.error;
   }
 
   if (clientId) {
@@ -381,7 +438,7 @@ export async function POST(request: NextRequest) {
         description,
         clientId,
         counterparty: normalizeString(payload.counterparty),
-        category: normalizeString(payload.category),
+        category: categoryValidation.categoryName,
         documentNumber: normalizeString(payload.documentNumber),
         dueDate,
         paymentDate,

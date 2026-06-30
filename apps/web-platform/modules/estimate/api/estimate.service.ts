@@ -49,6 +49,8 @@ export async function fetchEstimates(params: {
   search?: string;
   status?: string;
   visibility?: EstimateVisibility;
+  from?: string;
+  to?: string;
 }) {
   const query = toQuery({
     page: params.page ?? 1,
@@ -56,6 +58,8 @@ export async function fetchEstimates(params: {
     search: params.search,
     status: params.status,
     visibility: params.visibility,
+    from: params.from,
+    to: params.to,
   });
 
   const response = await fetch(`/api/estimates?${query}`, {

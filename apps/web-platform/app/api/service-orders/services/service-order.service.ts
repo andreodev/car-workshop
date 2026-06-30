@@ -32,8 +32,10 @@ function buildServiceOrderWhere(params: {
   search: string;
   status: string | null;
   includeArchived: boolean;
+  from: Date | null;
+  to: Date | null;
 }) {
-  const { search, status, includeArchived } = params;
+  const { search, status, includeArchived, from, to } = params;
   const where: Prisma.ServiceOrderWhereInput = {};
 
   if (status && status !== "TODOS") {
@@ -68,7 +70,26 @@ function buildServiceOrderWhere(params: {
     where.OR = or;
   }
 
+  if (from || to) {
+    where.entryAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lte: to } : {}),
+    };
+  }
+
   return { data: where };
+}
+
+function parseOptionalDate(value: string | null) {
+  const normalized = normalizeString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const date = new Date(normalized);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function validateCatalogItems(items: ParsedServiceOrderItems["items"], tenantId: string) {
@@ -256,6 +277,10 @@ async function buildServiceOrderData(
     return serviceError(status.error, 400);
   }
 
+  if (status.value === "PAGA") {
+    return serviceError("O status PAGA é definido pelo fluxo de pagamento.", 400);
+  }
+
   const client = await serviceOrderRepository.findClientById(clientId, tenantId);
 
   if (!client) {
@@ -363,7 +388,15 @@ export const serviceOrderService = {
     const search = normalizeString(searchParams.get("search")) ?? "";
     const status = normalizeString(searchParams.get("status"));
     const includeArchived = searchParams.get("includeArchived") === "true";
-    const where = buildServiceOrderWhere({ search, status, includeArchived });
+    const from = parseOptionalDate(searchParams.get("from"));
+    const to = parseOptionalDate(searchParams.get("to"));
+    const where = buildServiceOrderWhere({
+      search,
+      status,
+      includeArchived,
+      from,
+      to,
+    });
 
     if ("error" in where) {
       return where;
@@ -444,6 +477,10 @@ export const serviceOrderService = {
 
     if (status.error) {
       return serviceError(status.error, 400);
+    }
+
+    if (status.value === "PAGA") {
+      return serviceError("O status PAGA é definido pelo fluxo de pagamento.", 400);
     }
 
     return runStockSafe(async () =>

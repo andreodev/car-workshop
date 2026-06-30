@@ -7,6 +7,7 @@ export const serviceOrderStatuses = [
   "IMPEDIDA",
   "FINALIZADA",
   "CANCELADA",
+  "PAGA",
 ] as const;
 
 export type ServiceOrderStatusValue = (typeof serviceOrderStatuses)[number];
