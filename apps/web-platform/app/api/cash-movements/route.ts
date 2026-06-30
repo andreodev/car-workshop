@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import {
   Prisma,
   type CashMovementType,
+  type FinancialCategoryType,
   type SalePaymentMethod,
 } from "@prisma/client";
 
@@ -151,7 +152,8 @@ async function validateCategoryId(
     };
   }
 
-  const compatibleTypes = type === "ENTRADA" ? ["RECEITA", "AMBOS"] : ["DESPESA", "AMBOS"];
+  const compatibleTypes: FinancialCategoryType[] =
+    type === "ENTRADA" ? ["RECEITA", "AMBOS"] : ["DESPESA", "AMBOS"];
   const category = await prisma.financialCategory.findFirst({
     where: {
       id: categoryId,
