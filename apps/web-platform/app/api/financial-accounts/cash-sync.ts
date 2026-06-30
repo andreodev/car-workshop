@@ -44,6 +44,7 @@ export async function syncFinancialAccountCashMovement(
       description: true,
       category: true,
       documentNumber: true,
+      paymentDate: true,
       paymentMethod: true,
       client: { select: { name: true } },
       supplier: { select: { name: true } },
@@ -118,7 +119,7 @@ export async function syncFinancialAccountCashMovement(
             : account.supplierOrder?.code
               ? `Pagamento pedido #${account.supplierOrder.code}`
               : `Pagamento conta #${account.code}`,
-      movementDate: new Date(),
+      movementDate: account.paymentDate ?? new Date(),
       amount,
       paymentMethod: account.paymentMethod,
       documentNumber: account.documentNumber ?? `FIN-${account.code}`,
