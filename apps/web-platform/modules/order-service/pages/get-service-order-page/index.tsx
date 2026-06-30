@@ -58,6 +58,22 @@ import {
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
+type PeriodFilter = "DIA" | "SEMANA" | "MES" | "PERSONALIZADO";
+
+const periodOptions: Array<{
+  value: PeriodFilter;
+  label: string;
+  summaryLabel: string;
+}> = [
+  { value: "DIA", label: "Dia", summaryLabel: "do dia" },
+  { value: "SEMANA", label: "Semana", summaryLabel: "da semana" },
+  { value: "MES", label: "Mês", summaryLabel: "do mês" },
+  {
+    value: "PERSONALIZADO",
+    label: "Personalizado",
+    summaryLabel: "do período",
+  },
+];
 
 const estimateColumns: Array<{
   status: EstimateStatus;
@@ -135,16 +151,62 @@ function getOrderSubtitle(order: ServiceOrder) {
   return order.client?.name ?? order.responsible ?? "Cliente não informado";
 }
 
-function getCurrentWeekRange() {
-  const now = new Date();
-  const day = now.getDay();
-  const distanceFromMonday = day === 0 ? 6 : day - 1;
-  const from = new Date(now);
-  from.setDate(now.getDate() - distanceFromMonday);
-  from.setHours(0, 0, 0, 0);
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
+  return `${year}-${month}-${day}`;
+}
+
+function getPeriodRange(
+  period: PeriodFilter,
+  customRange?: { from: string; to: string },
+) {
+  if (period === "PERSONALIZADO") {
+    const fromDate = customRange?.from
+      ? new Date(`${customRange.from}T00:00:00`)
+      : null;
+    const toDate = customRange?.to ? new Date(`${customRange.to}T23:59:59.999`) : null;
+
+    return {
+      from:
+        fromDate && !Number.isNaN(fromDate.getTime())
+          ? fromDate.toISOString()
+          : undefined,
+      to:
+        toDate && !Number.isNaN(toDate.getTime())
+          ? toDate.toISOString()
+          : undefined,
+    };
+  }
+
+  const now = new Date();
+  const from = new Date(now);
   const to = new Date(from);
-  to.setDate(from.getDate() + 6);
+
+  if (period === "DIA") {
+    from.setHours(0, 0, 0, 0);
+    to.setHours(23, 59, 59, 999);
+  }
+
+  if (period === "SEMANA") {
+    const day = now.getDay();
+    const distanceFromMonday = day === 0 ? 6 : day - 1;
+    from.setDate(now.getDate() - distanceFromMonday);
+    from.setHours(0, 0, 0, 0);
+    to.setTime(from.getTime());
+    to.setDate(from.getDate() + 6);
+    to.setHours(23, 59, 59, 999);
+  }
+
+  if (period === "MES") {
+    from.setDate(1);
+    from.setHours(0, 0, 0, 0);
+    to.setMonth(from.getMonth() + 1, 0);
+    to.setHours(23, 59, 59, 999);
+  }
+
   to.setHours(23, 59, 59, 999);
 
   return {
@@ -162,7 +224,21 @@ export default function ServiceOrdersPage() {
     scrollLeft: number;
   } | null>(null);
   const [page, setPage] = useState(1);
+  const [statusInput, setStatusInput] = useState<StatusFilter>("TODOS");
   const [status, setStatus] = useState<StatusFilter>("TODOS");
+  const [periodInput, setPeriodInput] = useState<PeriodFilter>("SEMANA");
+  const [period, setPeriod] = useState<PeriodFilter>("SEMANA");
+  const [customFromInput, setCustomFromInput] = useState(() =>
+    toDateInputValue(new Date()),
+  );
+  const [customToInput, setCustomToInput] = useState(() =>
+    toDateInputValue(new Date()),
+  );
+  const [customRange, setCustomRange] = useState(() => {
+    const today = toDateInputValue(new Date());
+
+    return { from: today, to: today };
+  });
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
@@ -173,10 +249,16 @@ export default function ServiceOrdersPage() {
     () => [...boardColumns, ...archivedBoardColumns],
     [],
   );
-  const weekRange = useMemo(() => getCurrentWeekRange(), []);
+  const periodRange = useMemo(
+    () => getPeriodRange(period, customRange),
+    [customRange, period],
+  );
+  const periodSummary =
+    periodOptions.find((option) => option.value === period)?.summaryLabel ??
+    "da semana";
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["service-orders", { page, status, search, weekRange }],
+    queryKey: ["service-orders", { page, status, search, period, periodRange }],
     queryFn: () =>
       fetchServiceOrders({
         page,
@@ -184,8 +266,8 @@ export default function ServiceOrdersPage() {
         status,
         search,
         includeArchived: true,
-        from: weekRange.from,
-        to: weekRange.to,
+        from: periodRange.from,
+        to: periodRange.to,
       }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
@@ -196,15 +278,15 @@ export default function ServiceOrdersPage() {
     isError: isEstimateError,
     error: estimateError,
   } = useQuery({
-    queryKey: ["yard-estimates", { search, weekRange }],
+    queryKey: ["yard-estimates", { search, period, periodRange }],
     queryFn: () =>
       fetchEstimates({
         page: 1,
         pageSize: PAGE_SIZE,
         search,
         visibility: "ATIVOS",
-        from: weekRange.from,
-        to: weekRange.to,
+        from: periodRange.from,
+        to: periodRange.to,
       }),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
@@ -255,12 +337,13 @@ export default function ServiceOrdersPage() {
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
+    setStatus(statusInput);
+    setPeriod(periodInput);
+    setCustomRange({
+      from: customFromInput,
+      to: customToInput,
+    });
     setSearch(searchInput.trim());
-  }
-
-  function handleStatusChange(value: string) {
-    setStatus(value as StatusFilter);
-    setPage(1);
   }
 
   function moveOrderToStatus(orderId: string, nextStatus: ServiceOrderStatus) {
@@ -343,7 +426,7 @@ export default function ServiceOrdersPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <Header
           title="Controle de pátio"
-          description="Acompanhe orçamentos e ordens de serviço da semana."
+          description="Acompanhe orçamentos e ordens de serviço por período."
         />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -358,9 +441,10 @@ export default function ServiceOrdersPage() {
             variant="outline"
             size="icon-lg"
             aria-label="Atualizar ordens de serviço"
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: ["service-orders"] })
-            }
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["service-orders"] });
+              queryClient.invalidateQueries({ queryKey: ["yard-estimates"] });
+            }}
           >
             <RefreshCw className="size-4" />
           </Button>
@@ -381,8 +465,18 @@ export default function ServiceOrdersPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,12rem)_auto]">
-          <Select value={status} onValueChange={handleStatusChange}>
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-2",
+            periodInput === "PERSONALIZADO"
+              ? "sm:grid-cols-[minmax(0,12rem)_minmax(0,11rem)_minmax(0,9rem)_minmax(0,9rem)_auto]"
+              : "sm:grid-cols-[minmax(0,12rem)_minmax(0,11rem)_auto]",
+          )}
+        >
+          <Select
+            value={statusInput}
+            onValueChange={(value) => setStatusInput(value as StatusFilter)}
+          >
             <SelectTrigger className="h-9 text-sm">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -395,6 +489,41 @@ export default function ServiceOrdersPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <Select
+            value={periodInput}
+            onValueChange={(value) => setPeriodInput(value as PeriodFilter)}
+          >
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              {periodOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {periodInput === "PERSONALIZADO" ? (
+            <>
+              <Input
+                type="date"
+                value={customFromInput}
+                onChange={(event) => setCustomFromInput(event.target.value)}
+                className="h-9 text-sm"
+                aria-label="Data inicial"
+              />
+              <Input
+                type="date"
+                value={customToInput}
+                onChange={(event) => setCustomToInput(event.target.value)}
+                className="h-9 text-sm"
+                aria-label="Data final"
+              />
+            </>
+          ) : null}
 
           <Button
             type="submit"
@@ -413,7 +542,7 @@ export default function ServiceOrdersPage() {
           <div className="flex items-center gap-2 text-xs">
             <Circle className="size-2.5 fill-primary text-primary" />
             <span className="font-medium">
-              {(data?.total ?? 0) + (estimatesData?.total ?? 0)} itens da semana
+              {(data?.total ?? 0) + (estimatesData?.total ?? 0)} itens {periodSummary}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -424,7 +553,7 @@ export default function ServiceOrdersPage() {
         {(isLoading || isLoadingEstimates) && (
           <div className="flex min-h-96 items-center justify-center gap-2 rounded-md border border-primary/15 bg-card/75 text-sm text-muted-foreground">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            Carregando painel da semana...
+            Carregando painel {periodSummary}...
           </div>
         )}
 
@@ -452,7 +581,7 @@ export default function ServiceOrdersPage() {
           !isLoadingEstimates && (
           <div className="flex min-h-96 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-primary/25 bg-card/75 px-4 text-center text-sm text-muted-foreground">
             <FileText className="size-8 opacity-60" />
-            Nenhum orçamento ou ordem de serviço encontrado nesta semana.
+            Nenhum orçamento ou ordem de serviço encontrado neste período.
           </div>
         )}
 
